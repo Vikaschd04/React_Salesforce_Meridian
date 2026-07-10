@@ -1,15 +1,14 @@
 /**
- * Mock catalog for Meridian (Phase 1).
+ * Server-owned mock catalog for Meridian (Phase 2).
  *
- * This is the ONLY place raw product data lives. Nothing outside of
- * src/api/store.js is allowed to import this file — the store module is the
- * single swap point that later becomes a BFF call, then a Salesforce query.
+ * The BFF is now the source of truth for products and prices — the front end
+ * no longer holds this data. In Phase 3 store/catalog.js swaps this mock for a
+ * Salesforce query; this file goes away then.
  *
- * Conventions (see CLAUDE.md):
- *  - Money is stored as integer cents. Format only at display time.
- *  - `lat` / `lng` are decimal degrees of the origin farm; the UI renders them
- *    as the signature coordinate label.
- *  - `image` is a bundled photo in /public/products (served at /products/*.jpg).
+ * Conventions:
+ *  - Money is stored as integer cents. The client never sets prices.
+ *  - `lat` / `lng` are decimal degrees of the origin farm (UI coordinate label).
+ *  - `image` is a path served by the front end from /public/products/*.jpg.
  *  - `accent` is the origin's tint, shown behind the photo while it loads.
  */
 

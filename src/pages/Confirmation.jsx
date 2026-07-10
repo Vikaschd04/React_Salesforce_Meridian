@@ -1,10 +1,29 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
+import { getOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 
 export default function Confirmation() {
   const { orderId } = useParams()
   const { state } = useLocation()
-  const order = state?.order // present when arriving from checkout; absent on refresh
+  // Present when arriving straight from checkout; absent on a refresh / shared link.
+  const [order, setOrder] = useState(state?.order ?? null)
+  const [loading, setLoading] = useState(!state?.order)
+  const [notFound, setNotFound] = useState(false)
+
+  useEffect(() => {
+    if (state?.order) return // already have the receipt from checkout
+    let alive = true
+    setLoading(true)
+    setNotFound(false)
+    getOrder(orderId)
+      .then((data) => alive && setOrder(data))
+      .catch(() => alive && setNotFound(true))
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [orderId, state])
 
   return (
     <div className="container confirm">
@@ -52,6 +71,14 @@ export default function Confirmation() {
               <span>{formatCents(order.totalCents)}</span>
             </div>
           </>
+        )}
+
+        {!order && loading && <p className="confirm__text">Loading your receipt…</p>}
+        {!order && !loading && notFound && (
+          <p className="confirm__text">
+            We couldn’t retrieve the details for this order, but your reference above is
+            confirmed.
+          </p>
         )}
       </div>
 
