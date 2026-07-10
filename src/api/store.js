@@ -34,6 +34,8 @@ async function request(path, options) {
   let res
   try {
     res = await fetch(`${API_BASE}${path}`, {
+      // Send the session cookie so the BFF can identify a logged-in shopper.
+      credentials: 'include',
       headers: { Accept: 'application/json', ...(options?.body ? { 'Content-Type': 'application/json' } : {}) },
       ...options,
     })
@@ -89,4 +91,45 @@ export async function placeOrder(items) {
 /** Fetch an order by id (order status / receipt). Throws StoreError(404) if missing. */
 export async function getOrder(id) {
   return request(`/orders/${encodeURIComponent(id)}`)
+}
+
+// ---- Auth (shopper accounts) ----
+
+/** Create a shopper account and start a session. Returns the user profile. */
+export async function signup({ firstName, lastName, email, password }) {
+  return request('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ firstName, lastName, email, password }),
+  })
+}
+
+/** Log in; returns the user profile and sets the session cookie. */
+export async function login({ email, password }) {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+/** End the session. */
+export async function logout() {
+  return request('/auth/logout', { method: 'POST' })
+}
+
+/**
+ * Return the current shopper's profile, or null if not logged in.
+ * A 401 is the normal "logged out" case — not an error to surface.
+ */
+export async function getMe() {
+  try {
+    return await request('/auth/me')
+  } catch (err) {
+    if (err instanceof StoreError && (err.status === 401 || err.status === 0)) return null
+    throw err
+  }
+}
+
+/** List the logged-in shopper's orders (most recent first). */
+export async function getMyOrders() {
+  return request('/account/orders')
 }

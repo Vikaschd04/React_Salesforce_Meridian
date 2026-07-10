@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
@@ -11,6 +12,7 @@ const SHIP_FLAT_CENTS = 600
 
 export default function Cart() {
   const { lines, items, totalCents, setQty, removeItem, clear } = useCart()
+  const { isAuthed, user } = useAuth()
   const navigate = useNavigate()
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState(null)
@@ -105,6 +107,22 @@ export default function Cart() {
           <div className="summary__row summary__row--total">
             <span>Total</span>
             <span>{formatCents(grandTotalCents)}</span>
+          </div>
+
+          <div className="summary__auth">
+            {isAuthed ? (
+              <p className="summary__signedin">
+                Checking out as <strong>{user.firstName || user.email}</strong> — this order
+                will appear in your history.
+              </p>
+            ) : (
+              <p className="summary__guest">
+                <Link to="/login" state={{ from: '/cart' }}>
+                  Log in
+                </Link>{' '}
+                to save this order to your account, or continue as a guest below.
+              </p>
+            )}
           </div>
 
           {error && (

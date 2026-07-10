@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { getProduct } from '../api/store.js'
 import { useCart } from '../context/CartContext.jsx'
 import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
+import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 import Spinner from '../components/Spinner.jsx'
 import ErrorState from '../components/ErrorState.jsx'
@@ -41,13 +42,13 @@ export default function ProductDetail() {
 
   return (
     <div className="container detail-wrap">
-      <p className="crumb">
-        <Link to="/" className="crumb__link">
-          Coffee
-        </Link>
-        <span aria-hidden="true"> / </span>
-        <span>{product ? product.name : '…'}</span>
-      </p>
+      <Breadcrumbs
+        items={[
+          { label: 'Home', to: '/' },
+          { label: 'Shop', to: '/shop' },
+          { label: product ? product.name : '…' },
+        ]}
+      />
 
       {error ? (
         <ErrorState
