@@ -7,7 +7,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "seed": "node src/sf/seed.js",
+    "sf:check": "node src/sf/check.js"
   },
   "engines": {
     "node": ">=18"

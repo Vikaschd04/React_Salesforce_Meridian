@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { createOrder, getOrder } from '../store/orders.js'
-import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
+import { asyncHandler, badRequest } from '../lib/errors.js'
 
 const router = Router()
 
@@ -39,9 +39,7 @@ router.post(
 router.get(
   '/orders/:id',
   asyncHandler(async (req, res) => {
-    const order = getOrder(req.params.id)
-    if (!order) throw notFoundError(`Order "${req.params.id}" was not found.`)
-    res.json(order)
+    res.json(await getOrder(req.params.id))
   }),
 )
 
