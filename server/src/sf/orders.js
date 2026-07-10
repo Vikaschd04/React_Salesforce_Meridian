@@ -41,7 +41,7 @@ const apiPath = () => `/services/data/v${config.salesforce.apiVersion}`
 /**
  * Create an Order from validated cart items: [{ id, qty }].
  * `auth` is optional { contactId }; when present the order is linked to that
- * Contact via the standard BillToContactId so it shows up in order history.
+ * Contact via the custom Order.Shopper__c lookup so it shows up in order history.
  */
 export async function createOrder(items, auth = null) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -77,7 +77,7 @@ export async function createOrder(items, auth = null) {
         EffectiveDate: new Date().toISOString().slice(0, 10),
         Status: 'Draft',
         Total_Cents__c: totalCents,
-        ...(auth?.contactId ? { BillToContactId: auth.contactId } : {}),
+        ...(auth?.contactId ? { Shopper__c: auth.contactId } : {}),
       },
     },
     ...lines.map(({ product, qty }, i) => ({
@@ -142,7 +142,7 @@ export async function listOrdersForContact(contactId) {
   return withConn(async (conn) => {
     const orders = await conn.query(
       `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c
-       FROM Order WHERE BillToContactId = '${safe}' ORDER BY CreatedDate DESC LIMIT 50`,
+       FROM Order WHERE Shopper__c = '${safe}' ORDER BY CreatedDate DESC LIMIT 50`,
     )
     if (orders.records.length === 0) return []
     const ids = orders.records.map((o) => `'${o.Id}'`).join(', ')

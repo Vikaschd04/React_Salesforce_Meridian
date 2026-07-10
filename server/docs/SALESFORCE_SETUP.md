@@ -74,8 +74,16 @@ Shoppers are stored as **Contacts**. Add one custom field:
   of the shopper's password (never plaintext, never sent to the browser).
 
 Give the integration user create/read access to Contact and to this field.
-Logged-in checkouts set the standard `Order.BillToContactId` to the shopper's
-Contact, which is how order history is queried — no extra field needed.
+
+Logged-in checkouts also link each Order to the shopper via a custom
+`Order.Shopper__c` (Lookup → Contact), which is how order history is queried.
+You don't need to create it by hand — run:
+```
+cd server
+npm run sf:setup     # creates Order.Shopper__c + grants the Run-As user access
+```
+(If your integration user can't modify metadata, create `Order.Shopper__c`
+manually as a Lookup to Contact and give the Run-As user field access.)
 
 Also set session env in `server/.env`:
 ```

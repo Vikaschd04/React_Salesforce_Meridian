@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import AuthForm from '../components/AuthForm.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
+
+const BENEFITS = [
+  'Track every order from roast to doorstep',
+  'Reorder your favourites in one click',
+  'Your coordinates, saved for next time',
+]
 
 export default function Signup() {
   const { signup } = useAuth()
@@ -34,12 +41,20 @@ export default function Signup() {
 
   return (
     <div className="container auth-page">
-      <div className="auth-card">
-        <span className="meridian-rule">Join Meridian</span>
-        <h1 className="auth-card__title">Create your account</h1>
-        <p className="auth-card__sub">
-          Track orders and reorder your favourites. It takes a few seconds.
-        </p>
+      <AuthLayout
+        eyebrow="Join Meridian"
+        title="Create your account"
+        subtitle="Track orders and reorder your favourites. It takes a few seconds."
+        benefits={BENEFITS}
+        footer={
+          <p className="auth-card__alt">
+            Already have an account?{' '}
+            <Link to="/login" state={{ from: redirectTo }}>
+              Log in
+            </Link>
+          </p>
+        }
+      >
         <AuthForm
           mode="signup"
           values={values}
@@ -48,13 +63,7 @@ export default function Signup() {
           submitting={submitting}
           error={error}
         />
-        <p className="auth-card__alt">
-          Already have an account?{' '}
-          <Link to="/login" state={{ from: redirectTo }}>
-            Log in
-          </Link>
-        </p>
-      </div>
+      </AuthLayout>
     </div>
   )
 }

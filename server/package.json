@@ -9,6 +9,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed": "node src/sf/seed.js",
+    "sf:setup": "node src/sf/setup-schema.js",
     "sf:check": "node src/sf/check.js"
   },
   "engines": {
