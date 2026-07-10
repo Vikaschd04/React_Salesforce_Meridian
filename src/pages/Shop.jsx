@@ -128,8 +128,8 @@ export default function Shop() {
             </div>
           ) : (
             <ul className="grid">
-              {visible.map((product) => (
-                <li key={product.id}>
+              {visible.map((product, i) => (
+                <li key={product.id} style={{ '--n': i }}>
                   <ProductCard product={product} />
                 </li>
               ))}

@@ -5,7 +5,7 @@
  * shift, no flash of empty box), and object-fit covers so any aspect ratio
  * fills its frame. Falls back to the accent block if the image ever fails.
  */
-export default function ProductImage({ product, className = '', sizes, loading = 'lazy' }) {
+export default function ProductImage({ product, className = '', sizes, loading = 'lazy', style }) {
   return (
     <img
       className={className}
@@ -14,7 +14,7 @@ export default function ProductImage({ product, className = '', sizes, loading =
       loading={loading}
       decoding="async"
       sizes={sizes}
-      style={{ backgroundColor: product.accent }}
+      style={{ backgroundColor: product.accent, ...style }}
       onError={(e) => {
         // Hide a broken image gracefully; the accent background remains.
         e.currentTarget.style.visibility = 'hidden'

@@ -11,7 +11,7 @@ export default function AuthLayout({ eyebrow, title, subtitle, benefits = [], ch
           <p className="auth-aside__brand">
             <svg viewBox="0 0 32 32" className="auth-aside__mark">
               <line x1="16" y1="2" x2="16" y2="30" stroke="var(--gold)" strokeWidth="1" />
-              <path d="M7 23V10l9 8 9-8v13" fill="none" stroke="var(--paper)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 23V10l9 8 9-8v13" fill="none" stroke="var(--ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Meridian
           </p>

@@ -6,6 +6,7 @@ import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import useTilt from '../lib/useTilt.js'
 import QtyStepper from '../components/QtyStepper.jsx'
 import Spinner from '../components/Spinner.jsx'
 import ErrorState from '../components/ErrorState.jsx'
@@ -13,6 +14,7 @@ import ErrorState from '../components/ErrorState.jsx'
 export default function ProductDetail() {
   const { id } = useParams()
   const { addItem } = useCart()
+  const tilt = useTilt(4)
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -59,12 +61,18 @@ export default function ProductDetail() {
         <Spinner label="Loading coffee…" />
       ) : (
         <article className="detail">
-          <div className="detail__art">
+          <div
+            className="detail__art"
+            ref={tilt.ref}
+            onPointerMove={tilt.onPointerMove}
+            onPointerLeave={tilt.onPointerLeave}
+          >
             <ProductImage
               product={product}
               className="detail__img"
               loading="eager"
               sizes="(max-width: 820px) 100vw, 560px"
+              style={{ viewTransitionName: `product-${product.id}` }}
             />
             <span className="chip detail__roast" data-roast={product.roast}>
               {product.roast} roast

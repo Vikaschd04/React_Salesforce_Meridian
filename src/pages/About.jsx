@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import useReveal from '../lib/useReveal.js'
 
 export default function About() {
+  useReveal([])
   return (
     <div className="container about">
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Our sourcing' }]} />
@@ -16,7 +18,7 @@ export default function About() {
         </p>
       </header>
 
-      <div className="prose">
+      <div className="prose reveal">
         <h2>Single origin, taken literally</h2>
         <p>
           Every coffee we sell is a single lot from a single place. No blends, no “100%

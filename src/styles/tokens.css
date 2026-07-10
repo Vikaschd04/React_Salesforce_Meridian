@@ -1,35 +1,49 @@
-/* Meridian design tokens — cartographic / editorial system.
-   Concept: "Meridian" = lines of longitude. Warm ink on bone paper, deep
-   highland pine as the brand, gold hairlines as the signature (coordinate rules). */
+/* Meridian design tokens — "Dark Observatory" system.
+   Concept: a night-side map room. Deep warm black, glowing gold meridian
+   hairlines, luminous highland pine, glassmorphic surfaces. The coordinate /
+   cartography identity stays; the mood turns nocturnal and futuristic. */
 
 :root {
-  /* ---- Color (6 named) ---- */
-  --ink: #17130f; /* warm near-black — text, footer */
-  --paper: #efeae0; /* bone — page background */
-  --pine: #2e5e4e; /* highland green — brand / primary actions */
-  --pine-deep: #234a3d; /* pressed / hover of pine */
-  --gold: #d6a94a; /* meridian hairlines, coordinate accents */
-  --mist: #6f695d; /* muted secondary text (contrast-checked on paper) */
-  --surface: #f7f4ec; /* cards / raised surfaces */
+  color-scheme: dark;
 
-  /* Derived / functional */
-  --line: rgba(23, 19, 15, 0.14); /* hairline dividers */
-  --ink-70: rgba(23, 19, 15, 0.7);
-  --danger: #a23b2b;
-  --focus: #2e5e4e;
+  /* ---- Color ---- */
+  --void: #0d0b08; /* page background — warm near-black */
+  --surface: #161310; /* cards, panels */
+  --raised: #1e1a15; /* hover / elevated surfaces */
+  --ink: #ede6d8; /* primary text on dark */
+  --ink-70: rgba(237, 230, 216, 0.72);
+  --mist: #9a917f; /* secondary text (≥4.5:1 on void) */
+  --gold: #e2b450; /* meridian hairlines, accents */
+  --gold-soft: rgba(226, 180, 80, 0.35);
+  --pine: #3e8a6e; /* primary actions */
+  --pine-bright: #55b28e; /* hover / luminous edge */
+  --pine-deep: #2c6650; /* pressed */
+  --danger: #e06a50;
+  --focus: var(--gold);
+
+  /* Lines & glass */
+  --line: rgba(237, 230, 216, 0.1);
+  --line-strong: rgba(237, 230, 216, 0.18);
+  --glass: rgba(22, 19, 16, 0.66);
+  --glass-blur: 14px;
+
+  /* Glows */
+  --glow-gold: 0 0 0 1px rgba(226, 180, 80, 0.28), 0 0 24px -6px rgba(226, 180, 80, 0.35);
+  --glow-pine: 0 0 0 1px rgba(85, 178, 142, 0.3), 0 6px 28px -8px rgba(62, 138, 110, 0.55);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -18px rgba(0, 0, 0, 0.7);
 
   /* ---- Type ---- */
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-body: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  /* Fluid type scale */
+  /* Fluid type scale (display slightly larger than v1) */
   --step--1: clamp(0.78rem, 0.75rem + 0.15vw, 0.86rem);
   --step-0: clamp(0.95rem, 0.9rem + 0.25vw, 1.05rem);
   --step-1: clamp(1.15rem, 1.05rem + 0.5vw, 1.4rem);
-  --step-2: clamp(1.45rem, 1.25rem + 1vw, 2rem);
-  --step-3: clamp(1.9rem, 1.5rem + 2vw, 3rem);
-  --step-4: clamp(2.6rem, 1.9rem + 3.6vw, 4.75rem);
+  --step-2: clamp(1.5rem, 1.28rem + 1.1vw, 2.1rem);
+  --step-3: clamp(2rem, 1.55rem + 2.2vw, 3.3rem);
+  --step-4: clamp(2.8rem, 1.9rem + 4.4vw, 5.4rem);
 
   /* ---- Space ---- */
   --sp-1: 0.35rem;
@@ -40,10 +54,16 @@
   --sp-6: 4rem;
   --sp-7: 6rem;
 
-  /* ---- Radii / shadow / layout ---- */
-  --radius: 4px;
-  --radius-lg: 10px;
-  --shadow: 0 1px 2px rgba(23, 19, 15, 0.05), 0 12px 30px -18px rgba(23, 19, 15, 0.35);
+  /* ---- Radii / layout ---- */
+  --radius: 6px;
+  --radius-lg: 14px;
   --container: 1180px;
+
+  /* ---- Motion ---- */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-1: 0.18s;
+  --dur-2: 0.35s;
+  --dur-3: 0.7s;
 }

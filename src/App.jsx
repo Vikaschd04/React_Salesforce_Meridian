@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import Home from './pages/Home.jsx'
@@ -13,13 +13,17 @@ import Account from './pages/Account.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
+  const location = useLocation()
+
   return (
     <div className="app-shell">
       <a href="#main" className="skip-link">
         Skip to content
       </a>
       <Navbar />
-      <main id="main" className="app-main">
+      {/* key on pathname re-mounts the page wrapper so the CSS enter
+          animation plays on every route change (reduced-motion collapses it) */}
+      <main id="main" className="app-main page-enter" key={location.pathname}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
