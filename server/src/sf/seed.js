@@ -24,15 +24,15 @@ function productToSf(p) {
     IsActive: true,
     Origin__c: p.origin,
     Roast__c: p.roast,
-    TastingNotes__c: p.tastingNotes.join('; '),
+    Tasting_Notes__c: p.tastingNotes.join('; '),
     Process__c: p.process,
-    AltitudeMeters__c: p.altitudeMeters,
+    Altitude_Meters__c: p.altitudeMeters,
     Latitude__c: p.lat,
     Longitude__c: p.lng,
     Stock__c: p.stock,
-    WeightGrams__c: p.weightGrams,
+    Weight_Grams__c: p.weightGrams,
     Accent__c: p.accent,
-    ImagePath__c: p.image,
+    Image_Path__c: p.image,
   }
 }
 

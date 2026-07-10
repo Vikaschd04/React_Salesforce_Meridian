@@ -33,16 +33,16 @@ export function productFromSf(record) {
     origin: record.Origin__c || '',
     roast: record.Roast__c || '',
     priceCents: dollarsToCents(entry?.UnitPrice),
-    weightGrams: Number(record.WeightGrams__c || 0),
-    tastingNotes: parseNotes(record.TastingNotes__c),
+    weightGrams: Number(record.Weight_Grams__c || 0),
+    tastingNotes: parseNotes(record.Tasting_Notes__c),
     process: record.Process__c || '',
-    altitudeMeters: Number(record.AltitudeMeters__c || 0),
+    altitudeMeters: Number(record.Altitude_Meters__c || 0),
     lat: record.Latitude__c != null ? Number(record.Latitude__c) : null,
     lng: record.Longitude__c != null ? Number(record.Longitude__c) : null,
     accent: record.Accent__c || '#5a3520',
     stock: Number(record.Stock__c || 0),
     active: record.IsActive === true,
-    image: record.ImagePath__c || '',
+    image: record.Image_Path__c || '',
     // Kept for order creation — not sent to the UI.
     _sfId: record.Id,
     _pricebookEntryId: entry?.Id,
@@ -59,15 +59,15 @@ export const PRODUCT_FIELDS = [
   'IsActive',
   'Origin__c',
   'Roast__c',
-  'TastingNotes__c',
+  'Tasting_Notes__c',
   'Process__c',
-  'AltitudeMeters__c',
+  'Altitude_Meters__c',
   'Latitude__c',
   'Longitude__c',
   'Stock__c',
-  'WeightGrams__c',
+  'Weight_Grams__c',
   'Accent__c',
-  'ImagePath__c',
+  'Image_Path__c',
 ]
 
 /** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
@@ -80,8 +80,8 @@ export function orderFromSf(order, items = []) {
     lineCents: dollarsToCents(it.TotalPrice ?? it.UnitPrice * it.Quantity),
   }))
   const totalCents =
-    order.TotalCents__c != null
-      ? Number(order.TotalCents__c)
+    order.Total_Cents__c != null
+      ? Number(order.Total_Cents__c)
       : lines.reduce((sum, l) => sum + l.lineCents, 0)
 
   return {

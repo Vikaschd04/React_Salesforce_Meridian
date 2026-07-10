@@ -64,11 +64,11 @@ async function main() {
 
   // 4. Order custom fields
   try {
-    await withConn((conn) => conn.query('SELECT TotalCents__c FROM Order LIMIT 1'))
-    ok('Order.TotalCents__c exists')
+    await withConn((conn) => conn.query('SELECT Total_Cents__c FROM Order LIMIT 1'))
+    ok('Order.Total_Cents__c exists')
   } catch (err) {
     failures++
-    bad(`Order.TotalCents__c missing: ${err.message}`)
+    bad(`Order.Total_Cents__c missing: ${err.message}`)
     console.log('    → Add the custom field on Order (docs §3).')
   }
 

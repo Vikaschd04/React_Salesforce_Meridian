@@ -72,7 +72,7 @@ export async function createOrder(items) {
         Pricebook2Id: pricebookId,
         EffectiveDate: new Date().toISOString().slice(0, 10),
         Status: 'Draft',
-        TotalCents__c: totalCents,
+        Total_Cents__c: totalCents,
       },
     },
     ...lines.map(({ product, qty }, i) => ({
@@ -115,7 +115,7 @@ export async function getOrder(idOrNumber) {
 
   const order = await withConn(async (conn) => {
     const orders = await conn.query(
-      `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, TotalCents__c
+      `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c
        FROM Order WHERE ${where} LIMIT 1`,
     )
     const head = orders.records[0]

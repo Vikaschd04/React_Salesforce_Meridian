@@ -13,19 +13,24 @@ When you're done, we flip `DATA_SOURCE=salesforce` and verify.
 ## 1. Custom fields on **Product2**
 Setup → Object Manager → **Product** → Fields & Relationships → **New**, for each:
 
-| Field Label      | API Name           | Type              | Notes                         |
-|------------------|--------------------|-------------------|-------------------------------|
-| Origin           | `Origin__c`        | Text (120)        |                               |
-| Roast            | `Roast__c`         | Picklist          | Values: `Light`,`Medium`,`Dark` |
-| Tasting Notes    | `TastingNotes__c`  | Text (255)        | Stored semicolon-separated    |
-| Process          | `Process__c`       | Text (60)         |                               |
-| Altitude Meters  | `AltitudeMeters__c`| Number (6, 0)     |                               |
-| Latitude         | `Latitude__c`      | Number (3, 6)     | Decimal degrees               |
-| Longitude        | `Longitude__c`     | Number (3, 6)     | Decimal degrees               |
-| Stock            | `Stock__c`         | Number (6, 0)     |                               |
-| Weight Grams     | `WeightGrams__c`   | Number (6, 0)     |                               |
-| Accent           | `Accent__c`        | Text (9)          | Hex color, e.g. `#c98a3c`     |
-| Image Path       | `ImagePath__c`     | Text (255)        | e.g. `/products/x.jpg`        |
+| Field Label      | API Name             | Type              | Notes                         |
+|------------------|----------------------|-------------------|-------------------------------|
+| Origin           | `Origin__c`          | Text (120)        |                               |
+| Roast            | `Roast__c`           | Picklist          | Values: `Light`,`Medium`,`Dark` |
+| Tasting Notes    | `Tasting_Notes__c`   | Text (255)        | Stored semicolon-separated    |
+| Process          | `Process__c`         | Text (60)         |                               |
+| Altitude Meters  | `Altitude_Meters__c` | Number (6, 0)     |                               |
+| Latitude         | `Latitude__c`        | Number (3, 6)     | Decimal degrees               |
+| Longitude        | `Longitude__c`       | Number (3, 6)     | Decimal degrees               |
+| Stock            | `Stock__c`           | Number (6, 0)     |                               |
+| Weight Grams     | `Weight_Grams__c`    | Number (6, 0)     |                               |
+| Accent           | `Accent__c`          | Text (10)         | Hex color, e.g. `#c98a3c`     |
+| Image Path       | `Image_Path__c`      | Text (255)        | e.g. `/products/x.jpg`        |
+
+The BFF reads field API names from this exact list ([server/src/sf/mappers.js](../src/sf/mappers.js)
+`PRODUCT_FIELDS`). Salesforce derives the API name from the label (spaces →
+underscores), so "Tasting Notes" becomes `Tasting_Notes__c`. If your names differ,
+update `mappers.js` (and `seed.js`) to match, or rename the fields.
 
 Give your integration user's profile **read access** to these fields (Field-Level
 Security → Visible). *Why:* the BFF selects these columns; a missing/hidden field
@@ -59,7 +64,7 @@ makes the SOQL query fail.
 1. Create one **Account** named exactly **`Meridian Web Orders`** (App Launcher →
    Accounts → New). *Why:* standard Orders require an Account; guest web orders
    hang off this one. (Or let `npm run seed` create it.)
-2. Add custom field on **Order**: `TotalCents__c` — Number (12, 0). *Why:* stores
+2. Add custom field on **Order**: `Total_Cents__c` — Number (12, 0). *Why:* stores
    the server-computed total in integer cents so the receipt matches exactly.
 3. *(Optional)* Add `GuestEmail__c` (Email) on Order for later phases.
 
@@ -90,13 +95,20 @@ cp .env.example .env      # if you haven't already
 Set:
 ```
 DATA_SOURCE=salesforce
-SF_LOGIN_URL=https://test.salesforce.com   # sandbox; use login.salesforce.com for Dev Edition/prod
+SF_LOGIN_URL=https://YOUR-DOMAIN.my.salesforce.com   # your My Domain — see note below
 SF_CLIENT_ID=<Consumer Key>
 SF_CLIENT_SECRET=<Consumer Secret>
 SF_API_VERSION=61.0
 SF_ACCOUNT_NAME=Meridian Web Orders
 ```
 `.env` is git-ignored — never commit it.
+
+> **Important — use your My Domain URL, not `login`/`test`.salesforce.com.**
+> The Client Credentials flow only works against the org's My Domain host, e.g.
+> `https://yourorg.my.salesforce.com` (Dev Edition: `…develop.my.salesforce.com`;
+> sandbox: `…--name.sandbox.my.salesforce.com`). Find it under **Setup → My Domain**
+> ("Current My Domain URL") or just copy the host from your browser while logged in.
+> Using the generic login host returns `request not supported on this domain`.
 
 ## 6. Verify
 ```bash

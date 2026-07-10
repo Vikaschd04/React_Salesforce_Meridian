@@ -17,10 +17,15 @@ function buildQuery(where) {
   `.trim()
 }
 
-/** All active products (only those that have a standard price). */
+// Meridian coffees are the only Product2 records with these custom fields
+// populated — this keeps any pre-existing products in the org (e.g. a B2B
+// Commerce catalog) out of our storefront.
+const MERIDIAN_SCOPE = "IsActive = true AND Origin__c != null AND Roast__c != null"
+
+/** All active Meridian products (only those that have a standard price). */
 export async function getProducts() {
   const records = await withConn((conn) =>
-    conn.query(buildQuery('IsActive = true')).then((r) => r.records),
+    conn.query(buildQuery(MERIDIAN_SCOPE)).then((r) => r.records),
   )
   return records.map(productFromSf).filter((p) => p.priceCents > 0)
 }
