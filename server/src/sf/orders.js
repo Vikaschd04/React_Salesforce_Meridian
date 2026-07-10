@@ -38,8 +38,12 @@ async function getRefs() {
 
 const apiPath = () => `/services/data/v${config.salesforce.apiVersion}`
 
-/** Create an Order from validated cart items: [{ id, qty }]. */
-export async function createOrder(items) {
+/**
+ * Create an Order from validated cart items: [{ id, qty }].
+ * `auth` is optional { contactId }; when present the order is linked to that
+ * Contact via the standard BillToContactId so it shows up in order history.
+ */
+export async function createOrder(items, auth = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
@@ -73,6 +77,7 @@ export async function createOrder(items) {
         EffectiveDate: new Date().toISOString().slice(0, 10),
         Status: 'Draft',
         Total_Cents__c: totalCents,
+        ...(auth?.contactId ? { BillToContactId: auth.contactId } : {}),
       },
     },
     ...lines.map(({ product, qty }, i) => ({
@@ -129,6 +134,29 @@ export async function getOrder(idOrNumber) {
 
   if (!order) throw notFoundError(`Order "${idOrNumber}" was not found.`)
   return order
+}
+
+/** List a shopper's orders (most recent first), each with its line items. */
+export async function listOrdersForContact(contactId) {
+  const safe = String(contactId).replace(/'/g, "\\'")
+  return withConn(async (conn) => {
+    const orders = await conn.query(
+      `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c
+       FROM Order WHERE BillToContactId = '${safe}' ORDER BY CreatedDate DESC LIMIT 50`,
+    )
+    if (orders.records.length === 0) return []
+    const ids = orders.records.map((o) => `'${o.Id}'`).join(', ')
+    const items = await conn.query(
+      `SELECT OrderId, Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
+       FROM OrderItem WHERE OrderId IN (${ids})`,
+    )
+    const byOrder = new Map()
+    for (const it of items.records) {
+      if (!byOrder.has(it.OrderId)) byOrder.set(it.OrderId, [])
+      byOrder.get(it.OrderId).push(it)
+    }
+    return orders.records.map((o) => orderFromSf(o, byOrder.get(o.Id) || []))
+  })
 }
 
 function summarizeComposite(result) {

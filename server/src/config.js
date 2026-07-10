@@ -15,6 +15,15 @@ export const config = {
   // 'mock' (default) reads the in-repo catalog; 'salesforce' reads a live org.
   dataSource,
 
+  // Shopper sessions (signed JWT in an httpOnly cookie).
+  session: {
+    secret: process.env.SESSION_SECRET || 'dev-only-insecure-secret-change-me',
+    cookieName: 'meridian_session',
+    ttlDays: Number(process.env.SESSION_TTL_DAYS) || 30,
+    // Set COOKIE_SECURE=true behind HTTPS in production.
+    secure: String(process.env.COOKIE_SECURE || 'false') === 'true',
+  },
+
   // Salesforce (used only when dataSource === 'salesforce'). Client Credentials flow.
   salesforce: {
     loginUrl: process.env.SF_LOGIN_URL || 'https://test.salesforce.com',

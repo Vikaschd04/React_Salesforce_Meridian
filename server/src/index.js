@@ -2,11 +2,14 @@ import express from 'express'
 import helmet from 'helmet'
 import cors from 'cors'
 import morgan from 'morgan'
+import cookieParser from 'cookie-parser'
 import { config } from './config.js'
 import { errorHandler, notFoundHandler } from './lib/errors.js'
 import healthRoutes from './routes/health.js'
 import productRoutes from './routes/products.js'
 import orderRoutes from './routes/orders.js'
+import authRoutes from './routes/auth.js'
+import accountRoutes from './routes/account.js'
 
 const app = express()
 
@@ -15,10 +18,13 @@ app.disable('x-powered-by')
 app.use(helmet())
 app.use(cors({ origin: config.appOrigin, credentials: true }))
 app.use(express.json({ limit: '32kb' }))
+app.use(cookieParser())
 if (!config.isProd) app.use(morgan('dev'))
 
 // Routes
 app.use('/', healthRoutes)
+app.use('/api', authRoutes)
+app.use('/api', accountRoutes)
 app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 

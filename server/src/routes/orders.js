@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { createOrder, getOrder } from '../store/orders.js'
+import { optionalAuth } from '../lib/session.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 
 const router = Router()
@@ -24,13 +25,15 @@ const orderSchema = z
 // POST /api/orders — validate cart, compute total server-side, create order
 router.post(
   '/orders',
+  optionalAuth,
   asyncHandler(async (req, res) => {
     const parsed = orderSchema.safeParse(req.body)
     if (!parsed.success) {
       const first = parsed.error.issues[0]
       throw badRequest(first?.message || 'Invalid order.', 'invalid_order')
     }
-    const order = await createOrder(parsed.data.items)
+    // req.user is the logged-in shopper (or null for guest checkout).
+    const order = await createOrder(parsed.data.items, req.user)
     res.status(201).json(order)
   }),
 )

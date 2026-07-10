@@ -68,6 +68,21 @@ makes the SOQL query fail.
    the server-computed total in integer cents so the receipt matches exactly.
 3. *(Optional)* Add `GuestEmail__c` (Email) on Order for later phases.
 
+## 3b. Shopper accounts (login / signup)
+Shoppers are stored as **Contacts**. Add one custom field:
+- On **Contact**: `Password_Hash__c` — Text (255). *Why:* stores the bcrypt hash
+  of the shopper's password (never plaintext, never sent to the browser).
+
+Give the integration user create/read access to Contact and to this field.
+Logged-in checkouts set the standard `Order.BillToContactId` to the shopper's
+Contact, which is how order history is queried — no extra field needed.
+
+Also set session env in `server/.env`:
+```
+SESSION_SECRET=<a long random string>
+COOKIE_SECURE=false   # true in production over HTTPS
+```
+
 ## 4. Connected App (Client Credentials flow)
 Setup → **App Manager** → **New Connected App** (Create a Connected App):
 1. Basic info: name `Meridian BFF`, contact email.

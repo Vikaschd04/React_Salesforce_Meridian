@@ -72,6 +72,16 @@ async function main() {
     console.log('    → Add the custom field on Order (docs §3).')
   }
 
+  // 4b. Contact password field (shopper auth)
+  try {
+    await withConn((conn) => conn.query('SELECT Password_Hash__c FROM Contact LIMIT 1'))
+    ok('Contact.Password_Hash__c exists (shopper auth)')
+  } catch (err) {
+    failures++
+    bad(`Contact.Password_Hash__c missing: ${err.message}`)
+    console.log('    → Add the custom field on Contact (docs §3b).')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

@@ -22,7 +22,7 @@ function makeOrderId() {
 }
 
 // ---- Mock implementation (Phases 1–2) ----
-async function mockCreateOrder(items) {
+async function mockCreateOrder(items, user) {
   const products = await getProductsByIds(items.map((it) => it.id))
   const lines = items.map((it, i) => {
     const product = products[i]
@@ -45,28 +45,53 @@ async function mockCreateOrder(items) {
     items: lines,
     totalCents,
     placedAt: new Date().toISOString(),
+    userEmail: user?.email || null, // for mock order history
   }
   orders.set(order.orderId, order)
-  return order
+  return stripInternal(order)
 }
 
 async function mockGetOrder(id) {
   const order = orders.get(id)
   if (!order) throw notFoundError(`Order "${id}" was not found.`)
-  return order
+  return stripInternal(order)
+}
+
+async function mockListOrders(user) {
+  return [...orders.values()]
+    .filter((o) => user?.email && o.userEmail === user.email)
+    .sort((a, b) => b.placedAt.localeCompare(a.placedAt))
+    .map(stripInternal)
+}
+
+// Drop server-only fields before returning to the client.
+function stripInternal({ userEmail: _userEmail, ...rest }) {
+  return rest
 }
 
 // ---- Public API ----
 
-/** Create an order from validated cart items: [{ id, qty }]. */
-export async function createOrder(items) {
+/**
+ * Create an order from validated cart items: [{ id, qty }].
+ * `user` is the optional logged-in shopper { id, email }; guest orders pass null.
+ */
+export async function createOrder(items, user = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
-  return useSalesforce ? sfOrders.createOrder(items) : mockCreateOrder(items)
+  if (useSalesforce) {
+    return sfOrders.createOrder(items, user ? { contactId: user.id } : null)
+  }
+  return mockCreateOrder(items, user)
 }
 
 /** Fetch an order by id, or throw a 404 ApiError. */
 export async function getOrder(id) {
   return useSalesforce ? sfOrders.getOrder(id) : mockGetOrder(id)
+}
+
+/** List orders for a logged-in shopper (most recent first). */
+export async function listOrders(user) {
+  if (!user) return []
+  return useSalesforce ? sfOrders.listOrdersForContact(user.id) : mockListOrders(user)
 }
