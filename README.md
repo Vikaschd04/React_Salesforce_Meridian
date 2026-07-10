@@ -43,9 +43,9 @@ isolated to this file (plus the server). A `/api` dev proxy is pre-wired in
 
 Cartographic / editorial system — "Meridian" = lines of longitude. The
 signature element is each coffee's **origin coordinates** rendered in monospace
-on a gold "meridian" hairline, on every card and detail page. Product art is
-generated topographic-contour SVG seeded from each origin's coordinates (no
-stock photos, nothing to 404). Design tokens live in
+on a gold "meridian" hairline, on every card and detail page. Product photos are
+real coffee images bundled locally in `public/products/` (served offline, with
+the origin accent shown behind while they load). Design tokens live in
 [`src/styles/tokens.css`](src/styles/tokens.css).
 
 - Type: Fraunces (display) · Space Grotesk (body) · Space Mono (coordinates),

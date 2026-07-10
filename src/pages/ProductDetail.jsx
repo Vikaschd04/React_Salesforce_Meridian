@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getProduct } from '../api/store.js'
 import { useCart } from '../context/CartContext.jsx'
 import { formatCents } from '../lib/money.js'
-import BagArt from '../components/BagArt.jsx'
+import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 import Spinner from '../components/Spinner.jsx'
@@ -59,7 +59,12 @@ export default function ProductDetail() {
       ) : (
         <article className="detail">
           <div className="detail__art">
-            <BagArt product={product} className="detail__svg" />
+            <ProductImage
+              product={product}
+              className="detail__img"
+              loading="eager"
+              sizes="(max-width: 820px) 100vw, 560px"
+            />
             <span className="chip detail__roast" data-roast={product.roast}>
               {product.roast} roast
             </span>

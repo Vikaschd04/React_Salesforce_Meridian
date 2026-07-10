@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { placeOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
-import BagArt from '../components/BagArt.jsx'
+import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 
 const SHIP_FREE_THRESHOLD = 4500
@@ -60,7 +60,7 @@ export default function Cart() {
           {lines.map(({ id, qty, product, lineCents }) => (
             <li key={id} className="line">
               <Link to={`/product/${id}`} className="line__art" aria-hidden="true" tabIndex={-1}>
-                <BagArt product={product} className="line__svg" />
+                <ProductImage product={product} className="line__img" />
               </Link>
               <div className="line__main">
                 <Link to={`/product/${id}`} className="line__name">

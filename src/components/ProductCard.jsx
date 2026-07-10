@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import BagArt from './BagArt.jsx'
+import ProductImage from './ProductImage.jsx'
 import CoordTag from './CoordTag.jsx'
 import { formatCents } from '../lib/money.js'
 
@@ -8,7 +8,11 @@ export default function ProductCard({ product }) {
     <article className="card">
       <Link to={`/product/${product.id}`} className="card__link">
         <div className="card__art">
-          <BagArt product={product} className="card__svg" />
+          <ProductImage
+            product={product}
+            className="card__img"
+            sizes="(max-width: 640px) 100vw, 320px"
+          />
           <span className="chip card__roast" data-roast={product.roast}>
             {product.roast}
           </span>

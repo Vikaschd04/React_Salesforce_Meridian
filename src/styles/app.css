@@ -163,9 +163,16 @@
   aspect-ratio: 4 / 3;
   border-bottom: 1px solid var(--line);
 }
-.card__svg {
+.card__img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+}
+.card__link:hover .card__img {
+  transform: scale(1.03);
+}
+.card__img {
+  transition: transform 0.3s var(--ease);
 }
 .card__roast {
   position: absolute;
@@ -248,9 +255,10 @@
   position: sticky;
   top: 92px;
 }
-.detail__svg {
+.detail__img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 .detail__roast {
   position: absolute;
@@ -357,9 +365,10 @@
   overflow: hidden;
   border: 1px solid var(--line);
 }
-.line__svg {
+.line__img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 .line__main {
   display: flex;

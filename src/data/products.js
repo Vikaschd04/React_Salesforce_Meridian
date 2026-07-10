@@ -9,12 +9,14 @@
  *  - Money is stored as integer cents. Format only at display time.
  *  - `lat` / `lng` are decimal degrees of the origin farm; the UI renders them
  *    as the signature coordinate label.
- *  - `accent` seeds the generated cartographic bag art (no photo assets).
+ *  - `image` is a bundled photo in /public/products (served at /products/*.jpg).
+ *  - `accent` is the origin's tint, shown behind the photo while it loads.
  */
 
 export const PRODUCTS = [
   {
     id: 'yirgacheffe-koke',
+    image: '/products/yirgacheffe-koke.jpg',
     name: 'Koke, Yirgacheffe',
     origin: 'Gedeb, Ethiopia',
     roast: 'Light',
@@ -33,6 +35,7 @@ export const PRODUCTS = [
   },
   {
     id: 'huila-la-esperanza',
+    image: '/products/huila-la-esperanza.jpg',
     name: 'La Esperanza, Huila',
     origin: 'Pitalito, Colombia',
     roast: 'Medium',
@@ -51,6 +54,7 @@ export const PRODUCTS = [
   },
   {
     id: 'antigua-la-tacita',
+    image: '/products/antigua-la-tacita.jpg',
     name: 'La Tacita, Antigua',
     origin: 'Antigua, Guatemala',
     roast: 'Medium',
@@ -69,6 +73,7 @@ export const PRODUCTS = [
   },
   {
     id: 'nyeri-gachatha',
+    image: '/products/nyeri-gachatha.jpg',
     name: 'Gachatha AA, Nyeri',
     origin: 'Nyeri, Kenya',
     roast: 'Light',
@@ -87,6 +92,7 @@ export const PRODUCTS = [
   },
   {
     id: 'gayo-takengon',
+    image: '/products/gayo-takengon.jpg',
     name: 'Gayo Highlands, Aceh',
     origin: 'Takengon, Sumatra',
     roast: 'Dark',
@@ -105,6 +111,7 @@ export const PRODUCTS = [
   },
   {
     id: 'tarrazu-la-pastora',
+    image: '/products/tarrazu-la-pastora.jpg',
     name: 'La Pastora, Tarrazú',
     origin: 'Tarrazú, Costa Rica',
     roast: 'Medium',
@@ -123,6 +130,7 @@ export const PRODUCTS = [
   },
   {
     id: 'cerrado-fazenda',
+    image: '/products/cerrado-fazenda.jpg',
     name: 'Fazenda do Sertão, Cerrado',
     origin: 'Cerrado Mineiro, Brazil',
     roast: 'Dark',
@@ -141,6 +149,7 @@ export const PRODUCTS = [
   },
   {
     id: 'nyamasheke-kilimbi',
+    image: '/products/nyamasheke-kilimbi.jpg',
     name: 'Kilimbi, Nyamasheke',
     origin: 'Lake Kivu, Rwanda',
     roast: 'Light',
