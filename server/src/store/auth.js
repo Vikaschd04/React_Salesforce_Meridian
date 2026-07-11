@@ -54,3 +54,13 @@ export async function authenticate({ email, password }) {
   if (!ok) throw INVALID()
   return contacts.toProfile(record)
 }
+
+/** Update the shopper's name. Returns the fresh profile. */
+export async function updateProfile(user, { firstName, lastName }) {
+  if (useSalesforce) return contacts.updateShopper(user.id, { firstName, lastName })
+  const mock = mockUsers.get(user.email.toLowerCase())
+  if (!mock) throw badRequest('Account not found.', 'not_found')
+  mock.firstName = firstName
+  mock.lastName = lastName
+  return { id: mock.id, email: mock.email, firstName, lastName }
+}

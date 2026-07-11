@@ -24,8 +24,9 @@ export default function Footer() {
             <h3 className="footer__heading">Company</h3>
             <ul>
               <li><Link to="/about">Our sourcing</Link></li>
+              <li><Link to="/contact">Contact</Link></li>
               <li><Link to="/account">Your account</Link></li>
-              <li><Link to="/cart">Cart</Link></li>
+              <li><Link to="/account/orders">Order history</Link></li>
             </ul>
           </div>
           <div className="footer__col">
@@ -33,7 +34,7 @@ export default function Footer() {
             <ul>
               <li>Free shipping over $45</li>
               <li>Roasted &amp; shipped in 48h</li>
-              <li>hello@meridian.coffee</li>
+              <li><Link to="/contact">hello@meridian.coffee</Link></li>
             </ul>
           </div>
         </nav>

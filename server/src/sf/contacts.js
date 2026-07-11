@@ -57,3 +57,15 @@ export async function verifyPassword(record, password) {
   if (!hash) return false
   return bcrypt.compare(password, hash)
 }
+
+/** Update a shopper's name on their Contact; returns the fresh profile. */
+export async function updateShopper(contactId, { firstName, lastName }) {
+  await withConn((conn) =>
+    conn.sobject('Contact').update({ Id: contactId, FirstName: firstName, LastName: lastName }),
+  )
+  const res = await withConn((conn) =>
+    conn.query(`SELECT Id, FirstName, LastName, Email FROM Contact WHERE Id = '${esc(contactId)}' LIMIT 1`),
+  )
+  if (!res.records[0]) throw new Error('Contact not found after update.')
+  return toProfile(res.records[0])
+}

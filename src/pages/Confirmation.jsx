@@ -67,9 +67,16 @@ export default function Confirmation() {
               ))}
             </ul>
             <div className="confirm__total">
-              <span>Total paid</span>
+              <span>Total</span>
               <span>{formatCents(order.totalCents)}</span>
             </div>
+            {order.shipping && (
+              <p className="confirm__ship">
+                Shipping to {order.shipping.street}, {order.shipping.city}
+                {order.shipping.postalCode ? ` ${order.shipping.postalCode}` : ''},{' '}
+                {order.shipping.country}
+              </p>
+            )}
           </>
         )}
 

@@ -1,33 +1,33 @@
 /**
  * One-time schema setup for the parts the app creates via API rather than by
- * hand: the Order → Contact link used for shopper order history.
+ * hand: web-order fields on Order and the permission set that makes them
+ * visible to the integration user.
  *
  * Run:  DATA_SOURCE=salesforce node src/sf/setup-schema.js   (or: npm run sf:setup)
  *
- * Idempotent. Creates:
- *   - Order.Shopper__c  (Lookup to Contact) — links an order to the shopper.
- *   - Permission Set "Meridian_Web_Integration" with FLS on that field, assigned
- *     to the integration (Run-As) user so the BFF can read/write it.
+ * Idempotent. Creates (if missing):
+ *   - Order.Shopper__c      Lookup → Contact  (links an order to the shopper)
+ *   - Order.Guest_Email__c  Email             (contact email for any web order)
+ *   - Order.Cancelled__c    Checkbox          (web-order cancellation flag;
+ *                            the org's standard Status picklist has no
+ *                            "Cancelled" value, so we track it ourselves)
+ *   - Permission Set "Meridian_Web_Integration" with FLS on those fields,
+ *     assigned to the integration (Run-As) user.
  *
  * Note: creating metadata requires the integration user to have "Customize
- * Application"/"Modify Metadata". If it can't, create Order.Shopper__c manually
- * (Lookup → Contact) and grant the Run-As user field access.
+ * Application". If it can't, create the fields manually and grant field access.
  */
 import { config } from '../config.js'
 import { withConn } from './client.js'
 
 const PERM_SET = 'Meridian_Web_Integration'
 
-async function ensureField(conn) {
-  try {
-    await conn.query('SELECT Shopper__c FROM Order LIMIT 1')
-    console.log('  • Order.Shopper__c already present')
-    return
-  } catch {
-    // Not visible/missing — (re)create it.
-  }
-  const res = await conn.metadata.create('CustomField', [
-    {
+// Field definitions in Metadata API shape. `probe` is the SOQL column used to
+// detect existence/visibility.
+const FIELDS = [
+  {
+    probe: 'Shopper__c',
+    def: {
       fullName: 'Order.Shopper__c',
       label: 'Shopper',
       type: 'Lookup',
@@ -35,35 +35,61 @@ async function ensureField(conn) {
       relationshipLabel: 'Web Orders',
       relationshipName: 'Web_Orders',
     },
-  ])
+  },
+  {
+    probe: 'Guest_Email__c',
+    def: {
+      fullName: 'Order.Guest_Email__c',
+      label: 'Guest Email',
+      type: 'Email',
+    },
+  },
+  {
+    probe: 'Cancelled__c',
+    def: {
+      fullName: 'Order.Cancelled__c',
+      label: 'Cancelled',
+      type: 'Checkbox',
+      defaultValue: 'false',
+    },
+  },
+]
+
+async function ensureField(conn, { probe, def }) {
+  try {
+    await conn.query(`SELECT ${probe} FROM Order LIMIT 1`)
+    console.log(`  • Order.${probe} already present`)
+    return
+  } catch {
+    // Not visible/missing — (re)create it.
+  }
+  const res = await conn.metadata.create('CustomField', [def])
   const r = Array.isArray(res) ? res[0] : res
   if (!r.success && !/duplicate|already/i.test(JSON.stringify(r.errors))) {
-    throw new Error(`Could not create Order.Shopper__c: ${JSON.stringify(r.errors)}`)
+    throw new Error(`Could not create ${def.fullName}: ${JSON.stringify(r.errors)}`)
   }
-  console.log('  • Created Order.Shopper__c (Lookup → Contact)')
+  console.log(`  • Created ${def.fullName} (${def.type})`)
 }
 
 async function ensurePermissions(conn) {
+  const fieldPermissions = FIELDS.map(({ def }) => ({
+    field: def.fullName,
+    readable: true,
+    editable: true,
+  }))
+
   // Create the permission set (ignore "already exists").
   const res = await conn.metadata.create('PermissionSet', [
-    {
-      fullName: PERM_SET,
-      label: 'Meridian Web Integration',
-      fieldPermissions: [{ field: 'Order.Shopper__c', readable: true, editable: true }],
-    },
+    { fullName: PERM_SET, label: 'Meridian Web Integration', fieldPermissions },
   ])
   const r = Array.isArray(res) ? res[0] : res
   if (r.success) console.log('  • Created permission set', PERM_SET)
   else console.log('  • Permission set already exists')
 
-  // Ensure the field permission is present even if the set pre-existed.
+  // Ensure every field permission is present even if the set pre-existed.
   await conn.metadata
     .update('PermissionSet', [
-      {
-        fullName: PERM_SET,
-        label: 'Meridian Web Integration',
-        fieldPermissions: [{ field: 'Order.Shopper__c', readable: true, editable: true }],
-      },
+      { fullName: PERM_SET, label: 'Meridian Web Integration', fieldPermissions },
     ])
     .catch(() => {})
 
@@ -91,7 +117,7 @@ async function main() {
   }
   console.log(`Setting up Meridian schema (${config.salesforce.loginUrl})…`)
   await withConn(async (conn) => {
-    await ensureField(conn)
+    for (const field of FIELDS) await ensureField(conn, field)
     await ensurePermissions(conn)
   })
   console.log('Schema setup complete.')

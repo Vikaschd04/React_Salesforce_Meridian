@@ -10,6 +10,7 @@ import productRoutes from './routes/products.js'
 import orderRoutes from './routes/orders.js'
 import authRoutes from './routes/auth.js'
 import accountRoutes from './routes/account.js'
+import supportRoutes from './routes/support.js'
 
 const app = express()
 
@@ -25,6 +26,7 @@ if (!config.isProd) app.use(morgan('dev'))
 app.use('/', healthRoutes)
 app.use('/api', authRoutes)
 app.use('/api', accountRoutes)
+app.use('/api', supportRoutes)
 app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 

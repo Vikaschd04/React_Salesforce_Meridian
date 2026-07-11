@@ -1,15 +1,16 @@
 /**
  * Salesforce-backed orders. Creates a standard Order + OrderItems in a single
- * atomic Composite request, and reads an order back by OrderNumber or Id.
+ * atomic Composite request, enforces live inventory, and reads orders back by
+ * OrderNumber or Id.
  *
- * Security: the total and every unit price come from server-trusted Salesforce
- * pricebook data — the client only supplies { id, qty }. Same posture as the
- * mock BFF.
+ * Security: totals and unit prices always come from server-trusted Salesforce
+ * pricebook data — the client only supplies { id, qty } and shipping text.
+ * Ownership: account reads/cancels are scoped to the session's Contact.
  */
 import { config } from '../config.js'
 import { withConn } from './client.js'
 import { getProductsByCodes } from './catalog.js'
-import { orderFromSf } from './mappers.js'
+import { orderFromSf, ORDER_FIELDS } from './mappers.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 
 // Account + standard pricebook ids are stable per org; resolve once and cache.
@@ -37,13 +38,15 @@ async function getRefs() {
 }
 
 const apiPath = () => `/services/data/v${config.salesforce.apiVersion}`
+const esc = (s) => String(s).replace(/'/g, "\\'")
 
 /**
  * Create an Order from validated cart items: [{ id, qty }].
+ * `shipping` = { name, email, street, city, state, postalCode, country }.
  * `auth` is optional { contactId }; when present the order is linked to that
- * Contact via the custom Order.Shopper__c lookup so it shows up in order history.
+ * Contact via Order.Shopper__c so it shows up in order history.
  */
-export async function createOrder(items, auth = null) {
+export async function createOrder(items, shipping, auth = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
@@ -57,6 +60,15 @@ export async function createOrder(items, auth = null) {
       throw conflict(`Item "${it.id}" is no longer available.`, 'unavailable_item')
     }
     const qty = Math.max(1, Math.floor(Number(it.qty) || 0))
+    // Live inventory check against Salesforce Stock__c.
+    if (qty > product.stock) {
+      throw conflict(
+        product.stock <= 0
+          ? `"${product.name}" is sold out.`
+          : `Only ${product.stock} bag${product.stock === 1 ? '' : 's'} of "${product.name}" left.`,
+        'insufficient_stock',
+      )
+    }
     return { product, qty }
   })
 
@@ -77,6 +89,14 @@ export async function createOrder(items, auth = null) {
         EffectiveDate: new Date().toISOString().slice(0, 10),
         Status: 'Draft',
         Total_Cents__c: totalCents,
+        Guest_Email__c: shipping?.email || null,
+        ShippingStreet: shipping?.street || null,
+        ShippingCity: shipping?.city || null,
+        ShippingPostalCode: shipping?.postalCode || null,
+        // This org has State/Country picklists enabled, so the ISO *Code fields
+        // are the writable ones (Salesforce derives the text fields from them).
+        ShippingCountryCode: shipping?.countryCode || null,
+        ...(shipping?.stateCode ? { ShippingStateCode: shipping.stateCode } : {}),
         ...(auth?.contactId ? { Shopper__c: auth.contactId } : {}),
       },
     },
@@ -109,40 +129,94 @@ export async function createOrder(items, auth = null) {
     throw new Error(`Salesforce order creation failed: ${detail}`)
   }
 
+  // Decrement live stock (best effort — the order itself already succeeded).
+  await withConn((conn) =>
+    conn.sobject('Product2').update(
+      lines.map(({ product, qty }) => ({
+        Id: product._sfId,
+        Stock__c: Math.max(0, product.stock - qty),
+      })),
+    ),
+  ).catch((err) => console.error('[stock] decrement failed:', err.message))
+
   return getOrder(orderResult.body.id)
 }
 
 /** Read an order by OrderNumber (preferred) or Salesforce Id. */
-export async function getOrder(idOrNumber) {
-  const safe = String(idOrNumber).replace(/'/g, "\\'")
+export async function getOrder(idOrNumber, contactId = null) {
+  const raw = await readRawOrder(idOrNumber)
+  if (!raw) throw notFoundError(`Order "${idOrNumber}" was not found.`)
+  // Ownership scope for account pages: the order must belong to this shopper.
+  if (contactId && raw.head.Shopper__c !== contactId) {
+    throw notFoundError(`Order "${idOrNumber}" was not found.`)
+  }
+  return orderFromSf(raw.head, raw.items)
+}
+
+async function readRawOrder(idOrNumber) {
+  const safe = esc(idOrNumber)
   const isSfId = /^[a-zA-Z0-9]{15,18}$/.test(idOrNumber) && !/^\d+$/.test(idOrNumber)
   const where = isSfId ? `Id = '${safe}'` : `OrderNumber = '${safe}'`
 
-  const order = await withConn(async (conn) => {
-    const orders = await conn.query(
-      `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c
-       FROM Order WHERE ${where} LIMIT 1`,
-    )
+  return withConn(async (conn) => {
+    const orders = await conn.query(`SELECT ${ORDER_FIELDS} FROM Order WHERE ${where} LIMIT 1`)
     const head = orders.records[0]
     if (!head) return null
     const lineItems = await conn.query(
       `SELECT Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
        FROM OrderItem WHERE OrderId = '${head.Id}'`,
     )
-    return orderFromSf(head, lineItems.records)
+    return { head, items: lineItems.records }
   })
+}
 
-  if (!order) throw notFoundError(`Order "${idOrNumber}" was not found.`)
-  return order
+/**
+ * Cancel a shopper's own order. Allowed only while the order is still Draft
+ * and not already cancelled. Restores the reserved stock.
+ */
+export async function cancelOrder(idOrNumber, contactId) {
+  const raw = await readRawOrder(idOrNumber)
+  if (!raw || raw.head.Shopper__c !== contactId) {
+    throw notFoundError(`Order "${idOrNumber}" was not found.`)
+  }
+  if (raw.head.Cancelled__c) {
+    throw badRequest('This order is already cancelled.', 'already_cancelled')
+  }
+  if (raw.head.Status !== 'Draft') {
+    throw badRequest('This order has already been processed and can no longer be cancelled.', 'not_cancellable')
+  }
+
+  await withConn((conn) =>
+    conn.sobject('Order').update({ Id: raw.head.Id, Cancelled__c: true }),
+  )
+
+  // Restore stock (best effort).
+  const productIds = raw.items.map((it) => `'${it.Product2Id}'`)
+  if (productIds.length) {
+    await withConn(async (conn) => {
+      const current = await conn.query(
+        `SELECT Id, Stock__c FROM Product2 WHERE Id IN (${productIds.join(', ')})`,
+      )
+      const byId = new Map(current.records.map((r) => [r.Id, Number(r.Stock__c || 0)]))
+      await conn.sobject('Product2').update(
+        raw.items.map((it) => ({
+          Id: it.Product2Id,
+          Stock__c: (byId.get(it.Product2Id) || 0) + Number(it.Quantity || 0),
+        })),
+      )
+    }).catch((err) => console.error('[stock] restore failed:', err.message))
+  }
+
+  return getOrder(raw.head.Id)
 }
 
 /** List a shopper's orders (most recent first), each with its line items. */
 export async function listOrdersForContact(contactId) {
-  const safe = String(contactId).replace(/'/g, "\\'")
+  const safe = esc(contactId)
   return withConn(async (conn) => {
     const orders = await conn.query(
-      `SELECT Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c
-       FROM Order WHERE Shopper__c = '${safe}' ORDER BY CreatedDate DESC LIMIT 50`,
+      `SELECT ${ORDER_FIELDS} FROM Order WHERE Shopper__c = '${safe}'
+       ORDER BY CreatedDate DESC LIMIT 50`,
     )
     if (orders.records.length === 0) return []
     const ids = orders.records.map((o) => `'${o.Id}'`).join(', ')

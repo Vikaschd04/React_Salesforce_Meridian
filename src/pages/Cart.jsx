@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { placeOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
@@ -11,27 +9,13 @@ const SHIP_FREE_THRESHOLD = 4500
 const SHIP_FLAT_CENTS = 600
 
 export default function Cart() {
-  const { lines, items, totalCents, setQty, removeItem, clear } = useCart()
+  const { lines, items, totalCents, setQty, removeItem } = useCart()
   const { isAuthed, user } = useAuth()
-  const navigate = useNavigate()
-  const [placing, setPlacing] = useState(false)
-  const [error, setError] = useState(null)
 
   const shippingCents = totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD ? 0 : SHIP_FLAT_CENTS
   const grandTotalCents = totalCents + shippingCents
-
-  async function handleCheckout() {
-    setPlacing(true)
-    setError(null)
-    try {
-      const order = await placeOrder(items)
-      clear()
-      navigate(`/confirmation/${order.orderId}`, { state: { order } })
-    } catch (err) {
-      setError(err)
-      setPlacing(false)
-    }
-  }
+  // Block checkout if any line exceeds available stock.
+  const overStock = lines.some(({ qty, product }) => qty > product.stock)
 
   if (lines.length === 0) {
     return (
@@ -52,41 +36,44 @@ export default function Cart() {
     <div className="container cart">
       <div className="section-head">
         <h1 className="section-head__title">Your cart</h1>
-        <span className="meridian-rule">
-          {items.reduce((n, it) => n + it.qty, 0)} bags
-        </span>
+        <span className="meridian-rule">{items.reduce((n, it) => n + it.qty, 0)} bags</span>
       </div>
 
       <div className="cart__grid">
         <ul className="cart__lines">
-          {lines.map(({ id, qty, product, lineCents }) => (
-            <li key={id} className="line">
-              <Link to={`/product/${id}`} className="line__art" aria-hidden="true" tabIndex={-1}>
-                <ProductImage product={product} className="line__img" />
-              </Link>
-              <div className="line__main">
-                <Link to={`/product/${id}`} className="line__name">
-                  {product.name}
+          {lines.map(({ id, qty, product, lineCents }) => {
+            const over = qty > product.stock
+            return (
+              <li key={id} className="line">
+                <Link to={`/product/${id}`} className="line__art" aria-hidden="true" tabIndex={-1}>
+                  <ProductImage product={product} className="line__img" />
                 </Link>
-                <p className="line__origin">{product.origin}</p>
-                <button
-                  type="button"
-                  className="line__remove"
-                  onClick={() => removeItem(id)}
-                >
-                  Remove
-                </button>
-              </div>
-              <div className="line__controls">
-                <QtyStepper
-                  value={qty}
-                  onChange={(n) => setQty(id, n)}
-                  idLabel={`Quantity for ${product.name}`}
-                />
-                <span className="line__price">{formatCents(lineCents)}</span>
-              </div>
-            </li>
-          ))}
+                <div className="line__main">
+                  <Link to={`/product/${id}`} className="line__name">
+                    {product.name}
+                  </Link>
+                  <p className="line__origin">{product.origin}</p>
+                  {over && (
+                    <p className="line__stockwarn">
+                      Only {product.stock} left — reduce the quantity to check out.
+                    </p>
+                  )}
+                  <button type="button" className="line__remove" onClick={() => removeItem(id)}>
+                    Remove
+                  </button>
+                </div>
+                <div className="line__controls">
+                  <QtyStepper
+                    value={qty}
+                    onChange={(n) => setQty(id, n)}
+                    max={Math.max(1, product.stock)}
+                    idLabel={`Quantity for ${product.name}`}
+                  />
+                  <span className="line__price">{formatCents(lineCents)}</span>
+                </div>
+              </li>
+            )
+          })}
         </ul>
 
         <aside className="summary" aria-label="Order summary">
@@ -117,30 +104,25 @@ export default function Cart() {
               </p>
             ) : (
               <p className="summary__guest">
-                <Link to="/login" state={{ from: '/cart' }}>
+                <Link to="/login" state={{ from: '/checkout' }}>
                   Log in
                 </Link>{' '}
-                to save this order to your account, or continue as a guest below.
+                to save this order to your account, or continue as a guest.
               </p>
             )}
           </div>
 
-          {error && (
-            <p className="summary__error" role="alert">
-              {error.message || 'Checkout failed. Please try again.'}
-            </p>
+          {overStock ? (
+            <button type="button" className="btn btn--block summary__checkout" disabled>
+              Adjust quantities to continue
+            </button>
+          ) : (
+            <Link to="/checkout" className="btn btn--block summary__checkout">
+              Continue to checkout
+            </Link>
           )}
-
-          <button
-            type="button"
-            className="btn btn--block summary__checkout"
-            onClick={handleCheckout}
-            disabled={placing}
-          >
-            {placing ? 'Placing order…' : 'Checkout'}
-          </button>
           <p className="summary__fine">
-            Guest checkout · Payments arrive in a later phase (this is a mock order).
+            Guest checkout · No payment taken (mock order created in Salesforce).
           </p>
         </aside>
       </div>

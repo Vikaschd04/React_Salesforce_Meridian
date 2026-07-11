@@ -11,10 +11,14 @@ export default function ProductCard({ product }) {
   const tilt = useTilt(6)
   const [added, setAdded] = useState(false)
 
+  const soldOut = product.stock <= 0
+  const lowStock = !soldOut && product.stock <= 5
+
   function quickAdd(e) {
     // The button sits inside the card link — don't navigate.
     e.preventDefault()
     e.stopPropagation()
+    if (soldOut) return
     addItem(product.id, 1)
     setAdded(true)
     window.setTimeout(() => setAdded(false), 1600)
@@ -38,13 +42,19 @@ export default function ProductCard({ product }) {
           <span className="chip card__roast" data-roast={product.roast}>
             {product.roast}
           </span>
+          {soldOut ? (
+            <span className="card__stock card__stock--out">Sold out</span>
+          ) : (
+            lowStock && <span className="card__stock">Only {product.stock} left</span>
+          )}
           <button
             type="button"
             className={`card__quick${added ? ' is-added' : ''}`}
             onClick={quickAdd}
-            aria-label={`Add ${product.name} to cart`}
+            disabled={soldOut}
+            aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
           >
-            {added ? '✓ Added' : '+ Add'}
+            {soldOut ? 'Sold out' : added ? '✓ Added' : '+ Add'}
           </button>
         </div>
         <div className="card__body">

@@ -70,6 +70,12 @@ export const PRODUCT_FIELDS = [
   'Image_Path__c',
 ]
 
+/** Fields selected whenever we read an Order. */
+export const ORDER_FIELDS =
+  'Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c, ' +
+  'Guest_Email__c, Cancelled__c, Shopper__c, ' +
+  'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
+
 /** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
 export function orderFromSf(order, items = []) {
   const lines = items.map((it) => ({
@@ -84,11 +90,22 @@ export function orderFromSf(order, items = []) {
       ? Number(order.Total_Cents__c)
       : lines.reduce((sum, l) => sum + l.lineCents, 0)
 
+  const hasShipping = order.ShippingStreet || order.ShippingCity
   return {
     orderId: order.OrderNumber || order.Id,
-    status: (order.Status || 'confirmed').toLowerCase(),
+    status: order.Cancelled__c ? 'cancelled' : (order.Status || 'confirmed').toLowerCase(),
     items: lines,
     totalCents,
     placedAt: order.EffectiveDate || order.CreatedDate || new Date().toISOString(),
+    email: order.Guest_Email__c || null,
+    shipping: hasShipping
+      ? {
+          street: order.ShippingStreet || '',
+          city: order.ShippingCity || '',
+          state: order.ShippingState || '',
+          postalCode: order.ShippingPostalCode || '',
+          country: order.ShippingCountry || '',
+        }
+      : null,
   }
 }

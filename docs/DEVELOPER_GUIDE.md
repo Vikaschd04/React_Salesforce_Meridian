@@ -261,23 +261,36 @@ run-as user: **`vikask@deloitte.demoorg`**.
 | `Accent__c`          | Text (10)     | hex color for the UI           |
 | `Image_Path__c`      | Text (255)    | e.g. `/products/x.jpg`         |
 
-### 10.3 Custom field on `Order`
-| API name         | Type          | Purpose                                   |
-|------------------|---------------|-------------------------------------------|
-| `Total_Cents__c` | Number (12,0) | server-computed total, in integer cents   |
-| `Shopper__c`     | Lookup→Contact| links an order to the shopper (order history). Child relationship: `Web_Orders`. **Created via API** by `npm run sf:setup`. |
+### 10.3 Custom fields on `Order`
+| API name          | Type          | Purpose                                   |
+|-------------------|---------------|-------------------------------------------|
+| `Total_Cents__c`  | Number (12,0) | server-computed total, in integer cents   |
+| `Shopper__c`      | Lookup→Contact| links an order to the shopper (order history). Child relationship: `Web_Orders`. **Created via API** by `npm run sf:setup`. |
+| `Guest_Email__c`  | Email         | contact email captured at checkout. **API-created** by `sf:setup`. |
+| `Cancelled__c`    | Checkbox      | web-order cancellation flag (the standard `Status` picklist is Draft/Activated/Completed — no "Cancelled"). **API-created** by `sf:setup`. |
+
+Standard **`Shipping*`** fields are also written at checkout. The org has
+**State & Country picklists enabled**, so the BFF writes the ISO code fields
+`ShippingCountryCode` / `ShippingStateCode` (Salesforce derives the text
+`ShippingCountry` / `ShippingState`).
 
 ### 10.4 Custom field on `Contact`
 | API name           | Type       | Purpose                                     |
 |--------------------|------------|---------------------------------------------|
 | `Password_Hash__c` | Text (255) | bcrypt hash of the shopper's password       |
 
+### 10.4b `Case` (support) — no setup
+The contact form creates a standard **`Case`** (`Origin='Web'`, `Subject`,
+`Description`, `SuppliedName`, `SuppliedEmail`) and reads back its `CaseNumber`.
+No custom fields or config required.
+
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration",
-  id `0PSKa000006czzoOAA`). Grants read/edit field-level security on
-  `Order.Shopper__c` and is **assigned to the integration user**. Created and
-  assigned by `npm run sf:setup`. Needed because a field created via the API has
-  no FLS by default, so the integration user otherwise can't see it.
+  id `0PSKa000006czzoOAA`). Grants read/edit field-level security on the
+  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Cancelled__c`) and
+  is **assigned to the integration user**. Created/updated and assigned by
+  `npm run sf:setup`. Needed because a field created via the API has no FLS by
+  default, so the integration user otherwise can't see it.
 
 ### 10.6 Account
 - **`Meridian Web Orders`** — one Account that all web orders (guest and
@@ -326,18 +339,27 @@ run-as user: **`vikask@deloitte.demoorg`**.
 
 ## 12. API reference
 
-| Method & path              | Auth      | Purpose                              |
-|----------------------------|-----------|--------------------------------------|
-| `GET /health`              | –         | Liveness                             |
-| `GET /api/products`        | –         | List active Meridian products        |
-| `GET /api/products/:id`    | –         | One product by slug                  |
-| `POST /api/orders`         | optional  | Create an order (guest or shopper)   |
-| `GET /api/orders/:id`      | –         | One order by OrderNumber/Id          |
-| `POST /api/auth/signup`    | –         | Create a shopper + session           |
-| `POST /api/auth/login`     | –         | Log in + session                     |
-| `POST /api/auth/logout`    | –         | Clear session                        |
-| `GET /api/auth/me`         | cookie    | Current shopper profile or 401       |
-| `GET /api/account/orders`  | required  | The shopper's order history          |
+| Method & path                        | Auth      | Purpose                                     |
+|--------------------------------------|-----------|---------------------------------------------|
+| `GET /health`                        | –         | Liveness                                    |
+| `GET /api/products`                  | –         | List active Meridian products               |
+| `GET /api/products/:id`              | –         | One product by slug                         |
+| `POST /api/orders`                   | optional  | Create an order (items + shipping); enforces stock, decrements it |
+| `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
+| `POST /api/auth/signup`              | –         | Create a shopper + session                  |
+| `POST /api/auth/login`               | –         | Log in + session                            |
+| `POST /api/auth/logout`              | –         | Clear session                               |
+| `GET /api/auth/me`                   | cookie    | Current shopper profile or 401              |
+| `PATCH /api/account/profile`         | required  | Update the shopper's name (updates Contact, re-issues session) |
+| `GET /api/account/orders`            | required  | The shopper's order history                 |
+| `GET /api/account/orders/:id`        | required  | One own order (ownership-scoped; 404 if not theirs) |
+| `POST /api/account/orders/:id/cancel`| required  | Cancel own draft order; restores stock      |
+| `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
+
+**Inventory** is enforced server-side on `POST /api/orders`: a line exceeding
+`Product2.Stock__c` → `409 insufficient_stock`; on success stock is decremented,
+and restored on cancel. The product cache is invalidated so the storefront
+reflects the new stock.
 
 All errors are typed JSON: `{ "error": "<code>", "message": "<friendly text>" }`
 with the right HTTP status.

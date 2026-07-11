@@ -102,20 +102,27 @@ export default function ProductDetail() {
               </div>
               <div className="specs__row">
                 <dt>Availability</dt>
-                <dd>{product.stock > 0 ? `${product.stock} in stock` : 'Sold out'}</dd>
+                <dd className={product.stock <= 5 ? 'specs__stock' : undefined}>
+                  {product.stock > 0 ? `${product.stock} in stock` : 'Sold out'}
+                </dd>
               </div>
             </dl>
 
             <div className="detail__buy">
               <span className="detail__price">{formatCents(product.priceCents)}</span>
-              <QtyStepper value={qty} onChange={setQty} idLabel="Quantity" />
+              <QtyStepper
+                value={qty}
+                onChange={setQty}
+                max={Math.max(1, product.stock)}
+                idLabel="Quantity"
+              />
               <button
                 type="button"
                 className="btn btn--block detail__add"
                 onClick={handleAdd}
                 disabled={product.stock <= 0}
               >
-                {added ? 'Added to cart ✓' : 'Add to cart'}
+                {product.stock <= 0 ? 'Sold out' : added ? 'Added to cart ✓' : 'Add to cart'}
               </button>
             </div>
             <p className="detail__ship" role={added ? 'status' : undefined}>

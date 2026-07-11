@@ -82,14 +82,16 @@ async function main() {
     console.log('    → Add the custom field on Contact (docs §3b).')
   }
 
-  // 4c. Order → shopper link (order history), readable by the Run-As user
+  // 4c. Web-order fields (order history / checkout / cancel), visible to Run-As
   try {
-    await withConn((conn) => conn.query('SELECT Shopper__c FROM Order LIMIT 1'))
-    ok('Order.Shopper__c exists and is visible (order history)')
+    await withConn((conn) =>
+      conn.query('SELECT Shopper__c, Guest_Email__c, Cancelled__c FROM Order LIMIT 1'),
+    )
+    ok('Order.Shopper__c / Guest_Email__c / Cancelled__c exist and are visible')
   } catch (err) {
     failures++
-    bad(`Order.Shopper__c missing/hidden: ${err.message}`)
-    console.log('    → Run `npm run sf:setup` to create it and grant field access.')
+    bad(`Web-order fields missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create them and grant field access.')
   }
 
   // 5. Active products with a standard price

@@ -75,15 +75,23 @@ Shoppers are stored as **Contacts**. Add one custom field:
 
 Give the integration user create/read access to Contact and to this field.
 
-Logged-in checkouts also link each Order to the shopper via a custom
-`Order.Shopper__c` (Lookup → Contact), which is how order history is queried.
-You don't need to create it by hand — run:
+Checkout / account features also need three custom **Order** fields, which
+`sf:setup` creates and grants the Run-As user access to — no manual work:
 ```
 cd server
-npm run sf:setup     # creates Order.Shopper__c + grants the Run-As user access
+npm run sf:setup     # Order.Shopper__c (Lookup→Contact), Guest_Email__c (Email),
+                     # Cancelled__c (Checkbox) + permission set + assignment
 ```
-(If your integration user can't modify metadata, create `Order.Shopper__c`
-manually as a Lookup to Contact and give the Run-As user field access.)
+`Shopper__c` links an order to the shopper (order history), `Guest_Email__c`
+stores the checkout email, and `Cancelled__c` flags cancellations (the standard
+`Status` picklist has no "Cancelled" value). *(If your integration user can't
+modify metadata, create those fields manually and grant the Run-As user access.)*
+
+**State & Country picklists:** if your org has them enabled (this one does), the
+BFF writes the ISO code fields (`ShippingCountryCode` / `ShippingStateCode`) at
+checkout and Salesforce derives the text — no extra setup needed.
+
+The **contact form** creates a standard **Case** — no setup at all.
 
 Also set session env in `server/.env`:
 ```

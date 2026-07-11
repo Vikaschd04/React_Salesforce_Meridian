@@ -74,16 +74,18 @@ export async function getProduct(id) {
 }
 
 /**
- * Place an order from cart items: [{ id, qty }, ...].
+ * Place an order from cart items + shipping details.
+ * `shipping` = { name, email, street, city, state, postalCode, country }.
  * The BFF recomputes the total from trusted prices and returns
- * { orderId, totalCents, items, placedAt, status }.
+ * { orderId, totalCents, items, placedAt, status, shipping, email }.
  */
-export async function placeOrder(items) {
+export async function placeOrder(items, shipping) {
   const payload = {
     items: (items || []).map(({ id, qty }) => ({
       id,
       qty: Math.max(1, Math.floor(Number(qty) || 0)),
     })),
+    shipping,
   }
   return request('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
@@ -132,4 +134,30 @@ export async function getMe() {
 /** List the logged-in shopper's orders (most recent first). */
 export async function getMyOrders() {
   return request('/account/orders')
+}
+
+/** One of the shopper's own orders (404 if it isn't theirs). */
+export async function getMyOrder(id) {
+  return request(`/account/orders/${encodeURIComponent(id)}`)
+}
+
+/** Cancel the shopper's own draft order; returns the updated order. */
+export async function cancelOrder(id) {
+  return request(`/account/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+}
+
+/** Update the shopper's name. Returns the fresh profile. */
+export async function updateProfile({ firstName, lastName }) {
+  return request('/account/profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ firstName, lastName }),
+  })
+}
+
+/** Send a support request; returns { caseNumber } (a Salesforce Case). */
+export async function sendSupportRequest({ name, email, subject, message }) {
+  return request('/support', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, subject, message }),
+  })
 }

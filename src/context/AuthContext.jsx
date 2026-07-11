@@ -44,8 +44,13 @@ export function AuthProvider({ children }) {
     }
   }
 
+  /** Replace the cached profile (e.g. after a profile edit). */
+  function refreshUser(profile) {
+    setUser(profile)
+  }
+
   const value = useMemo(
-    () => ({ user, loading, isAuthed: !!user, login, signup, logout }),
+    () => ({ user, loading, isAuthed: !!user, login, signup, logout, refreshUser }),
     [user, loading],
   )
 

@@ -45,6 +45,11 @@ export default function AccountMenu({ variant = 'desktop' }) {
               </Link>
             </li>
             <li>
+              <Link to="/account/orders" className="mobile-menu__link">
+                Order history
+              </Link>
+            </li>
+            <li>
               <button type="button" className="mobile-menu__link as-button" onClick={handleLogout}>
                 Log out
               </button>
@@ -94,7 +99,7 @@ export default function AccountMenu({ variant = 'desktop' }) {
               <Link to="/account" role="menuitem" className="account__item" onClick={() => setOpen(false)}>
                 Your account
               </Link>
-              <Link to="/account" role="menuitem" className="account__item" onClick={() => setOpen(false)}>
+              <Link to="/account/orders" role="menuitem" className="account__item" onClick={() => setOpen(false)}>
                 Order history
               </Link>
               <button type="button" role="menuitem" className="account__item account__item--danger" onClick={handleLogout}>

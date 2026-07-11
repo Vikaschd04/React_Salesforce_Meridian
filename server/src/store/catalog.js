@@ -15,6 +15,11 @@ import * as sfCatalog from '../sf/catalog.js'
 const cache = createCache(config.cacheTtlMs)
 const useSalesforce = config.dataSource === 'salesforce'
 
+/** Drop cached product reads (e.g. after stock changed on an order/cancel). */
+export function invalidateCatalogCache() {
+  cache.clear()
+}
+
 // ---- Mock implementation (Phases 1–2) ----
 async function mockGetProducts() {
   return PRODUCTS.filter((p) => p.active)
