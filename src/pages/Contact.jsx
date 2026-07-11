@@ -3,9 +3,14 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { sendSupportRequest } from '../api/store.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import useSeo from '../lib/useSeo.js'
 
 export default function Contact() {
   const { user } = useAuth()
+  useSeo({
+    title: 'Contact',
+    description: 'Questions about a coffee or an order? Send Meridian a note — every message opens a tracked support case.',
+  })
   const [values, setValues] = useState({
     name: user ? `${user.firstName} ${user.lastName}`.trim() : '',
     email: user?.email || '',

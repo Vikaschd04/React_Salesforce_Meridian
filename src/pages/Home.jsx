@@ -5,6 +5,8 @@ import ProductCard from '../components/ProductCard.jsx'
 import CoordTicker from '../components/CoordTicker.jsx'
 import Spinner from '../components/Spinner.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import JsonLd from '../components/JsonLd.jsx'
+import useSeo from '../lib/useSeo.js'
 import useReveal from '../lib/useReveal.js'
 import useParallax from '../lib/useParallax.js'
 
@@ -42,11 +44,38 @@ export default function Home() {
 
   useReveal([products])
   const heroRef = useParallax()
+  useSeo({
+    description:
+      'Meridian roasts single-origin coffee traced to named farms and plotted to their coordinates. No blends, no anonymity — shipped fresh.',
+  })
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const featured = products ? products.slice(0, 3) : null
 
   return (
     <>
+      <JsonLd
+        data={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: 'Meridian',
+            url: origin,
+            logo: `${origin}/favicon.svg`,
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Meridian',
+            url: origin,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: `${origin}/shop?q={search_term_string}`,
+              'query-input': 'required name=search_term_string',
+            },
+          },
+        ]}
+      />
       <section className="hero" ref={heroRef}>
         {/* layered cinematic backdrop: drifting grid, origin points, and a
             3D armillary sphere — each layer parallaxes at its own depth */}

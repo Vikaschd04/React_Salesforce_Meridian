@@ -7,6 +7,8 @@ import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import RelatedProducts from '../components/RelatedProducts.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import JsonLd from '../components/JsonLd.jsx'
+import useSeo from '../lib/useSeo.js'
 import useTilt from '../lib/useTilt.js'
 import QtyStepper from '../components/QtyStepper.jsx'
 import Spinner from '../components/Spinner.jsx'
@@ -36,6 +38,17 @@ export default function ProductDetail() {
     }
   }, [id, reloadKey])
 
+  useSeo(
+    product
+      ? {
+          title: product.name,
+          description: `${product.tastingNotes.join(', ')} — single-origin ${product.roast.toLowerCase()} roast from ${product.origin}, roasted to order.`,
+          image: product.image,
+          type: 'product',
+        }
+      : { title: 'Coffee' },
+  )
+
   function handleAdd() {
     addItem(product.id, qty)
     setAdded(true)
@@ -62,6 +75,27 @@ export default function ProductDetail() {
         <Spinner label="Loading coffee…" />
       ) : (
         <article className="detail">
+          <JsonLd
+            data={{
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              name: product.name,
+              image: `${window.location.origin}${product.image}`,
+              description:
+                product.description ||
+                `${product.tastingNotes.join(', ')} — single-origin coffee from ${product.origin}.`,
+              brand: { '@type': 'Brand', name: 'Meridian' },
+              category: 'Coffee',
+              offers: {
+                '@type': 'Offer',
+                price: (product.priceCents / 100).toFixed(2),
+                priceCurrency: 'USD',
+                availability:
+                  product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+                url: window.location.href.split('#')[0],
+              },
+            }}
+          />
           <div
             className="detail__art"
             ref={tilt.ref}

@@ -1,9 +1,15 @@
 import { Link } from 'react-router-dom'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import useReveal from '../lib/useReveal.js'
+import useSeo from '../lib/useSeo.js'
 
 export default function About() {
   useReveal([])
+  useSeo({
+    title: 'Our sourcing',
+    description:
+      'How Meridian sources single-origin coffee: farm-level traceability, relationships over commodities, and roasting that shows the origin.',
+  })
   return (
     <div className="container about">
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Our sourcing' }]} />

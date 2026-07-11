@@ -7,6 +7,7 @@ import ActiveFilters from '../components/ActiveFilters.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import Spinner from '../components/Spinner.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import useSeo from '../lib/useSeo.js'
 
 // Country is the last comma-separated part of the origin string.
 const countryOf = (origin) => origin.split(',').pop().trim()
@@ -31,6 +32,11 @@ export default function Shop() {
   const [products, setProducts] = useState(null)
   const [error, setError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
+  useSeo({
+    title: 'Shop',
+    description:
+      'Every Meridian single-origin coffee, traced to a named farm. Filter by roast, price, and tasting note.',
+  })
 
   // Filters live in the URL so a filtered view is shareable and survives refresh.
   const [searchParams, setSearchParams] = useSearchParams()
