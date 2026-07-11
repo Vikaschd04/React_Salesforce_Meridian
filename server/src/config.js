@@ -5,6 +5,7 @@ import 'dotenv/config'
  * never in the front end.
  */
 const dataSource = (process.env.DATA_SOURCE || 'mock').toLowerCase()
+const paymentProvider = (process.env.PAYMENT_PROVIDER || 'mock').toLowerCase()
 
 export const config = {
   port: Number(process.env.PORT) || 8787,
@@ -14,6 +15,17 @@ export const config = {
 
   // 'mock' (default) reads the in-repo catalog; 'salesforce' reads a live org.
   dataSource,
+
+  // Payments. 'mock' (default) simulates a card charge offline; 'stripe' uses
+  // real Stripe test-mode PaymentIntents (requires STRIPE_* keys + `npm i stripe`).
+  paymentProvider,
+  payment: {
+    provider: paymentProvider,
+    currency: (process.env.PAYMENT_CURRENCY || 'usd').toLowerCase(),
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
+    // Safe to expose to the browser (used to mount Stripe Elements).
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+  },
 
   // Shopper sessions (signed JWT in an httpOnly cookie).
   session: {

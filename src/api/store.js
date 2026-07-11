@@ -79,7 +79,7 @@ export async function getProduct(id) {
  * The BFF recomputes the total from trusted prices and returns
  * { orderId, totalCents, items, placedAt, status, shipping, email }.
  */
-export async function placeOrder(items, shipping, promoCode = null) {
+export async function placeOrder(items, shipping, promoCode = null, payment = null) {
   const payload = {
     items: (items || []).map(({ id, qty }) => ({
       id,
@@ -87,8 +87,14 @@ export async function placeOrder(items, shipping, promoCode = null) {
     })),
     shipping,
     ...(promoCode ? { promoCode } : {}),
+    ...(payment ? { payment } : {}),
   }
   return request('/orders', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+/** Which payment UI to render: { provider, publishableKey }. */
+export async function getPaymentConfig() {
+  return request('/payment-config')
 }
 
 /**

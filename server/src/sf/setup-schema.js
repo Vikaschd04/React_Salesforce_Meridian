@@ -72,6 +72,79 @@ const FIELDS = [
       length: 40,
     },
   },
+  // ---- Payments + fulfillment lifecycle ----
+  {
+    probe: 'Payment_Status__c',
+    def: {
+      fullName: 'Order.Payment_Status__c',
+      label: 'Payment Status',
+      type: 'Picklist',
+      valueSet: {
+        valueSetDefinition: {
+          sorted: false,
+          value: [
+            { fullName: 'Unpaid', default: true, label: 'Unpaid' },
+            { fullName: 'Paid', default: false, label: 'Paid' },
+            { fullName: 'Refunded', default: false, label: 'Refunded' },
+          ],
+        },
+      },
+    },
+  },
+  {
+    probe: 'Payment_Intent__c',
+    def: {
+      fullName: 'Order.Payment_Intent__c',
+      label: 'Payment Intent',
+      type: 'Text',
+      length: 64,
+    },
+  },
+  {
+    probe: 'Shipping_Cents__c',
+    def: {
+      fullName: 'Order.Shipping_Cents__c',
+      label: 'Shipping Cents',
+      type: 'Number',
+      precision: 12,
+      scale: 0,
+    },
+  },
+  {
+    probe: 'Fulfillment_Status__c',
+    def: {
+      fullName: 'Order.Fulfillment_Status__c',
+      label: 'Fulfillment Status',
+      type: 'Picklist',
+      valueSet: {
+        valueSetDefinition: {
+          sorted: false,
+          value: [
+            { fullName: 'Unfulfilled', default: true, label: 'Unfulfilled' },
+            { fullName: 'Shipped', default: false, label: 'Shipped' },
+            { fullName: 'Delivered', default: false, label: 'Delivered' },
+          ],
+        },
+      },
+    },
+  },
+  {
+    probe: 'Tracking_Number__c',
+    def: {
+      fullName: 'Order.Tracking_Number__c',
+      label: 'Tracking Number',
+      type: 'Text',
+      length: 64,
+    },
+  },
+  {
+    probe: 'Shipped_Date__c',
+    def: {
+      fullName: 'Order.Shipped_Date__c',
+      label: 'Shipped Date',
+      type: 'Date',
+    },
+  },
 ]
 
 async function ensureField(conn, { probe, def }) {

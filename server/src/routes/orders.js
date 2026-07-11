@@ -33,6 +33,22 @@ const orderSchema = z
       .strict(),
     // Optional promo code; re-validated + applied server-side at creation.
     promoCode: z.string().trim().max(40).optional(),
+    // Payment details. Shape depends on provider (mock: { card }, stripe:
+    // { paymentMethodId }); the pay module validates the specifics.
+    payment: z
+      .object({
+        card: z
+          .object({
+            number: z.string().max(30),
+            exp: z.string().max(10).optional(),
+            cvc: z.string().max(6).optional(),
+            name: z.string().max(120).optional(),
+          })
+          .optional(),
+        paymentMethodId: z.string().max(120).optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .strict()
 
@@ -52,6 +68,7 @@ router.post(
       parsed.data.shipping,
       req.user,
       parsed.data.promoCode,
+      parsed.data.payment,
     )
     res.status(201).json(order)
   }),

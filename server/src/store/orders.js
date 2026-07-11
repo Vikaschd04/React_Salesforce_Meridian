@@ -14,6 +14,8 @@ import { config } from '../config.js'
 import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
 import { applyPromo } from './promos.js'
+import { charge } from '../pay/index.js'
+import { computeShippingCents } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 import * as sfOrders from '../sf/orders.js'
 
@@ -25,7 +27,7 @@ function makeOrderId() {
 }
 
 // ---- Mock implementation ----
-async function mockCreateOrder(items, shipping, user, promoCode) {
+async function mockCreateOrder(items, shipping, user, promoCode, payment) {
   const products = await getProductsByIds(items.map((it) => it.id))
   const lines = items.map((it, i) => {
     const product = products[i]
@@ -59,15 +61,32 @@ async function mockCreateOrder(items, shipping, user, promoCode) {
   const subtotalCents = lines.reduce((sum, line) => sum + line.lineCents, 0)
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
   const promo = applyPromo(promoCode, subtotalCents)
+  const totalCents = subtotalCents - promo.discountCents
+  const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
+
+  // Take payment before recording the order (a decline throws 402).
+  const paid = await charge({
+    amountCents: totalCents + shippingCents,
+    payment,
+    metadata: { email: shipping?.email || '' },
+  })
+
   const order = {
     orderId: makeOrderId(),
-    status: 'confirmed',
+    status: 'paid',
+    paymentStatus: 'paid',
+    fulfillmentStatus: 'unfulfilled',
+    trackingNumber: null,
+    shippedDate: null,
+    paymentId: paid.paymentId,
     items: lines,
     subtotalCents,
     discountCents: promo.discountCents,
+    shippingCents,
+    paidCents: totalCents + shippingCents,
     promoCode: promo.code,
     freeShipping: promo.freeShipping,
-    totalCents: subtotalCents - promo.discountCents,
+    totalCents,
     placedAt: new Date().toISOString(),
     email: shipping?.email || null,
     shipping: shipping
@@ -101,7 +120,11 @@ async function mockCancelOrder(id, contactId) {
   if (order.status === 'cancelled') {
     throw badRequest('This order is already cancelled.', 'already_cancelled')
   }
+  if (order.fulfillmentStatus === 'shipped' || order.fulfillmentStatus === 'delivered') {
+    throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
+  }
   order.status = 'cancelled'
+  if (order.paymentStatus === 'paid') order.paymentStatus = 'refunded'
   for (const line of order.items) {
     const src = PRODUCTS.find((p) => p.id === line.id)
     if (src) src.stock += line.qty
@@ -128,7 +151,7 @@ function stripInternal({ _ownerId, ...rest }) {
  * Create an order from validated cart items + shipping details.
  * `user` is the optional logged-in shopper { id, email }; guests pass null.
  */
-export async function createOrder(items, shipping, user = null, promoCode = null) {
+export async function createOrder(items, shipping, user = null, promoCode = null, payment = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
@@ -138,11 +161,12 @@ export async function createOrder(items, shipping, user = null, promoCode = null
       shipping,
       user ? { contactId: user.id } : null,
       promoCode,
+      payment,
     )
     invalidateCatalogCache() // stock changed
     return order
   }
-  return mockCreateOrder(items, shipping, user, promoCode)
+  return mockCreateOrder(items, shipping, user, promoCode, payment)
 }
 
 /** Fetch an order by id (optionally ownership-scoped), or throw 404. */

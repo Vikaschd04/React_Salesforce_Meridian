@@ -22,6 +22,10 @@ export const badRequest = (message = 'Invalid request', error = 'bad_request') =
 export const conflict = (message = 'Conflict', error = 'conflict') =>
   new ApiError(409, error, message)
 
+/** Payment could not be taken (declined card, provider error). */
+export const paymentError = (message = 'Payment failed', error = 'payment_failed') =>
+  new ApiError(402, error, message)
+
 /** Wrap async route handlers so thrown/rejected errors reach the error middleware. */
 export const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next)

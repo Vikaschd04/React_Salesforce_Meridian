@@ -74,7 +74,22 @@ export const PRODUCT_FIELDS = [
 export const ORDER_FIELDS =
   'Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c, ' +
   'Guest_Email__c, Cancelled__c, Shopper__c, Discount_Cents__c, Promo_Code__c, ' +
+  'Payment_Status__c, Payment_Intent__c, Shipping_Cents__c, Fulfillment_Status__c, ' +
+  'Tracking_Number__c, Shipped_Date__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
+
+/**
+ * Collapse the payment + fulfillment + cancellation fields into one display
+ * status the UI can drive a badge/timeline from.
+ */
+export function orderStatus({ Cancelled__c, Payment_Status__c, Fulfillment_Status__c }) {
+  if (Cancelled__c) return 'cancelled'
+  if (Payment_Status__c === 'Refunded') return 'refunded'
+  if (Fulfillment_Status__c === 'Delivered') return 'delivered'
+  if (Fulfillment_Status__c === 'Shipped') return 'shipped'
+  if (Payment_Status__c === 'Paid') return 'paid'
+  return 'processing'
+}
 
 /** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
 export function orderFromSf(order, items = []) {
@@ -92,14 +107,21 @@ export function orderFromSf(order, items = []) {
       ? Number(order.Total_Cents__c)
       : lines.reduce((sum, l) => sum + l.lineCents, 0)
   const discountCents = Number(order.Discount_Cents__c || 0)
+  const shippingCents = Number(order.Shipping_Cents__c || 0)
 
   const hasShipping = order.ShippingStreet || order.ShippingCity
   return {
     orderId: order.OrderNumber || order.Id,
-    status: order.Cancelled__c ? 'cancelled' : (order.Status || 'confirmed').toLowerCase(),
+    status: orderStatus(order),
+    paymentStatus: (order.Payment_Status__c || 'Unpaid').toLowerCase(),
+    fulfillmentStatus: (order.Fulfillment_Status__c || 'Unfulfilled').toLowerCase(),
+    trackingNumber: order.Tracking_Number__c || null,
+    shippedDate: order.Shipped_Date__c || null,
     items: lines,
     subtotalCents: totalCents + discountCents,
     discountCents,
+    shippingCents,
+    paidCents: totalCents + shippingCents,
     promoCode: order.Promo_Code__c || null,
     totalCents,
     placedAt: order.EffectiveDate || order.CreatedDate || new Date().toISOString(),

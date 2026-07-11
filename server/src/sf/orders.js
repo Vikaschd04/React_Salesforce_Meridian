@@ -12,6 +12,8 @@ import { withConn } from './client.js'
 import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
 import { applyPromo } from '../store/promos.js'
+import { charge } from '../pay/index.js'
+import { computeShippingCents } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 
 // Account + standard pricebook ids are stable per org; resolve once and cache.
@@ -47,7 +49,7 @@ const esc = (s) => String(s).replace(/'/g, "\\'")
  * `auth` is optional { contactId }; when present the order is linked to that
  * Contact via Order.Shopper__c so it shows up in order history.
  */
-export async function createOrder(items, shipping, auth = null, promoCode = null) {
+export async function createOrder(items, shipping, auth = null, promoCode = null, payment = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
@@ -80,6 +82,15 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
   const promo = applyPromo(promoCode, subtotalCents)
   const totalCents = subtotalCents - promo.discountCents
+  const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
+
+  // Take payment against the trusted amount BEFORE writing anything — a decline
+  // throws (402) and no order is created.
+  const paid = await charge({
+    amountCents: totalCents + shippingCents,
+    payment,
+    metadata: { email: shipping?.email || '' },
+  })
 
   const base = apiPath()
   // Shared, always-valid part of the Order record.
@@ -87,10 +98,15 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
     AccountId: accountId,
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
+    // Salesforce requires new orders to start Draft; the web-order lifecycle is
+    // tracked by the custom Payment_Status__c / Fulfillment_Status__c fields.
     Status: 'Draft',
     Total_Cents__c: totalCents,
     Discount_Cents__c: promo.discountCents,
     Promo_Code__c: promo.code,
+    Shipping_Cents__c: shippingCents,
+    Payment_Status__c: 'Paid',
+    Payment_Intent__c: paid.paymentId,
     Guest_Email__c: shipping?.email || null,
     ShippingStreet: shipping?.street || null,
     ShippingCity: shipping?.city || null,
@@ -168,8 +184,8 @@ async function readRawOrder(idOrNumber) {
 }
 
 /**
- * Cancel a shopper's own order. Allowed only while the order is still Draft
- * and not already cancelled. Restores the reserved stock.
+ * Cancel a shopper's own order. Allowed until it has shipped. Refunds a paid
+ * order (mock) and restores the reserved stock.
  */
 export async function cancelOrder(idOrNumber, contactId) {
   const raw = await readRawOrder(idOrNumber)
@@ -179,12 +195,17 @@ export async function cancelOrder(idOrNumber, contactId) {
   if (raw.head.Cancelled__c) {
     throw badRequest('This order is already cancelled.', 'already_cancelled')
   }
-  if (raw.head.Status !== 'Draft') {
-    throw badRequest('This order has already been processed and can no longer be cancelled.', 'not_cancellable')
+  if (raw.head.Fulfillment_Status__c === 'Shipped' || raw.head.Fulfillment_Status__c === 'Delivered') {
+    throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
   }
 
   await withConn((conn) =>
-    conn.sobject('Order').update({ Id: raw.head.Id, Cancelled__c: true }),
+    conn.sobject('Order').update({
+      Id: raw.head.Id,
+      Cancelled__c: true,
+      // Refund a paid order (mock: just flip the status).
+      ...(raw.head.Payment_Status__c === 'Paid' ? { Payment_Status__c: 'Refunded' } : {}),
+    }),
   )
 
   // Restore stock (best effort).

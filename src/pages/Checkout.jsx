@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { placeOrder } from '../api/store.js'
+import { placeOrder, getPaymentConfig } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
+import PaymentFields from '../components/PaymentFields.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
 
 const SHIP_FREE_THRESHOLD = 4500
@@ -33,8 +34,21 @@ export default function Checkout() {
     postalCode: '',
     countryCode: 'US',
   })
+  const [card, setCard] = useState({ number: '', exp: '', cvc: '', name: '' })
+  const [payProvider, setPayProvider] = useState('mock')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState(null)
+
+  // Learn which payment UI to render (mock card form vs Stripe Elements).
+  useEffect(() => {
+    let alive = true
+    getPaymentConfig()
+      .then((cfg) => alive && setPayProvider(cfg.provider || 'mock'))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // Redirect only a genuinely empty cart back to the cart page. We key off the
   // raw `items` (not catalog-joined `lines`) so a refresh / direct link to
@@ -57,7 +71,10 @@ export default function Checkout() {
     setPlacing(true)
     setError(null)
     try {
-      const order = await placeOrder(items, values, promo?.code || null)
+      // Mock provider takes raw card fields; a real Stripe build would pass a
+      // { paymentMethodId } created client-side by Stripe Elements instead.
+      const payment = payProvider === 'stripe' ? { card } : { card }
+      const order = await placeOrder(items, values, promo?.code || null, payment)
       clear()
       navigate(`/confirmation/${order.orderId}`, { state: { order } })
     } catch (err) {
@@ -146,11 +163,13 @@ export default function Checkout() {
             )}
           </div>
 
+          <PaymentFields value={card} onChange={setCard} />
+
           <button type="submit" className="btn btn--block checkout__submit" disabled={placing}>
-            {placing ? 'Placing order…' : `Place order · ${formatCents(grandTotalCents)}`}
+            {placing ? 'Processing payment…' : `Pay ${formatCents(grandTotalCents)}`}
           </button>
           <p className="field__hint">
-            No payment is taken — this is a mock checkout. Your order is created in Salesforce.
+            Test-mode checkout — no real charge. Your paid order is created in Salesforce.
           </p>
         </form>
 
