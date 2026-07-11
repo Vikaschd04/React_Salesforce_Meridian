@@ -31,6 +31,8 @@ const orderSchema = z
         countryCode: z.string().trim().min(2, 'Country is required.').max(4),
       })
       .strict(),
+    // Optional promo code; re-validated + applied server-side at creation.
+    promoCode: z.string().trim().max(40).optional(),
   })
   .strict()
 
@@ -45,7 +47,12 @@ router.post(
       throw badRequest(first?.message || 'Invalid order.', 'invalid_order')
     }
     // req.user is the logged-in shopper (or null for guest checkout).
-    const order = await createOrder(parsed.data.items, parsed.data.shipping, req.user)
+    const order = await createOrder(
+      parsed.data.items,
+      parsed.data.shipping,
+      req.user,
+      parsed.data.promoCode,
+    )
     res.status(201).json(order)
   }),
 )

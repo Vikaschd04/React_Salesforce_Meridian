@@ -82,12 +82,14 @@ async function main() {
     console.log('    → Add the custom field on Contact (docs §3b).')
   }
 
-  // 4c. Web-order fields (order history / checkout / cancel), visible to Run-As
+  // 4c. Web-order fields (order history / checkout / cancel / promo), visible to Run-As
   try {
     await withConn((conn) =>
-      conn.query('SELECT Shopper__c, Guest_Email__c, Cancelled__c FROM Order LIMIT 1'),
+      conn.query(
+        'SELECT Shopper__c, Guest_Email__c, Cancelled__c, Discount_Cents__c, Promo_Code__c FROM Order LIMIT 1',
+      ),
     )
-    ok('Order.Shopper__c / Guest_Email__c / Cancelled__c exist and are visible')
+    ok('Order web fields (Shopper/Guest_Email/Cancelled/Discount_Cents/Promo_Code) exist and are visible')
   } catch (err) {
     failures++
     bad(`Web-order fields missing/hidden: ${err.message}`)

@@ -53,6 +53,25 @@ const FIELDS = [
       defaultValue: 'false',
     },
   },
+  {
+    probe: 'Discount_Cents__c',
+    def: {
+      fullName: 'Order.Discount_Cents__c',
+      label: 'Discount Cents',
+      type: 'Number',
+      precision: 12,
+      scale: 0,
+    },
+  },
+  {
+    probe: 'Promo_Code__c',
+    def: {
+      fullName: 'Order.Promo_Code__c',
+      label: 'Promo Code',
+      type: 'Text',
+      length: 40,
+    },
+  },
 ]
 
 async function ensureField(conn, { probe, def }) {

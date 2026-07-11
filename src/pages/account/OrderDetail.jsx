@@ -83,6 +83,19 @@ export default function OrderDetail() {
           ))}
         </ul>
 
+        {order.discountCents > 0 && (
+          <>
+            <div className="order-card__line order-card__line--sub">
+              <span>Subtotal</span>
+              <span>{formatCents(order.subtotalCents ?? order.totalCents + order.discountCents)}</span>
+            </div>
+            <div className="order-card__line order-card__line--discount">
+              <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
+              <span>−{formatCents(order.discountCents)}</span>
+            </div>
+          </>
+        )}
+
         <div className="order-card__total">
           <span>Total</span>
           <span>{formatCents(order.totalCents)}</span>

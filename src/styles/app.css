@@ -1320,6 +1320,104 @@
   font-size: var(--step--1);
   margin: var(--sp-2) 0;
 }
+.summary__row--discount span:last-child {
+  color: var(--pine-bright);
+}
+
+/* ---- Promo code input ---- */
+.promo {
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  margin-top: var(--sp-1);
+}
+.promo__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+.promo__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--ink);
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.promo__input::placeholder {
+  color: var(--mist);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.promo__input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+}
+.promo__apply {
+  padding: 0.5rem 1rem;
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+.promo__error {
+  color: var(--danger);
+  font-size: var(--step--1);
+  margin-top: var(--sp-2);
+}
+.promo--applied {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.promo__badge {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--on-gold);
+  background: var(--gold);
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius);
+}
+.promo__label {
+  color: var(--pine-bright);
+  font-size: var(--step--1);
+  flex: 1;
+  min-width: 0;
+}
+.promo__remove {
+  background: none;
+  border: none;
+  color: var(--mist);
+  font-size: var(--step--1);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.promo__remove:hover {
+  color: var(--danger);
+}
+/* Discount lines on confirmation + account order detail */
+.confirm__subtotal,
+.order-card__line--sub,
+.order-card__line--discount {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-70);
+}
+.confirm__subtotal span:last-child,
+.order-card__line--sub span:last-child,
+.order-card__line--discount span:last-child {
+  font-family: var(--font-mono);
+}
+.confirm__subtotal--discount span:last-child,
+.order-card__line--discount span:last-child {
+  color: var(--pine-bright);
+}
 .summary__auth {
   margin-top: var(--sp-3);
   padding-top: var(--sp-3);

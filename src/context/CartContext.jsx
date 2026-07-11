@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { getProducts } from '../api/store.js'
+import { getProducts, applyPromo } from '../api/store.js'
 
 /**
  * Cart state for the whole app.
@@ -84,6 +84,21 @@ export function CartProvider({ children }) {
 
   function clear() {
     setItems([])
+    setPromo(null)
+  }
+
+  // ---- Promo code ----
+  // The applied promo { code, discountCents, freeShipping, label } or null.
+  const [promo, setPromo] = useState(null)
+
+  /** Apply a code; validated server-side against the current subtotal. Throws on failure. */
+  async function applyPromoCode(code) {
+    const res = await applyPromo(code, totalCents)
+    setPromo(res)
+    return res
+  }
+  function clearPromo() {
+    setPromo(null)
   }
 
   // Derived line items joined with catalog data (skips items no longer sold).
@@ -108,9 +123,40 @@ export function CartProvider({ children }) {
     [lines],
   )
 
+  // Keep an applied promo accurate when the cart changes: re-validate against the
+  // new subtotal and drop it if it no longer qualifies (e.g. dropped below a min).
+  useEffect(() => {
+    if (!promo) return undefined
+    let alive = true
+    applyPromo(promo.code, totalCents)
+      .then((res) => alive && setPromo(res))
+      .catch(() => alive && setPromo(null))
+    return () => {
+      alive = false
+    }
+    // Only re-run when the subtotal changes; promo.code is stable while applied.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalCents])
+
+  const discountCents = promo?.discountCents || 0
+
   const value = useMemo(
-    () => ({ items, lines, count, totalCents, addItem, setQty, removeItem, clear }),
-    [items, lines, count, totalCents],
+    () => ({
+      items,
+      lines,
+      count,
+      totalCents,
+      promo,
+      discountCents,
+      applyPromoCode,
+      clearPromo,
+      addItem,
+      setQty,
+      removeItem,
+      clear,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, lines, count, totalCents, promo, discountCents],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

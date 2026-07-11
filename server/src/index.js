@@ -11,6 +11,7 @@ import orderRoutes from './routes/orders.js'
 import authRoutes from './routes/auth.js'
 import accountRoutes from './routes/account.js'
 import supportRoutes from './routes/support.js'
+import promoRoutes from './routes/promo.js'
 
 const app = express()
 
@@ -27,6 +28,7 @@ app.use('/', healthRoutes)
 app.use('/api', authRoutes)
 app.use('/api', accountRoutes)
 app.use('/api', supportRoutes)
+app.use('/api', promoRoutes)
 app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 

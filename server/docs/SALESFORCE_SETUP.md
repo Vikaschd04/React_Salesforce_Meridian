@@ -75,17 +75,20 @@ Shoppers are stored as **Contacts**. Add one custom field:
 
 Give the integration user create/read access to Contact and to this field.
 
-Checkout / account features also need three custom **Order** fields, which
+Checkout / account features also need five custom **Order** fields, which
 `sf:setup` creates and grants the Run-As user access to — no manual work:
 ```
 cd server
 npm run sf:setup     # Order.Shopper__c (Lookup→Contact), Guest_Email__c (Email),
-                     # Cancelled__c (Checkbox) + permission set + assignment
+                     # Cancelled__c (Checkbox), Discount_Cents__c (Number),
+                     # Promo_Code__c (Text) + permission set + assignment
 ```
 `Shopper__c` links an order to the shopper (order history), `Guest_Email__c`
-stores the checkout email, and `Cancelled__c` flags cancellations (the standard
-`Status` picklist has no "Cancelled" value). *(If your integration user can't
-modify metadata, create those fields manually and grant the Run-As user access.)*
+stores the checkout email, `Cancelled__c` flags cancellations (the standard
+`Status` picklist has no "Cancelled" value), and `Discount_Cents__c` /
+`Promo_Code__c` record an applied promo (`Total_Cents__c` stores the amount after
+discount). *(If your integration user can't modify metadata, create those fields
+manually and grant the Run-As user access.)*
 
 **State & Country picklists:** if your org has them enabled (this one does), the
 BFF writes the ISO code fields (`ShippingCountryCode` / `ShippingStateCode`) at

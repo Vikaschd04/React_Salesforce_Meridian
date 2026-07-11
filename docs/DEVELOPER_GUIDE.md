@@ -264,10 +264,12 @@ run-as user: **`vikask@deloitte.demoorg`**.
 ### 10.3 Custom fields on `Order`
 | API name          | Type          | Purpose                                   |
 |-------------------|---------------|-------------------------------------------|
-| `Total_Cents__c`  | Number (12,0) | server-computed total, in integer cents   |
+| `Total_Cents__c`  | Number (12,0) | amount charged (goods **after** discount), in integer cents |
 | `Shopper__c`      | Lookup→Contact| links an order to the shopper (order history). Child relationship: `Web_Orders`. **Created via API** by `npm run sf:setup`. |
 | `Guest_Email__c`  | Email         | contact email captured at checkout. **API-created** by `sf:setup`. |
 | `Cancelled__c`    | Checkbox      | web-order cancellation flag (the standard `Status` picklist is Draft/Activated/Completed — no "Cancelled"). **API-created** by `sf:setup`. |
+| `Discount_Cents__c` | Number (12,0) | promo discount applied, in cents (subtotal = `Total_Cents__c` + this). **API-created** by `sf:setup`. |
+| `Promo_Code__c`   | Text (40)     | the applied promo code, if any. **API-created** by `sf:setup`. |
 
 Standard **`Shipping*`** fields are also written at checkout. The org has
 **State & Country picklists enabled**, so the BFF writes the ISO code fields
@@ -287,8 +289,9 @@ No custom fields or config required.
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration",
   id `0PSKa000006czzoOAA`). Grants read/edit field-level security on the
-  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Cancelled__c`) and
-  is **assigned to the integration user**. Created/updated and assigned by
+  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Cancelled__c`,
+  `Discount_Cents__c`, `Promo_Code__c`) and is **assigned to the integration
+  user**. Created/updated and assigned by
   `npm run sf:setup`. Needed because a field created via the API has no FLS by
   default, so the integration user otherwise can't see it.
 
@@ -344,8 +347,9 @@ No custom fields or config required.
 | `GET /health`                        | –         | Liveness                                    |
 | `GET /api/products`                  | –         | List active Meridian products               |
 | `GET /api/products/:id`              | –         | One product by slug                         |
-| `POST /api/orders`                   | optional  | Create an order (items + shipping); enforces stock, decrements it |
+| `POST /api/orders`                   | optional  | Create an order (items + shipping + optional promo); enforces stock, decrements it, re-validates the promo |
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
+| `POST /api/promo/validate`           | –         | Validate a promo code against a subtotal → `{ code, discountCents, freeShipping, label }` |
 | `POST /api/auth/signup`              | –         | Create a shopper + session                  |
 | `POST /api/auth/login`               | –         | Log in + session                            |
 | `POST /api/auth/logout`              | –         | Clear session                               |

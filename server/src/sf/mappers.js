@@ -73,7 +73,7 @@ export const PRODUCT_FIELDS = [
 /** Fields selected whenever we read an Order. */
 export const ORDER_FIELDS =
   'Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c, ' +
-  'Guest_Email__c, Cancelled__c, Shopper__c, ' +
+  'Guest_Email__c, Cancelled__c, Shopper__c, Discount_Cents__c, Promo_Code__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
 
 /** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
@@ -85,16 +85,22 @@ export function orderFromSf(order, items = []) {
     unitPriceCents: dollarsToCents(it.UnitPrice),
     lineCents: dollarsToCents(it.TotalPrice ?? it.UnitPrice * it.Quantity),
   }))
+  // Total_Cents__c holds the amount charged (goods − discount); the subtotal is
+  // recovered by adding the stored discount back on.
   const totalCents =
     order.Total_Cents__c != null
       ? Number(order.Total_Cents__c)
       : lines.reduce((sum, l) => sum + l.lineCents, 0)
+  const discountCents = Number(order.Discount_Cents__c || 0)
 
   const hasShipping = order.ShippingStreet || order.ShippingCity
   return {
     orderId: order.OrderNumber || order.Id,
     status: order.Cancelled__c ? 'cancelled' : (order.Status || 'confirmed').toLowerCase(),
     items: lines,
+    subtotalCents: totalCents + discountCents,
+    discountCents,
+    promoCode: order.Promo_Code__c || null,
     totalCents,
     placedAt: order.EffectiveDate || order.CreatedDate || new Date().toISOString(),
     email: order.Guest_Email__c || null,

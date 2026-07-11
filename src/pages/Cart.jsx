@@ -4,16 +4,18 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
+import PromoInput from '../components/PromoInput.jsx'
 
 const SHIP_FREE_THRESHOLD = 4500
 const SHIP_FLAT_CENTS = 600
 
 export default function Cart() {
-  const { lines, items, totalCents, setQty, removeItem } = useCart()
+  const { lines, items, totalCents, promo, discountCents, setQty, removeItem } = useCart()
   const { isAuthed, user } = useAuth()
 
-  const shippingCents = totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD ? 0 : SHIP_FLAT_CENTS
-  const grandTotalCents = totalCents + shippingCents
+  const freeShipping = promo?.freeShipping || totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD
+  const shippingCents = freeShipping ? 0 : SHIP_FLAT_CENTS
+  const grandTotalCents = totalCents - discountCents + shippingCents
   // Block checkout if any line exceeds available stock.
   const overStock = lines.some(({ qty, product }) => qty > product.stock)
 
@@ -82,6 +84,12 @@ export default function Cart() {
             <span>Subtotal</span>
             <span>{formatCents(totalCents)}</span>
           </div>
+          {discountCents > 0 && (
+            <div className="summary__row summary__row--discount">
+              <span>Discount{promo?.code ? ` · ${promo.code}` : ''}</span>
+              <span>−{formatCents(discountCents)}</span>
+            </div>
+          )}
           <div className="summary__row">
             <span>Shipping</span>
             <span>{shippingCents === 0 ? 'Free' : formatCents(shippingCents)}</span>
@@ -91,6 +99,7 @@ export default function Cart() {
               Add {formatCents(SHIP_FREE_THRESHOLD - totalCents)} more for free shipping.
             </p>
           )}
+          <PromoInput />
           <div className="summary__row summary__row--total">
             <span>Total</span>
             <span>{formatCents(grandTotalCents)}</span>

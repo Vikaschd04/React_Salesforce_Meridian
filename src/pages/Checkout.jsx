@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import PromoInput from '../components/PromoInput.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
 
 const SHIP_FREE_THRESHOLD = 4500
@@ -19,7 +20,7 @@ const FIELDS = [
 ]
 
 export default function Checkout() {
-  const { lines, items, totalCents, clear } = useCart()
+  const { lines, items, totalCents, promo, discountCents, clear } = useCart()
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -42,9 +43,10 @@ export default function Checkout() {
   // Cart has items but prices haven't loaded yet — show a brief placeholder.
   const hydrating = lines.length === 0
 
-  const shippingCents =
-    totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD ? 0 : SHIP_FLAT_CENTS
-  const grandTotalCents = totalCents + shippingCents
+  const freeShipping =
+    promo?.freeShipping || totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD
+  const shippingCents = freeShipping ? 0 : SHIP_FLAT_CENTS
+  const grandTotalCents = totalCents - discountCents + shippingCents
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))
   // Changing country clears any previously chosen state/province.
   const setCountry = (code) => setValues((prev) => ({ ...prev, countryCode: code, stateCode: '' }))
@@ -55,7 +57,7 @@ export default function Checkout() {
     setPlacing(true)
     setError(null)
     try {
-      const order = await placeOrder(items, values)
+      const order = await placeOrder(items, values, promo?.code || null)
       clear()
       navigate(`/confirmation/${order.orderId}`, { state: { order } })
     } catch (err) {
@@ -168,10 +170,17 @@ export default function Checkout() {
             <span>Subtotal</span>
             <span>{formatCents(totalCents)}</span>
           </div>
+          {discountCents > 0 && (
+            <div className="summary__row summary__row--discount">
+              <span>Discount{promo?.code ? ` · ${promo.code}` : ''}</span>
+              <span>−{formatCents(discountCents)}</span>
+            </div>
+          )}
           <div className="summary__row">
             <span>Shipping</span>
             <span>{shippingCents === 0 ? 'Free' : formatCents(shippingCents)}</span>
           </div>
+          <PromoInput />
           <div className="summary__row summary__row--total">
             <span>Total</span>
             <span>{formatCents(grandTotalCents)}</span>

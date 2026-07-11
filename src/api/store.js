@@ -79,15 +79,28 @@ export async function getProduct(id) {
  * The BFF recomputes the total from trusted prices and returns
  * { orderId, totalCents, items, placedAt, status, shipping, email }.
  */
-export async function placeOrder(items, shipping) {
+export async function placeOrder(items, shipping, promoCode = null) {
   const payload = {
     items: (items || []).map(({ id, qty }) => ({
       id,
       qty: Math.max(1, Math.floor(Number(qty) || 0)),
     })),
     shipping,
+    ...(promoCode ? { promoCode } : {}),
   }
   return request('/orders', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+/**
+ * Validate a promo code against a subtotal (cents). Returns
+ * { code, discountCents, freeShipping, label }. Throws StoreError with a
+ * friendly message when the code is invalid or below its minimum.
+ */
+export async function applyPromo(code, subtotalCents) {
+  return request('/promo/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code, subtotalCents }),
+  })
 }
 
 /** Fetch an order by id (order status / receipt). Throws StoreError(404) if missing. */

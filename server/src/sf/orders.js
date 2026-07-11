@@ -11,6 +11,7 @@ import { config } from '../config.js'
 import { withConn } from './client.js'
 import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
+import { applyPromo } from '../store/promos.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 
 // Account + standard pricebook ids are stable per org; resolve once and cache.
@@ -46,7 +47,7 @@ const esc = (s) => String(s).replace(/'/g, "\\'")
  * `auth` is optional { contactId }; when present the order is linked to that
  * Contact via Order.Shopper__c so it shows up in order history.
  */
-export async function createOrder(items, shipping, auth = null) {
+export async function createOrder(items, shipping, auth = null, promoCode = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
@@ -72,10 +73,13 @@ export async function createOrder(items, shipping, auth = null) {
     return { product, qty }
   })
 
-  const totalCents = lines.reduce(
+  const subtotalCents = lines.reduce(
     (sum, { product, qty }) => sum + product.priceCents * qty,
     0,
   )
+  // Re-validate + apply the promo against the trusted subtotal (throws if bad).
+  const promo = applyPromo(promoCode, subtotalCents)
+  const totalCents = subtotalCents - promo.discountCents
 
   const base = apiPath()
   // Shared, always-valid part of the Order record.
@@ -85,6 +89,8 @@ export async function createOrder(items, shipping, auth = null) {
     EffectiveDate: new Date().toISOString().slice(0, 10),
     Status: 'Draft',
     Total_Cents__c: totalCents,
+    Discount_Cents__c: promo.discountCents,
+    Promo_Code__c: promo.code,
     Guest_Email__c: shipping?.email || null,
     ShippingStreet: shipping?.street || null,
     ShippingCity: shipping?.city || null,
@@ -127,7 +133,10 @@ export async function createOrder(items, shipping, auth = null) {
     ),
   ).catch((err) => console.error('[stock] decrement failed:', err.message))
 
-  return getOrder(orderResult.body.id)
+  // freeShipping isn't persisted (it only waives the display shipping fee), so
+  // carry it on the fresh response for the confirmation page.
+  const order = await getOrder(orderResult.body.id)
+  return { ...order, freeShipping: promo.freeShipping }
 }
 
 /** Read an order by OrderNumber (preferred) or Salesforce Id. */

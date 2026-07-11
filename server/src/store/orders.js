@@ -13,6 +13,7 @@ import { randomBytes } from 'node:crypto'
 import { config } from '../config.js'
 import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
+import { applyPromo } from './promos.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 import * as sfOrders from '../sf/orders.js'
 
@@ -24,7 +25,7 @@ function makeOrderId() {
 }
 
 // ---- Mock implementation ----
-async function mockCreateOrder(items, shipping, user) {
+async function mockCreateOrder(items, shipping, user, promoCode) {
   const products = await getProductsByIds(items.map((it) => it.id))
   const lines = items.map((it, i) => {
     const product = products[i]
@@ -55,12 +56,18 @@ async function mockCreateOrder(items, shipping, user) {
   }
   invalidateCatalogCache()
 
-  const totalCents = lines.reduce((sum, line) => sum + line.lineCents, 0)
+  const subtotalCents = lines.reduce((sum, line) => sum + line.lineCents, 0)
+  // Re-validate + apply the promo against the trusted subtotal (throws if bad).
+  const promo = applyPromo(promoCode, subtotalCents)
   const order = {
     orderId: makeOrderId(),
     status: 'confirmed',
     items: lines,
-    totalCents,
+    subtotalCents,
+    discountCents: promo.discountCents,
+    promoCode: promo.code,
+    freeShipping: promo.freeShipping,
+    totalCents: subtotalCents - promo.discountCents,
     placedAt: new Date().toISOString(),
     email: shipping?.email || null,
     shipping: shipping
@@ -121,16 +128,21 @@ function stripInternal({ _ownerId, ...rest }) {
  * Create an order from validated cart items + shipping details.
  * `user` is the optional logged-in shopper { id, email }; guests pass null.
  */
-export async function createOrder(items, shipping, user = null) {
+export async function createOrder(items, shipping, user = null, promoCode = null) {
   if (!Array.isArray(items) || items.length === 0) {
     throw badRequest('Your cart is empty.', 'empty_cart')
   }
   if (useSalesforce) {
-    const order = await sfOrders.createOrder(items, shipping, user ? { contactId: user.id } : null)
+    const order = await sfOrders.createOrder(
+      items,
+      shipping,
+      user ? { contactId: user.id } : null,
+      promoCode,
+    )
     invalidateCatalogCache() // stock changed
     return order
   }
-  return mockCreateOrder(items, shipping, user)
+  return mockCreateOrder(items, shipping, user, promoCode)
 }
 
 /** Fetch an order by id (optionally ownership-scoped), or throw 404. */

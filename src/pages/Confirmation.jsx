@@ -66,6 +66,18 @@ export default function Confirmation() {
                 </li>
               ))}
             </ul>
+            {order.discountCents > 0 && (
+              <>
+                <div className="confirm__subtotal">
+                  <span>Subtotal</span>
+                  <span>{formatCents(order.subtotalCents ?? order.totalCents + order.discountCents)}</span>
+                </div>
+                <div className="confirm__subtotal confirm__subtotal--discount">
+                  <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
+                  <span>−{formatCents(order.discountCents)}</span>
+                </div>
+              </>
+            )}
             <div className="confirm__total">
               <span>Total</span>
               <span>{formatCents(order.totalCents)}</span>
