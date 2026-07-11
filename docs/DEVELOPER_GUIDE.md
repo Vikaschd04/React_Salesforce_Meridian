@@ -270,6 +270,17 @@ run-as user: **`vikask@deloitte.demoorg`**.
 | `Cancelled__c`    | Checkbox      | web-order cancellation flag (the standard `Status` picklist is Draft/Activated/Completed — no "Cancelled"). **API-created** by `sf:setup`. |
 | `Discount_Cents__c` | Number (12,0) | promo discount applied, in cents (subtotal = `Total_Cents__c` + this). **API-created** by `sf:setup`. |
 | `Promo_Code__c`   | Text (40)     | the applied promo code, if any. **API-created** by `sf:setup`. |
+| `Payment_Status__c` | Picklist    | Unpaid / **Paid** / Refunded. Set `Paid` after a successful charge; `Refunded` on cancel. **API-created** by `sf:setup`. |
+| `Payment_Intent__c` | Text (64)   | payment provider charge id (`pi_mock_…` or a Stripe PaymentIntent). **API-created**. |
+| `Shipping_Cents__c` | Number (12,0) | shipping charged (paid total = `Total_Cents__c` + this). **API-created**. |
+| `Fulfillment_Status__c` | Picklist | Unfulfilled / Shipped / Delivered — **the merchant advances this in Salesforce**; the storefront reads it back. **API-created**. |
+| `Tracking_Number__c` | Text (64)  | shipping tracking, shown on the account order timeline. **API-created**. |
+| `Shipped_Date__c` | Date         | date the merchant marked the order shipped. **API-created**. |
+
+The display status the UI shows (badge + timeline) is derived in
+[server/src/sf/mappers.js](../src/sf/mappers.js) `orderStatus()`: cancelled →
+refunded → delivered → shipped → paid → processing. Standard `Status` stays
+`Draft` (Salesforce forbids inserting an `Activated` order).
 
 Standard **`Shipping*`** fields are also written at checkout. The org has
 **State & Country picklists enabled**, so the BFF writes the ISO code fields
@@ -290,8 +301,10 @@ No custom fields or config required.
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration",
   id `0PSKa000006czzoOAA`). Grants read/edit field-level security on the
   API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Cancelled__c`,
-  `Discount_Cents__c`, `Promo_Code__c`) and is **assigned to the integration
-  user**. Created/updated and assigned by
+  `Discount_Cents__c`, `Promo_Code__c`, `Payment_Status__c`, `Payment_Intent__c`,
+  `Shipping_Cents__c`, `Fulfillment_Status__c`, `Tracking_Number__c`,
+  `Shipped_Date__c`) and is **assigned to the integration user**. Created/updated
+  and assigned by
   `npm run sf:setup`. Needed because a field created via the API has no FLS by
   default, so the integration user otherwise can't see it.
 
@@ -347,9 +360,10 @@ No custom fields or config required.
 | `GET /health`                        | –         | Liveness                                    |
 | `GET /api/products`                  | –         | List active Meridian products               |
 | `GET /api/products/:id`              | –         | One product by slug                         |
-| `POST /api/orders`                   | optional  | Create an order (items + shipping + optional promo); enforces stock, decrements it, re-validates the promo |
+| `POST /api/orders`                   | optional  | **Charge payment** then create the order (items + shipping + promo + payment); enforces stock, re-validates the promo. A decline → 402, no order |
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
 | `POST /api/promo/validate`           | –         | Validate a promo code against a subtotal → `{ code, discountCents, freeShipping, label }` |
+| `GET /api/payment-config`            | –         | `{ provider, publishableKey }` — which card UI to render |
 | `POST /api/auth/signup`              | –         | Create a shopper + session                  |
 | `POST /api/auth/login`               | –         | Log in + session                            |
 | `POST /api/auth/logout`              | –         | Clear session                               |

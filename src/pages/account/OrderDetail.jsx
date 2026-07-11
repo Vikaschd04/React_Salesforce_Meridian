@@ -4,6 +4,7 @@ import { getMyOrder, cancelOrder } from '../../api/store.js'
 import { formatCents } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
+import OrderTimeline from '../../components/OrderTimeline.jsx'
 import { formatOrderDate } from './Orders.jsx'
 
 /** One order: items, totals, shipping, status — with cancel while still draft. */
@@ -50,7 +51,7 @@ export default function OrderDetail() {
   }
   if (!order) return <Spinner label="Loading order…" />
 
-  const cancellable = order.status === 'draft'
+  const cancellable = order.status === 'paid' || order.status === 'processing'
 
   return (
     <section className="order-detail" aria-labelledby="order-detail-heading">
@@ -72,6 +73,8 @@ export default function OrderDetail() {
           </div>
         </div>
 
+        <OrderTimeline order={order} />
+
         <ul className="order-card__lines">
           {order.items.map((item) => (
             <li key={item.id} className="order-card__line">
@@ -83,22 +86,24 @@ export default function OrderDetail() {
           ))}
         </ul>
 
+        <div className="order-card__line order-card__line--sub">
+          <span>Subtotal</span>
+          <span>{formatCents(order.subtotalCents ?? order.totalCents + (order.discountCents || 0))}</span>
+        </div>
         {order.discountCents > 0 && (
-          <>
-            <div className="order-card__line order-card__line--sub">
-              <span>Subtotal</span>
-              <span>{formatCents(order.subtotalCents ?? order.totalCents + order.discountCents)}</span>
-            </div>
-            <div className="order-card__line order-card__line--discount">
-              <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
-              <span>−{formatCents(order.discountCents)}</span>
-            </div>
-          </>
+          <div className="order-card__line order-card__line--discount">
+            <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
+            <span>−{formatCents(order.discountCents)}</span>
+          </div>
         )}
+        <div className="order-card__line order-card__line--sub">
+          <span>Shipping</span>
+          <span>{order.shippingCents ? formatCents(order.shippingCents) : 'Free'}</span>
+        </div>
 
         <div className="order-card__total">
-          <span>Total</span>
-          <span>{formatCents(order.totalCents)}</span>
+          <span>Total paid</span>
+          <span>{formatCents(order.paidCents ?? order.totalCents + (order.shippingCents || 0))}</span>
         </div>
 
         {(order.shipping || order.email) && (

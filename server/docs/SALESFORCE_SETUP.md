@@ -75,20 +75,37 @@ Shoppers are stored as **Contacts**. Add one custom field:
 
 Give the integration user create/read access to Contact and to this field.
 
-Checkout / account features also need five custom **Order** fields, which
-`sf:setup` creates and grants the Run-As user access to — no manual work:
+Checkout / account features also need custom **Order** fields, which `sf:setup`
+creates and grants the Run-As user access to — no manual work:
 ```
 cd server
-npm run sf:setup     # Order.Shopper__c (Lookup→Contact), Guest_Email__c (Email),
-                     # Cancelled__c (Checkbox), Discount_Cents__c (Number),
-                     # Promo_Code__c (Text) + permission set + assignment
+npm run sf:setup     # Shopper__c (Lookup→Contact), Guest_Email__c, Cancelled__c,
+                     # Discount_Cents__c, Promo_Code__c, Payment_Status__c,
+                     # Payment_Intent__c, Shipping_Cents__c, Fulfillment_Status__c,
+                     # Tracking_Number__c, Shipped_Date__c + permission set + assignment
 ```
 `Shopper__c` links an order to the shopper (order history), `Guest_Email__c`
-stores the checkout email, `Cancelled__c` flags cancellations (the standard
-`Status` picklist has no "Cancelled" value), and `Discount_Cents__c` /
-`Promo_Code__c` record an applied promo (`Total_Cents__c` stores the amount after
-discount). *(If your integration user can't modify metadata, create those fields
-manually and grant the Run-As user access.)*
+stores the checkout email, `Cancelled__c` flags cancellations, `Discount_Cents__c`
+/ `Promo_Code__c` record an applied promo, and the payment/fulfillment fields
+drive the order lifecycle (below). *(If your integration user can't modify
+metadata, create those fields manually and grant the Run-As user access.)*
+
+**Order lifecycle — the merchant runs fulfillment in Salesforce.** A paid order
+lands as `Payment_Status__c = Paid`, `Fulfillment_Status__c = Unfulfilled`. To
+advance it, open the Order in Salesforce and set `Fulfillment_Status__c = Shipped`
+(+ a `Tracking_Number__c` / `Shipped_Date__c`), then `Delivered`. The shopper's
+account page reads those fields back into a Paid → Shipped → Delivered timeline —
+no app deploy needed. Cancelling a paid, unshipped order sets
+`Payment_Status__c = Refunded` and restores stock.
+
+**Payments** default to **mock** (offline, no keys — test cards 4242… succeed,
+4000 00…02 declines). To use real Stripe test mode, `npm i stripe` and set in
+`server/.env`:
+```
+PAYMENT_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
 
 **State & Country picklists:** if your org has them enabled (this one does), the
 BFF writes the ISO code fields (`ShippingCountryCode` / `ShippingStateCode`) at
