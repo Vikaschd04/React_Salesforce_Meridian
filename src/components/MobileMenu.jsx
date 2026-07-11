@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
+import ThemeToggle from './ThemeToggle.jsx'
 
 /**
  * Slide-in mobile navigation. Rendered only when open; traps nothing fancy but
@@ -38,6 +39,10 @@ export default function MobileMenu({ open, onClose, links, account }) {
           ))}
         </ul>
         {account && <div className="mobile-menu__account">{account}</div>}
+        <div className="mobile-menu__theme">
+          <span className="mobile-menu__theme-label">Appearance</span>
+          <ThemeToggle />
+        </div>
       </nav>
     </div>
   )

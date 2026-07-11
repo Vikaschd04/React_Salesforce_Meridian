@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useCart } from '../context/CartContext.jsx'
 import MobileMenu from './MobileMenu.jsx'
 import AccountMenu from './AccountMenu.jsx'
+import ThemeToggle from './ThemeToggle.jsx'
 
 const LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -59,6 +60,7 @@ export default function Navbar() {
         </nav>
 
         <div className="nav__actions">
+          <ThemeToggle />
           <AccountMenu />
           <Link to="/cart" className="nav__cart" aria-label={`Cart, ${count} item${count === 1 ? '' : 's'}`}>
             <svg className="nav__cart-icon" viewBox="0 0 24 24" aria-hidden="true">

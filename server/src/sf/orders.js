@@ -78,55 +78,43 @@ export async function createOrder(items, shipping, auth = null) {
   )
 
   const base = apiPath()
-  const compositeRequest = [
-    {
-      method: 'POST',
-      url: `${base}/sobjects/Order`,
-      referenceId: 'newOrder',
-      body: {
-        AccountId: accountId,
-        Pricebook2Id: pricebookId,
-        EffectiveDate: new Date().toISOString().slice(0, 10),
-        Status: 'Draft',
-        Total_Cents__c: totalCents,
-        Guest_Email__c: shipping?.email || null,
-        ShippingStreet: shipping?.street || null,
-        ShippingCity: shipping?.city || null,
-        ShippingPostalCode: shipping?.postalCode || null,
-        // This org has State/Country picklists enabled, so the ISO *Code fields
-        // are the writable ones (Salesforce derives the text fields from them).
-        ShippingCountryCode: shipping?.countryCode || null,
-        ...(shipping?.stateCode ? { ShippingStateCode: shipping.stateCode } : {}),
-        ...(auth?.contactId ? { Shopper__c: auth.contactId } : {}),
-      },
-    },
-    ...lines.map(({ product, qty }, i) => ({
-      method: 'POST',
-      url: `${base}/sobjects/OrderItem`,
-      referenceId: `item${i}`,
-      body: {
-        OrderId: '@{newOrder.id}',
-        Product2Id: product._sfId,
-        PricebookEntryId: product._pricebookEntryId,
-        Quantity: qty,
-        UnitPrice: product._unitPriceDollars,
-      },
-    })),
-  ]
+  // Shared, always-valid part of the Order record.
+  const orderBody = {
+    AccountId: accountId,
+    Pricebook2Id: pricebookId,
+    EffectiveDate: new Date().toISOString().slice(0, 10),
+    Status: 'Draft',
+    Total_Cents__c: totalCents,
+    Guest_Email__c: shipping?.email || null,
+    ShippingStreet: shipping?.street || null,
+    ShippingCity: shipping?.city || null,
+    ShippingPostalCode: shipping?.postalCode || null,
+    // This org has State/Country picklists enabled, so the ISO *Code fields
+    // are the writable ones (Salesforce derives the text fields from them).
+    ShippingCountryCode: shipping?.countryCode || null,
+    ...(auth?.contactId ? { Shopper__c: auth.contactId } : {}),
+  }
+  const stateCode = shipping?.stateCode?.trim()
 
-  const result = await withConn((conn) =>
-    conn.request({
-      method: 'POST',
-      url: `${base}/composite`,
-      body: JSON.stringify({ allOrNone: true, compositeRequest }),
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  )
-
-  const orderResult = result.compositeResponse?.find((r) => r.referenceId === 'newOrder')
-  if (!orderResult || orderResult.httpStatusCode >= 300) {
-    const detail = summarizeComposite(result)
-    throw new Error(`Salesforce order creation failed: ${detail}`)
+  // Attempt with the state code; if Salesforce rejects it as an invalid
+  // state/country picklist value, retry once without it so the order still
+  // goes through rather than failing the whole checkout.
+  let orderResult
+  try {
+    orderResult = await submitOrder(
+      { ...orderBody, ...(stateCode ? { ShippingStateCode: stateCode } : {}) },
+      lines,
+      base,
+    )
+  } catch (err) {
+    if (stateCode && isStateCountryError(err)) {
+      console.warn('[order] invalid state for country, retrying without it:', err.message)
+      orderResult = await submitOrder(orderBody, lines, base).catch((err2) => {
+        throw orderCreationError(err2)
+      })
+    } else {
+      throw orderCreationError(err)
+    }
   }
 
   // Decrement live stock (best effort — the order itself already succeeded).
@@ -231,6 +219,62 @@ export async function listOrdersForContact(contactId) {
     }
     return orders.records.map((o) => orderFromSf(o, byOrder.get(o.Id) || []))
   })
+}
+
+/**
+ * Build + run the Order/OrderItem composite for a given order body. On failure
+ * throws an Error carrying `_sfDetail` (the Salesforce message) so the caller
+ * can decide whether to retry or surface it.
+ */
+async function submitOrder(orderBody, lines, base) {
+  const compositeRequest = [
+    { method: 'POST', url: `${base}/sobjects/Order`, referenceId: 'newOrder', body: orderBody },
+    ...lines.map(({ product, qty }, i) => ({
+      method: 'POST',
+      url: `${base}/sobjects/OrderItem`,
+      referenceId: `item${i}`,
+      body: {
+        OrderId: '@{newOrder.id}',
+        Product2Id: product._sfId,
+        PricebookEntryId: product._pricebookEntryId,
+        Quantity: qty,
+        UnitPrice: product._unitPriceDollars,
+      },
+    })),
+  ]
+
+  const result = await withConn((conn) =>
+    conn.request({
+      method: 'POST',
+      url: `${base}/composite`,
+      body: JSON.stringify({ allOrNone: true, compositeRequest }),
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
+
+  const orderResult = result.compositeResponse?.find((r) => r.referenceId === 'newOrder')
+  if (!orderResult || orderResult.httpStatusCode >= 300) {
+    const detail = summarizeComposite(result)
+    const err = new Error(`Salesforce order creation failed: ${detail}`)
+    err._sfDetail = detail
+    throw err
+  }
+  return orderResult
+}
+
+/** True when a Salesforce failure looks like a state/country picklist rejection. */
+function isStateCountryError(err) {
+  const s = String(err?._sfDetail || err?.message || '').toLowerCase()
+  return s.includes('state') || s.includes('country') || s.includes('province')
+}
+
+/** Turn a raw Salesforce order failure into a friendly, user-facing 400. */
+function orderCreationError(err) {
+  const detail = err?._sfDetail || err?.message || 'unknown error'
+  return badRequest(
+    `We couldn't create your order: ${detail}. Please review your shipping details and try again.`,
+    'order_failed',
+  )
 }
 
 function summarizeComposite(result) {

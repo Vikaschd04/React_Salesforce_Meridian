@@ -63,7 +63,7 @@ ol {
 
 ::selection {
   background: var(--gold);
-  color: var(--void);
+  color: var(--on-gold);
 }
 
 /* ---- Typography ---- */
@@ -110,7 +110,7 @@ h4 {
   top: -3rem;
   z-index: 100;
   background: var(--gold);
-  color: var(--void);
+  color: var(--on-gold);
   padding: 0.5rem 0.9rem;
   border-radius: var(--radius);
   font-weight: 500;

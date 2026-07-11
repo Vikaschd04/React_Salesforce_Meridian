@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
+import { COUNTRIES, regionsFor } from '../data/regions.js'
 
 const SHIP_FREE_THRESHOLD = 4500
 const SHIP_FLAT_CENTS = 600
@@ -14,31 +15,7 @@ const FIELDS = [
   { key: 'email', label: 'Email', autoComplete: 'email', type: 'email', span: 2 },
   { key: 'street', label: 'Street address', autoComplete: 'street-address', span: 2 },
   { key: 'city', label: 'City', autoComplete: 'address-level2', span: 1 },
-  {
-    key: 'stateCode',
-    label: 'State / region code',
-    autoComplete: 'address-level1',
-    span: 1,
-    optional: true,
-    placeholder: 'e.g. CA',
-  },
   { key: 'postalCode', label: 'Postal code', autoComplete: 'postal-code', span: 1 },
-]
-
-// Common shipping countries → ISO code (State/Country picklists are enabled).
-const COUNTRIES = [
-  ['US', 'United States'],
-  ['GB', 'United Kingdom'],
-  ['CA', 'Canada'],
-  ['AU', 'Australia'],
-  ['DE', 'Germany'],
-  ['FR', 'France'],
-  ['NL', 'Netherlands'],
-  ['IE', 'Ireland'],
-  ['IN', 'India'],
-  ['JP', 'Japan'],
-  ['SG', 'Singapore'],
-  ['AE', 'United Arab Emirates'],
 ]
 
 export default function Checkout() {
@@ -58,13 +35,20 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState(null)
 
-  // Redirect an empty cart back to the cart page (but not mid-checkout).
-  if (lines.length === 0 && !placing) return <Navigate to="/cart" replace />
+  // Redirect only a genuinely empty cart back to the cart page. We key off the
+  // raw `items` (not catalog-joined `lines`) so a refresh / direct link to
+  // /checkout doesn't bounce out while the product catalog is still hydrating.
+  if (items.length === 0 && !placing) return <Navigate to="/cart" replace />
+  // Cart has items but prices haven't loaded yet — show a brief placeholder.
+  const hydrating = lines.length === 0
 
   const shippingCents =
     totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD ? 0 : SHIP_FLAT_CENTS
   const grandTotalCents = totalCents + shippingCents
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))
+  // Changing country clears any previously chosen state/province.
+  const setCountry = (code) => setValues((prev) => ({ ...prev, countryCode: code, stateCode: '' }))
+  const region = regionsFor(values.countryCode)
 
   async function onSubmit(e) {
     e.preventDefault()
@@ -96,6 +80,9 @@ export default function Checkout() {
         )}
       </div>
 
+      {hydrating ? (
+        <p className="checkout__loading">Loading your cart…</p>
+      ) : (
       <div className="checkout__grid">
         <form className="checkout__form" onSubmit={onSubmit}>
           <h2 className="account-section-title">Shipping details</h2>
@@ -123,22 +110,38 @@ export default function Checkout() {
                 />
               </label>
             ))}
-            <label className="field field--span-1 checkout__country">
+            <label className="field field--span-1">
               <span className="field__label">Country</span>
-              <div className="select-field">
+              <select
+                autoComplete="country"
+                value={values.countryCode}
+                onChange={(e) => setCountry(e.target.value)}
+              >
+                {COUNTRIES.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {region && (
+              <label className="field field--span-1">
+                <span className="field__label">{region.label}</span>
                 <select
-                  autoComplete="country"
-                  value={values.countryCode}
-                  onChange={(e) => set('countryCode', e.target.value)}
+                  autoComplete="address-level1"
+                  value={values.stateCode}
+                  onChange={(e) => set('stateCode', e.target.value)}
                 >
-                  {COUNTRIES.map(([code, name]) => (
+                  <option value="">Select {region.label.toLowerCase()}…</option>
+                  {region.options.map(([code, name]) => (
                     <option key={code} value={code}>
                       {name}
                     </option>
                   ))}
                 </select>
-              </div>
-            </label>
+              </label>
+            )}
           </div>
 
           <button type="submit" className="btn btn--block checkout__submit" disabled={placing}>
@@ -178,6 +181,7 @@ export default function Checkout() {
           </Link>
         </aside>
       </div>
+      )}
     </div>
   )
 }

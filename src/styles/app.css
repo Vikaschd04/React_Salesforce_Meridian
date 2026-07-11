@@ -410,7 +410,7 @@
 .ticker {
   position: relative;
   border-top: 1px solid var(--line);
-  background: rgba(13, 11, 8, 0.55);
+  background: var(--scrim-panel);
   overflow: hidden;
   padding-block: 0.55rem;
   -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
@@ -1125,7 +1125,7 @@
   transition: background var(--dur-1) var(--ease);
 }
 .qty__btn:hover:not([disabled]) {
-  background: rgba(237, 230, 216, 0.07);
+  background: var(--hover-fill);
 }
 .qty__btn[disabled] {
   opacity: 0.35;
@@ -1456,7 +1456,7 @@
   transition: background var(--dur-1) var(--ease);
 }
 .account__item:hover {
-  background: rgba(237, 230, 216, 0.07);
+  background: var(--hover-fill);
 }
 .account__item--danger {
   color: var(--danger);
@@ -2204,6 +2204,10 @@
 .checkout__submit {
   margin-top: var(--sp-2);
 }
+.checkout__loading {
+  color: var(--mist);
+  padding: var(--sp-5) 0;
+}
 .checkout__summary {
   position: static;
 }
@@ -2325,8 +2329,92 @@
   text-align: center;
 }
 
-/* checkout country select fills its grid cell */
-.checkout__country .select-field,
-.checkout__country select {
+/* Selects inside a .field (checkout country / state) match the text inputs
+   exactly — same height, padding, background, font — with a custom chevron. */
+.field select {
   width: 100%;
+  min-width: 0;
+  padding: 0.7rem 2.4rem 0.7rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%239a917f' stroke-width='1.5'/%3E%3C/svg%3E")
+    no-repeat right 0.85rem center;
+  color: var(--ink);
+  font-size: var(--step-0);
+  font-family: var(--font-body);
+  appearance: none;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.field select:hover {
+  border-color: var(--gold-soft);
+}
+.field select:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+}
+
+/* ============ Theme toggle ============ */
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--gold);
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease),
+    background var(--dur-1) var(--ease);
+}
+.theme-toggle:hover {
+  border-color: var(--gold-soft);
+  box-shadow: var(--glow-gold);
+}
+.theme-toggle__track {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.theme-toggle__icon {
+  position: absolute;
+  inset: 0;
+  width: 20px;
+  height: 20px;
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease-spring);
+}
+/* Dark theme active → show the moon; light theme active → show the sun. */
+.theme-toggle[data-theme-state='dark'] .theme-toggle__icon--sun {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.5);
+}
+.theme-toggle[data-theme-state='dark'] .theme-toggle__icon--moon {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+.theme-toggle[data-theme-state='light'] .theme-toggle__icon--moon {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
+}
+.theme-toggle[data-theme-state='light'] .theme-toggle__icon--sun {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+.mobile-menu__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+.mobile-menu__theme-label {
+  font-size: var(--step-0);
+  color: var(--ink-70);
 }
