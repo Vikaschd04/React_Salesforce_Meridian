@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext.jsx'
 import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
+import RelatedProducts from '../components/RelatedProducts.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import useTilt from '../lib/useTilt.js'
 import QtyStepper from '../components/QtyStepper.jsx'
@@ -131,6 +132,8 @@ export default function ProductDetail() {
           </div>
         </article>
       )}
+
+      {product && <RelatedProducts product={product} />}
     </div>
   )
 }

@@ -1146,6 +1146,10 @@
   font-size: var(--step--1);
   margin-top: var(--sp-2);
 }
+/* Related products ("You might also like") */
+.related {
+  margin-top: var(--sp-7);
+}
 
 /* ============ Cart ============ */
 .cart {
