@@ -19,6 +19,9 @@ export default function ShopControls({
   origin,
   onOrigin,
   origins,
+  priceBuckets = [],
+  price,
+  onPrice,
   sort,
   onSort,
   onReset,
@@ -45,22 +48,43 @@ export default function ShopControls({
       </div>
 
       <div className="shop-controls__row">
-        <div className="roast-pills" role="group" aria-label="Filter by roast">
-          {ROASTS.map((r) => {
-            const active = roasts.has(r)
-            return (
-              <button
-                key={r}
-                type="button"
-                className={`roast-pill${active ? ' is-active' : ''}`}
-                aria-pressed={active}
-                data-roast={r}
-                onClick={() => onToggleRoast(r)}
-              >
-                {r}
-              </button>
-            )
-          })}
+        <div className="shop-controls__facets">
+          <div className="roast-pills" role="group" aria-label="Filter by roast">
+            {ROASTS.map((r) => {
+              const active = roasts.has(r)
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  className={`roast-pill${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                  data-roast={r}
+                  onClick={() => onToggleRoast(r)}
+                >
+                  {r}
+                </button>
+              )
+            })}
+          </div>
+
+          {priceBuckets.length > 1 && (
+            <div className="price-pills" role="group" aria-label="Filter by price">
+              {priceBuckets.map((b) => {
+                const active = price === b.id
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className={`price-pill${active ? ' is-active' : ''}`}
+                    aria-pressed={active}
+                    onClick={() => onPrice(b.id)}
+                  >
+                    {b.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div className="shop-controls__selects">
