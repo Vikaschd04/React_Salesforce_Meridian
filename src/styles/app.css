@@ -583,7 +583,7 @@
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
   border: 1px solid rgba(85, 178, 142, 0.5);
-  background: rgba(13, 11, 8, 0.75);
+  background: var(--chip-media-bg);
   backdrop-filter: blur(6px);
   color: var(--pine-bright);
   font-size: var(--step--1);
@@ -646,7 +646,7 @@
   z-index: 1;
   left: var(--sp-3);
   top: var(--sp-3);
-  background: rgba(13, 11, 8, 0.7);
+  background: var(--chip-media-bg);
   backdrop-filter: blur(6px);
   padding: 0.28rem 0.6rem;
   border-radius: 999px;
@@ -953,7 +953,7 @@
   z-index: 1;
   left: var(--sp-4);
   top: var(--sp-4);
-  background: rgba(13, 11, 8, 0.72);
+  background: var(--chip-media-bg);
   backdrop-filter: blur(6px);
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
@@ -2312,7 +2312,7 @@
   font-size: 0.66rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: rgba(13, 11, 8, 0.72);
+  background: var(--chip-media-bg);
   backdrop-filter: blur(6px);
   border: 1px solid var(--gold-soft);
   color: var(--gold);
