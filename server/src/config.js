@@ -10,6 +10,9 @@ const paymentProvider = (process.env.PAYMENT_PROVIDER || 'mock').toLowerCase()
 export const config = {
   port: Number(process.env.PORT) || 8787,
   appOrigin: process.env.APP_ORIGIN || 'http://localhost:5173',
+  // Public origin the site is served from (for absolute sitemap/canonical URLs).
+  // In single-service prod this is the deployed host; falls back to appOrigin.
+  publicUrl: process.env.PUBLIC_URL || process.env.APP_ORIGIN || '',
   cacheTtlMs: (Number(process.env.CACHE_TTL_SECONDS) || 60) * 1000,
   isProd: process.env.NODE_ENV === 'production',
 
@@ -45,6 +48,16 @@ export const config = {
     // Guest orders are attached to this Account; the standard pricebook is used.
     accountName: process.env.SF_ACCOUNT_NAME || 'Meridian Web Orders',
   },
+}
+
+/** Fail fast in production if the session secret is still the insecure default. */
+export function assertProductionConfig() {
+  if (!config.isProd) return
+  if (!process.env.SESSION_SECRET || /change-me|dev-only/i.test(process.env.SESSION_SECRET)) {
+    throw new Error(
+      'Refusing to start in production without a real SESSION_SECRET (set a long random string in the environment).',
+    )
+  }
 }
 
 /** Throw early with a clear message if Salesforce mode is missing credentials. */

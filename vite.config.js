@@ -13,6 +13,11 @@ export default defineConfig({
         target: process.env.VITE_BFF_ORIGIN || 'http://localhost:8787',
         changeOrigin: true,
       },
+      // The BFF generates the sitemap from the live catalog; proxy it in dev too.
+      '/sitemap.xml': {
+        target: process.env.VITE_BFF_ORIGIN || 'http://localhost:8787',
+        changeOrigin: true,
+      },
     },
   },
 })

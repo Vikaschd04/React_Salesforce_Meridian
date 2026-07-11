@@ -1,0 +1,12 @@
+node_modules
+server/node_modules
+dist
+.git
+.github
+**/.env
+**/*.log
+e2e
+playwright-report
+test-results
+scratchpad
+*.md

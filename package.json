@@ -8,8 +8,11 @@
     "dev:server": "npm --prefix server run dev",
     "dev:all": "concurrently -n web,bff -c cyan,magenta \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
+    "start": "NODE_ENV=production node server/src/index.js",
+    "serve": "npm run build && npm start",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/fraunces": "^5.2.9",
