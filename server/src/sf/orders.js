@@ -93,19 +93,19 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   })
 
   const base = apiPath()
-  // Shared, always-valid part of the Order record.
+  // Shared, always-valid part of the Order record. Standard-first: the lifecycle
+  // rides the standard `Status` field (inserted Draft, activated below after
+  // payment). Merchandise total is the standard TotalAmount rollup — we don't set
+  // it. Only no-standard concepts (discount/promo/shipping cents, payment ref,
+  // shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
   const orderBody = {
     AccountId: accountId,
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
-    // Salesforce requires new orders to start Draft; the web-order lifecycle is
-    // tracked by the custom Payment_Status__c / Fulfillment_Status__c fields.
-    Status: 'Draft',
-    Total_Cents__c: totalCents,
+    Status: 'Draft', // Salesforce requires new orders to start Draft
     Discount_Cents__c: promo.discountCents,
     Promo_Code__c: promo.code,
     Shipping_Cents__c: shippingCents,
-    Payment_Status__c: 'Paid',
     Payment_Intent__c: paid.paymentId,
     Guest_Email__c: shipping?.email || null,
     ShippingStreet: shipping?.street || null,
@@ -138,6 +138,13 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
       throw orderCreationError(err)
     }
   }
+
+  // Payment succeeded → move the order out of Draft to the standard 'Activated'
+  // (paid) status. Best-effort: the order + payment already exist, so a failure
+  // here just leaves it Draft/pending for the merchant to activate.
+  await withConn((conn) =>
+    conn.sobject('Order').update({ Id: orderResult.body.id, Status: 'Activated' }),
+  ).catch((err) => console.error('[order] activation failed:', err.message))
 
   // Decrement live stock (best effort — the order itself already succeeded).
   await withConn((conn) =>
@@ -192,20 +199,17 @@ export async function cancelOrder(idOrNumber, contactId) {
   if (!raw || raw.head.Shopper__c !== contactId) {
     throw notFoundError(`Order "${idOrNumber}" was not found.`)
   }
-  if (raw.head.Cancelled__c) {
+  if (raw.head.Status === 'Cancelled') {
     throw badRequest('This order is already cancelled.', 'already_cancelled')
   }
-  if (raw.head.Fulfillment_Status__c === 'Shipped' || raw.head.Fulfillment_Status__c === 'Delivered') {
+  if (raw.head.Status === 'Shipped' || raw.head.Status === 'Completed') {
     throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
   }
 
+  // Standard lifecycle: move the order to the 'Cancelled' Status (a paid order is
+  // implicitly refunded). Restores stock below.
   await withConn((conn) =>
-    conn.sobject('Order').update({
-      Id: raw.head.Id,
-      Cancelled__c: true,
-      // Refund a paid order (mock: just flip the status).
-      ...(raw.head.Payment_Status__c === 'Paid' ? { Payment_Status__c: 'Refunded' } : {}),
-    }),
+    conn.sobject('Order').update({ Id: raw.head.Id, Status: 'Cancelled' }),
   )
 
   // Restore stock (best effort).

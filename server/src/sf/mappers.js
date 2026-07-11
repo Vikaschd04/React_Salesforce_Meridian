@@ -70,25 +70,37 @@ export const PRODUCT_FIELDS = [
   'Image_Path__c',
 ]
 
-/** Fields selected whenever we read an Order. */
+/**
+ * Fields selected whenever we read an Order. Standard-first: the lifecycle is the
+ * standard `Status` field, the merchandise total is the standard `TotalAmount`
+ * rollup, and the order date is standard. Only genuinely-no-standard concepts
+ * (shopper link, guest email, promo/discount/shipping cents, payment ref,
+ * tracking) remain custom. See docs/SALESFORCE_CONVENTIONS.md.
+ */
 export const ORDER_FIELDS =
-  'Id, OrderNumber, Status, EffectiveDate, CreatedDate, Total_Cents__c, ' +
-  'Guest_Email__c, Cancelled__c, Shopper__c, Discount_Cents__c, Promo_Code__c, ' +
-  'Payment_Status__c, Payment_Intent__c, Shipping_Cents__c, Fulfillment_Status__c, ' +
-  'Tracking_Number__c, Shipped_Date__c, ' +
+  'Id, OrderNumber, Status, EffectiveDate, CreatedDate, ActivatedDate, TotalAmount, ' +
+  'Guest_Email__c, Shopper__c, Discount_Cents__c, Promo_Code__c, ' +
+  'Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
 
 /**
- * Collapse the payment + fulfillment + cancellation fields into one display
- * status the UI can drive a badge/timeline from.
+ * Map the standard Order `Status` to the display status the UI drives its badge
+ * and timeline from. The merchant advances an order by changing `Status` in
+ * Salesforce (Placed → Confirmed → Shipped → Completed, or Cancelled).
  */
-export function orderStatus({ Cancelled__c, Payment_Status__c, Fulfillment_Status__c }) {
-  if (Cancelled__c) return 'cancelled'
-  if (Payment_Status__c === 'Refunded') return 'refunded'
-  if (Fulfillment_Status__c === 'Delivered') return 'delivered'
-  if (Fulfillment_Status__c === 'Shipped') return 'shipped'
-  if (Payment_Status__c === 'Paid') return 'paid'
-  return 'processing'
+export function orderStatus({ Status }) {
+  switch (Status) {
+    case 'Cancelled':
+      return 'cancelled'
+    case 'Completed':
+      return 'delivered'
+    case 'Shipped':
+      return 'shipped'
+    case 'Activated':
+      return 'paid'
+    default:
+      return 'pending' // Draft
+  }
 }
 
 /** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
@@ -100,25 +112,26 @@ export function orderFromSf(order, items = []) {
     unitPriceCents: dollarsToCents(it.UnitPrice),
     lineCents: dollarsToCents(it.TotalPrice ?? it.UnitPrice * it.Quantity),
   }))
-  // Total_Cents__c holds the amount charged (goods − discount); the subtotal is
-  // recovered by adding the stored discount back on.
-  const totalCents =
-    order.Total_Cents__c != null
-      ? Number(order.Total_Cents__c)
+  // Merchandise subtotal comes from the standard TotalAmount rollup (fallback to
+  // the line items if it hasn't calculated yet). Discount + shipping are custom.
+  const subtotalCents =
+    order.TotalAmount != null
+      ? dollarsToCents(order.TotalAmount)
       : lines.reduce((sum, l) => sum + l.lineCents, 0)
   const discountCents = Number(order.Discount_Cents__c || 0)
   const shippingCents = Number(order.Shipping_Cents__c || 0)
+  const totalCents = subtotalCents - discountCents // merchandise after discount
+  const status = orderStatus(order)
+  const paid = status === 'paid' || status === 'shipped' || status === 'delivered'
 
   const hasShipping = order.ShippingStreet || order.ShippingCity
   return {
     orderId: order.OrderNumber || order.Id,
-    status: orderStatus(order),
-    paymentStatus: (order.Payment_Status__c || 'Unpaid').toLowerCase(),
-    fulfillmentStatus: (order.Fulfillment_Status__c || 'Unfulfilled').toLowerCase(),
+    status,
+    paymentStatus: paid ? 'paid' : status === 'cancelled' ? 'refunded' : 'unpaid',
     trackingNumber: order.Tracking_Number__c || null,
-    shippedDate: order.Shipped_Date__c || null,
     items: lines,
-    subtotalCents: totalCents + discountCents,
+    subtotalCents,
     discountCents,
     shippingCents,
     paidCents: totalCents + shippingCents,

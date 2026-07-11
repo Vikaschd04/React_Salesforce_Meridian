@@ -73,11 +73,11 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
 
   const order = {
     orderId: makeOrderId(),
+    // Mirrors the SF display statuses: pending → paid → shipped → delivered /
+    // cancelled. A paid order starts at 'paid' (standard Status = Activated).
     status: 'paid',
     paymentStatus: 'paid',
-    fulfillmentStatus: 'unfulfilled',
     trackingNumber: null,
-    shippedDate: null,
     paymentId: paid.paymentId,
     items: lines,
     subtotalCents,
@@ -120,7 +120,7 @@ async function mockCancelOrder(id, contactId) {
   if (order.status === 'cancelled') {
     throw badRequest('This order is already cancelled.', 'already_cancelled')
   }
-  if (order.fulfillmentStatus === 'shipped' || order.fulfillmentStatus === 'delivered') {
+  if (order.status === 'shipped' || order.status === 'delivered') {
     throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
   }
   order.status = 'cancelled'

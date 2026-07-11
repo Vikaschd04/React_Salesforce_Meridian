@@ -62,14 +62,13 @@ async function main() {
     bad(`Account check failed: ${err.message}`)
   }
 
-  // 4. Order custom fields
+  // 4. Order merchandise total — standard TotalAmount rollup (no custom field)
   try {
-    await withConn((conn) => conn.query('SELECT Total_Cents__c FROM Order LIMIT 1'))
-    ok('Order.Total_Cents__c exists')
+    await withConn((conn) => conn.query('SELECT TotalAmount FROM Order LIMIT 1'))
+    ok('Order.TotalAmount (standard) is readable')
   } catch (err) {
     failures++
-    bad(`Order.Total_Cents__c missing: ${err.message}`)
-    console.log('    → Add the custom field on Order (docs §3).')
+    bad(`Order.TotalAmount unreadable: ${err.message}`)
   }
 
   // 4b. Contact password field (shopper auth)
@@ -82,20 +81,38 @@ async function main() {
     console.log('    → Add the custom field on Contact (docs §3b).')
   }
 
-  // 4c. Web-order fields (history / checkout / cancel / promo / payment / fulfillment)
+  // 4c. Custom Order fields (no standard equivalent) visible to Run-As
   try {
     await withConn((conn) =>
       conn.query(
-        'SELECT Shopper__c, Guest_Email__c, Cancelled__c, Discount_Cents__c, Promo_Code__c, ' +
-          'Payment_Status__c, Payment_Intent__c, Shipping_Cents__c, Fulfillment_Status__c, ' +
-          'Tracking_Number__c, Shipped_Date__c FROM Order LIMIT 1',
+        'SELECT Shopper__c, Guest_Email__c, Discount_Cents__c, Promo_Code__c, ' +
+          'Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c FROM Order LIMIT 1',
       ),
     )
-    ok('Order web fields (shopper/promo/payment/fulfillment) exist and are visible')
+    ok('Order custom fields (shopper/guest_email/promo/discount/shipping/payment/tracking) visible')
   } catch (err) {
     failures++
-    bad(`Web-order fields missing/hidden: ${err.message}`)
+    bad(`Order custom fields missing/hidden: ${err.message}`)
     console.log('    → Run `npm run sf:setup` to create them and grant field access.')
+  }
+
+  // 4d. Standard Order Status carries the web lifecycle values (Shipped/Cancelled)
+  try {
+    const statuses = await withConn(async (conn) => {
+      const meta = await conn.sobject('Order').describe()
+      return meta.fields.find((f) => f.name === 'Status')?.picklistValues?.map((v) => v.value) || []
+    })
+    const missing = ['Shipped', 'Cancelled'].filter((s) => !statuses.includes(s))
+    if (missing.length) {
+      failures++
+      bad(`Order Status picklist missing values: ${missing.join(', ')}`)
+      console.log('    → Run `npm run sf:setup` to add them.')
+    } else {
+      ok('Order.Status has the web lifecycle values (Shipped, Cancelled)')
+    }
+  } catch (err) {
+    failures++
+    bad(`Could not read Order Status picklist: ${err.message}`)
   }
 
   // 5. Active products with a standard price

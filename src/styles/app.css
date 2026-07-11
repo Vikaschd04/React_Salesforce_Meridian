@@ -2373,7 +2373,7 @@
   border-color: rgba(224, 106, 80, 0.4) !important;
   color: var(--danger) !important;
 }
-.status--processing {
+.status--pending {
   background: var(--hover-fill) !important;
   border-color: var(--line-strong) !important;
   color: var(--mist) !important;

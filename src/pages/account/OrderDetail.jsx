@@ -69,7 +69,7 @@ export default function OrderDetail() {
   }
   if (!order) return <Spinner label="Loading order…" />
 
-  const cancellable = order.status === 'paid' || order.status === 'processing'
+  const cancellable = order.status === 'paid' || order.status === 'pending'
 
   return (
     <section className="order-detail" aria-labelledby="order-detail-heading">

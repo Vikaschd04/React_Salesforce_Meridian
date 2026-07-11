@@ -75,28 +75,29 @@ Shoppers are stored as **Contacts**. Add one custom field:
 
 Give the integration user create/read access to Contact and to this field.
 
-Checkout / account features also need custom **Order** fields, which `sf:setup`
-creates and grants the Run-As user access to — no manual work:
+The app is **standard-first** (see [docs/SALESFORCE_CONVENTIONS.md](../../docs/SALESFORCE_CONVENTIONS.md)):
+the order lifecycle uses the **standard `Status`** field and the merchandise
+total is the standard **`TotalAmount`**. `sf:setup` therefore only (a) adds the
+`Shipped` + `Cancelled` values to the standard `Status` picklist and (b) creates
+the few custom fields with no standard equivalent, granting the Run-As user
+access — no manual work:
 ```
 cd server
-npm run sf:setup     # Shopper__c (Lookup→Contact), Guest_Email__c, Cancelled__c,
-                     # Discount_Cents__c, Promo_Code__c, Payment_Status__c,
-                     # Payment_Intent__c, Shipping_Cents__c, Fulfillment_Status__c,
-                     # Tracking_Number__c, Shipped_Date__c + permission set + assignment
+npm run sf:setup     # adds Order.Status values Shipped, Cancelled;
+                     # creates Shopper__c (Lookup→Contact), Guest_Email__c,
+                     # Discount_Cents__c, Promo_Code__c, Shipping_Cents__c,
+                     # Payment_Intent__c, Tracking_Number__c + permission set + assignment
 ```
-`Shopper__c` links an order to the shopper (order history), `Guest_Email__c`
-stores the checkout email, `Cancelled__c` flags cancellations, `Discount_Cents__c`
-/ `Promo_Code__c` record an applied promo, and the payment/fulfillment fields
-drive the order lifecycle (below). *(If your integration user can't modify
-metadata, create those fields manually and grant the Run-As user access.)*
+*(If your integration user can't modify metadata, add those Status picklist
+values and custom fields manually, then grant the Run-As user access.)*
 
-**Order lifecycle — the merchant runs fulfillment in Salesforce.** A paid order
-lands as `Payment_Status__c = Paid`, `Fulfillment_Status__c = Unfulfilled`. To
-advance it, open the Order in Salesforce and set `Fulfillment_Status__c = Shipped`
-(+ a `Tracking_Number__c` / `Shipped_Date__c`), then `Delivered`. The shopper's
-account page reads those fields back into a Paid → Shipped → Delivered timeline —
-no app deploy needed. Cancelling a paid, unshipped order sets
-`Payment_Status__c = Refunded` and restores stock.
+**Order lifecycle — the merchant runs fulfillment in Salesforce, on the standard
+`Status` field.** A paid order lands as `Status = Activated`. To advance it, open
+the Order in Salesforce and change **`Status`** → `Shipped` (add a
+`Tracking_Number__c`) → `Completed` (= delivered). The shopper's account page
+reads `Status` back into a Paid → Shipped → Delivered timeline — no app deploy
+needed. Cancelling (in the app or by setting `Status = Cancelled`) restores stock;
+a cancelled paid order is treated as refunded.
 
 **Payments** default to **mock** (offline, no keys — test cards 4242… succeed,
 4000 00…02 declines). To use real Stripe test mode, `npm i stripe` and set in

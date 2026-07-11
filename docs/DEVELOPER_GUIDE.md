@@ -261,28 +261,39 @@ run-as user: **`vikask@deloitte.demoorg`**.
 | `Accent__c`          | Text (10)     | hex color for the UI           |
 | `Image_Path__c`      | Text (255)    | e.g. `/products/x.jpg`         |
 
-### 10.3 Custom fields on `Order`
+### 10.3 `Order` — standard-first (see [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md))
+The order **lifecycle rides the standard `Status` field**; the merchandise total
+is the standard `TotalAmount` rollup. Only concepts with no standard equivalent
+on this org are custom.
+
+**Standard fields used:** `Status` (Draft→Activated→**Shipped**→Completed, or
+**Cancelled** — the last two added to the standard picklist by `sf:setup`),
+`TotalAmount` (merchandise subtotal), `EffectiveDate` / `ActivatedDate`,
+`AccountId`, and the `Shipping*` address fields. New orders insert as `Draft`,
+the app activates them to `Activated` after payment, and **the merchant advances
+the rest by changing `Status` in Salesforce** — the storefront reads it back.
+
+The display status is derived **only** from `Status` in
+[server/src/sf/mappers.js](../server/src/sf/mappers.js) `orderStatus()`:
+Draft→pending, Activated→paid, Shipped→shipped, Completed→delivered,
+Cancelled→cancelled.
+
+**Custom fields kept** (no standard equivalent; **API-created** by `sf:setup`):
 | API name          | Type          | Purpose                                   |
 |-------------------|---------------|-------------------------------------------|
-| `Total_Cents__c`  | Number (12,0) | amount charged (goods **after** discount), in integer cents |
-| `Shopper__c`      | Lookup→Contact| links an order to the shopper (order history). Child relationship: `Web_Orders`. **Created via API** by `npm run sf:setup`. |
-| `Guest_Email__c`  | Email         | contact email captured at checkout. **API-created** by `sf:setup`. |
-| `Cancelled__c`    | Checkbox      | web-order cancellation flag (the standard `Status` picklist is Draft/Activated/Completed — no "Cancelled"). **API-created** by `sf:setup`. |
-| `Discount_Cents__c` | Number (12,0) | promo discount applied, in cents (subtotal = `Total_Cents__c` + this). **API-created** by `sf:setup`. |
-| `Promo_Code__c`   | Text (40)     | the applied promo code, if any. **API-created** by `sf:setup`. |
-| `Payment_Status__c` | Picklist    | Unpaid / **Paid** / Refunded. Set `Paid` after a successful charge; `Refunded` on cancel. **API-created** by `sf:setup`. |
-| `Payment_Intent__c` | Text (64)   | payment provider charge id (`pi_mock_…` or a Stripe PaymentIntent). **API-created**. |
-| `Shipping_Cents__c` | Number (12,0) | shipping charged (paid total = `Total_Cents__c` + this). **API-created**. |
-| `Fulfillment_Status__c` | Picklist | Unfulfilled / Shipped / Delivered — **the merchant advances this in Salesforce**; the storefront reads it back. **API-created**. |
-| `Tracking_Number__c` | Text (64)  | shipping tracking, shown on the account order timeline. **API-created**. |
-| `Shipped_Date__c` | Date         | date the merchant marked the order shipped. **API-created**. |
+| `Shopper__c`      | Lookup→Contact| links an order to the shopper (BillToContactId isn't available on this org). Child rel `Web_Orders`. |
+| `Guest_Email__c`  | Email         | contact email captured at checkout        |
+| `Discount_Cents__c` | Number (12,0) | promo discount, in cents (paid = TotalAmount − discount + shipping) |
+| `Promo_Code__c`   | Text (40)     | the applied promo code                    |
+| `Shipping_Cents__c` | Number (12,0) | shipping charged, in cents              |
+| `Payment_Intent__c` | Text (64)   | payment provider charge id (`pi_mock_…` / Stripe PaymentIntent) |
+| `Tracking_Number__c` | Text (64)  | tracking, shown on the account order timeline |
 
-The display status the UI shows (badge + timeline) is derived in
-[server/src/sf/mappers.js](../src/sf/mappers.js) `orderStatus()`: cancelled →
-refunded → delivered → shipped → paid → processing. Standard `Status` stays
-`Draft` (Salesforce forbids inserting an `Activated` order).
+*Deprecated (migrated to standard, left in the org unused):* `Total_Cents__c`
+→ `TotalAmount`; `Cancelled__c` / `Payment_Status__c` / `Fulfillment_Status__c`
+→ `Status`; `Shipped_Date__c` dropped.
 
-Standard **`Shipping*`** fields are also written at checkout. The org has
+The org has
 **State & Country picklists enabled**, so the BFF writes the ISO code fields
 `ShippingCountryCode` / `ShippingStateCode` (Salesforce derives the text
 `ShippingCountry` / `ShippingState`).
@@ -300,11 +311,9 @@ No custom fields or config required.
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration",
   id `0PSKa000006czzoOAA`). Grants read/edit field-level security on the
-  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Cancelled__c`,
-  `Discount_Cents__c`, `Promo_Code__c`, `Payment_Status__c`, `Payment_Intent__c`,
-  `Shipping_Cents__c`, `Fulfillment_Status__c`, `Tracking_Number__c`,
-  `Shipped_Date__c`) and is **assigned to the integration user**. Created/updated
-  and assigned by
+  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Discount_Cents__c`,
+  `Promo_Code__c`, `Shipping_Cents__c`, `Payment_Intent__c`, `Tracking_Number__c`)
+  and is **assigned to the integration user**. Created/updated and assigned by
   `npm run sf:setup`. Needed because a field created via the API has no FLS by
   default, so the integration user otherwise can't see it.
 

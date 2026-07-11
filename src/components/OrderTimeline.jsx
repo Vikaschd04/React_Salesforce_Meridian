@@ -1,5 +1,3 @@
-import { formatOrderDate } from '../pages/account/Orders.jsx'
-
 /**
  * Order progress: Paid → Shipped → Delivered, with the current stage lit and the
  * tracking number / shipped date surfaced once available. The merchant advances
@@ -11,7 +9,7 @@ const STAGES = [
   { key: 'shipped', label: 'Shipped' },
   { key: 'delivered', label: 'Delivered' },
 ]
-const STAGE_INDEX = { processing: -1, paid: 0, shipped: 1, delivered: 2 }
+const STAGE_INDEX = { pending: -1, paid: 0, shipped: 1, delivered: 2 }
 
 export default function OrderTimeline({ order }) {
   if (order.status === 'cancelled' || order.status === 'refunded') {
@@ -38,9 +36,6 @@ export default function OrderTimeline({ order }) {
           <li key={stage.key} className={`order-stage is-${state}`}>
             <span className="order-stage__dot" aria-hidden="true" />
             <span className="order-stage__label">{stage.label}</span>
-            {stage.key === 'shipped' && reached && order.shippedDate && (
-              <span className="order-stage__meta">{formatOrderDate(order.shippedDate)}</span>
-            )}
             {stage.key === 'shipped' && reached && order.trackingNumber && (
               <span className="order-stage__meta order-stage__meta--track">
                 {order.trackingNumber}

@@ -5,17 +5,22 @@
  *
  * Run:  DATA_SOURCE=salesforce node src/sf/setup-schema.js   (or: npm run sf:setup)
  *
- * Idempotent. Creates (if missing):
- *   - Order.Shopper__c      Lookup → Contact  (links an order to the shopper)
- *   - Order.Guest_Email__c  Email             (contact email for any web order)
- *   - Order.Cancelled__c    Checkbox          (web-order cancellation flag;
- *                            the org's standard Status picklist has no
- *                            "Cancelled" value, so we track it ourselves)
- *   - Permission Set "Meridian_Web_Integration" with FLS on those fields,
+ * Standard-first (see docs/SALESFORCE_CONVENTIONS.md): the order lifecycle uses
+ * the STANDARD Order `Status` field — this step just adds the "Shipped" and
+ * "Cancelled" values to it. Only concepts with no standard equivalent on this
+ * org stay custom.
+ *
+ * Idempotent. Ensures:
+ *   - Standard Order Status picklist has Shipped + Cancelled values
+ *   - Custom Order fields with no standard equivalent: Shopper__c (Lookup→
+ *     Contact), Guest_Email__c, Discount_Cents__c, Promo_Code__c,
+ *     Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c
+ *   - Permission Set "Meridian_Web_Integration" with FLS on those custom fields,
  *     assigned to the integration (Run-As) user.
  *
  * Note: creating metadata requires the integration user to have "Customize
- * Application". If it can't, create the fields manually and grant field access.
+ * Application". If it can't, create the fields / picklist values manually and
+ * grant field access.
  */
 import { config } from '../config.js'
 import { withConn } from './client.js'
@@ -45,15 +50,6 @@ const FIELDS = [
     },
   },
   {
-    probe: 'Cancelled__c',
-    def: {
-      fullName: 'Order.Cancelled__c',
-      label: 'Cancelled',
-      type: 'Checkbox',
-      defaultValue: 'false',
-    },
-  },
-  {
     probe: 'Discount_Cents__c',
     def: {
       fullName: 'Order.Discount_Cents__c',
@@ -72,25 +68,7 @@ const FIELDS = [
       length: 40,
     },
   },
-  // ---- Payments + fulfillment lifecycle ----
-  {
-    probe: 'Payment_Status__c',
-    def: {
-      fullName: 'Order.Payment_Status__c',
-      label: 'Payment Status',
-      type: 'Picklist',
-      valueSet: {
-        valueSetDefinition: {
-          sorted: false,
-          value: [
-            { fullName: 'Unpaid', default: true, label: 'Unpaid' },
-            { fullName: 'Paid', default: false, label: 'Paid' },
-            { fullName: 'Refunded', default: false, label: 'Refunded' },
-          ],
-        },
-      },
-    },
-  },
+  // ---- Payments (no standard order-level equivalents on this org) ----
   {
     probe: 'Payment_Intent__c',
     def: {
@@ -111,24 +89,6 @@ const FIELDS = [
     },
   },
   {
-    probe: 'Fulfillment_Status__c',
-    def: {
-      fullName: 'Order.Fulfillment_Status__c',
-      label: 'Fulfillment Status',
-      type: 'Picklist',
-      valueSet: {
-        valueSetDefinition: {
-          sorted: false,
-          value: [
-            { fullName: 'Unfulfilled', default: true, label: 'Unfulfilled' },
-            { fullName: 'Shipped', default: false, label: 'Shipped' },
-            { fullName: 'Delivered', default: false, label: 'Delivered' },
-          ],
-        },
-      },
-    },
-  },
-  {
     probe: 'Tracking_Number__c',
     def: {
       fullName: 'Order.Tracking_Number__c',
@@ -137,14 +97,13 @@ const FIELDS = [
       length: 64,
     },
   },
-  {
-    probe: 'Shipped_Date__c',
-    def: {
-      fullName: 'Order.Shipped_Date__c',
-      label: 'Shipped Date',
-      type: 'Date',
-    },
-  },
+]
+
+// Values we add to the STANDARD Order `Status` picklist so the whole lifecycle
+// rides the standard field. groupingString maps each to a StatusCode category.
+const ORDER_STATUS_ADDITIONS = [
+  { fullName: 'Shipped', label: 'Shipped', groupingString: 'Activated' },
+  { fullName: 'Cancelled', label: 'Cancelled', groupingString: 'Canceled' },
 ]
 
 async function ensureField(conn, { probe, def }) {
@@ -161,6 +120,29 @@ async function ensureField(conn, { probe, def }) {
     throw new Error(`Could not create ${def.fullName}: ${JSON.stringify(r.errors)}`)
   }
   console.log(`  • Created ${def.fullName} (${def.type})`)
+}
+
+/** Add Shipped/Cancelled to the standard Order Status picklist (idempotent). */
+async function ensureOrderStatusValues(conn) {
+  const read = await conn.metadata.read('StandardValueSet', 'OrderStatus')
+  const vs = Array.isArray(read) ? read[0] : read
+  const values = vs.standardValue || []
+  const have = new Set(values.map((v) => v.fullName))
+  const additions = ORDER_STATUS_ADDITIONS.filter((a) => !have.has(a.fullName)).map((a) => ({
+    ...a,
+    default: false,
+  }))
+  if (!additions.length) {
+    console.log('  • Order Status values (Shipped/Cancelled) already present')
+    return
+  }
+  const res = await conn.metadata.update('StandardValueSet', {
+    fullName: 'OrderStatus',
+    standardValue: [...values, ...additions],
+  })
+  const r = Array.isArray(res) ? res[0] : res
+  if (!r.success) throw new Error(`Could not extend Order Status picklist: ${JSON.stringify(r.errors)}`)
+  console.log(`  • Added Order Status values: ${additions.map((a) => a.fullName).join(', ')}`)
 }
 
 async function ensurePermissions(conn) {
@@ -210,6 +192,7 @@ async function main() {
   console.log(`Setting up Meridian schema (${config.salesforce.loginUrl})…`)
   await withConn(async (conn) => {
     for (const field of FIELDS) await ensureField(conn, field)
+    await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
   })
   console.log('Schema setup complete.')
