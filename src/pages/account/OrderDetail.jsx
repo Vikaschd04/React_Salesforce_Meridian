@@ -1,32 +1,50 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyOrder, cancelOrder } from '../../api/store.js'
 import { formatCents } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
+import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
 import { formatOrderDate } from './Orders.jsx'
 
-/** One order: items, totals, shipping, status — with cancel while still draft. */
+/** One order: items, totals, live status timeline — with cancel while unshipped. */
 export default function OrderDetail() {
   const { id } = useParams()
   const [order, setOrder] = useState(null)
   const [error, setError] = useState(null)
-  const [reloadKey, setReloadKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState(null)
 
+  // `silent` refreshes update the order in place (no spinner) — used by the
+  // focus refetch + the Refresh button so a Salesforce change appears live.
+  const load = useCallback(
+    async ({ silent = false } = {}) => {
+      if (silent) setRefreshing(true)
+      else {
+        setOrder(null)
+        setError(null)
+      }
+      try {
+        const data = await getMyOrder(id)
+        setOrder(data)
+        setError(null)
+      } catch (err) {
+        if (!silent) setError(err)
+      } finally {
+        setRefreshing(false)
+      }
+    },
+    [id],
+  )
+
   useEffect(() => {
-    let alive = true
-    setOrder(null)
-    setError(null)
-    getMyOrder(id)
-      .then((data) => alive && setOrder(data))
-      .catch((err) => alive && setError(err))
-    return () => {
-      alive = false
-    }
-  }, [id, reloadKey])
+    load()
+  }, [load])
+
+  const refresh = useCallback(() => load({ silent: true }), [load])
+  useRefreshOnFocus(refresh)
 
   async function onCancel() {
     if (!window.confirm('Cancel this order? The bags go back on the shelf.')) return
@@ -45,7 +63,7 @@ export default function OrderDetail() {
     return (
       <ErrorState
         message={error.status === 404 ? 'We couldn’t find that order.' : error.message}
-        onRetry={error.status === 404 ? undefined : () => setReloadKey((k) => k + 1)}
+        onRetry={error.status === 404 ? undefined : () => load()}
       />
     )
   }
@@ -70,6 +88,15 @@ export default function OrderDetail() {
           <div className="order-card__meta">
             <span className={`order-card__status status--${order.status}`}>{order.status}</span>
             <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
+            <button
+              type="button"
+              className="order-card__refresh"
+              onClick={refresh}
+              disabled={refreshing}
+              title="Check for updates"
+            >
+              {refreshing ? 'Refreshing…' : '↻ Refresh'}
+            </button>
           </div>
         </div>
 

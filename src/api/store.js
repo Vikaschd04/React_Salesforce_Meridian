@@ -36,6 +36,9 @@ async function request(path, options) {
     res = await fetch(`${API_BASE}${path}`, {
       // Send the session cookie so the BFF can identify a logged-in shopper.
       credentials: 'include',
+      // Never serve store data (orders, status, stock) from the HTTP cache —
+      // an order's fulfillment status can change in Salesforce at any time.
+      cache: 'no-store',
       headers: { Accept: 'application/json', ...(options?.body ? { 'Content-Type': 'application/json' } : {}) },
       ...options,
     })

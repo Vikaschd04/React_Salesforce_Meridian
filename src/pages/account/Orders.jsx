@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyOrders } from '../../api/store.js'
 import { formatCents } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
+import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
 
 export function formatOrderDate(iso) {
   if (!iso) return ''
@@ -16,22 +17,29 @@ export function formatOrderDate(iso) {
 export default function Orders() {
   const [orders, setOrders] = useState(null)
   const [error, setError] = useState(null)
-  const [reloadKey, setReloadKey] = useState(0)
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setOrders(null)
+      setError(null)
+    }
+    try {
+      const data = await getMyOrders()
+      setOrders(data)
+      setError(null)
+    } catch (err) {
+      if (!silent) setError(err)
+    }
+  }, [])
 
   useEffect(() => {
-    let alive = true
-    setOrders(null)
-    setError(null)
-    getMyOrders()
-      .then((data) => alive && setOrders(data))
-      .catch((err) => alive && setError(err))
-    return () => {
-      alive = false
-    }
-  }, [reloadKey])
+    load()
+  }, [load])
+
+  useRefreshOnFocus(useCallback(() => load({ silent: true }), [load]))
 
   if (error) {
-    return <ErrorState message={error.message} onRetry={() => setReloadKey((k) => k + 1)} />
+    return <ErrorState message={error.message} onRetry={() => load()} />
   }
   if (!orders) return <Spinner label="Loading orders…" />
 
