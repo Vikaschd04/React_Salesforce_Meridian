@@ -1579,6 +1579,13 @@
   color: var(--ink);
   padding: var(--sp-6) var(--sp-5);
 }
+/* Light theme: the brand panel becomes a soft pine-tinted parchment so its
+   token-colored text (ink / mist / gold) stays readable instead of dark-on-dark. */
+:root[data-theme='light'] .auth-aside {
+  background:
+    radial-gradient(120% 90% at 15% 0%, rgba(179, 128, 28, 0.16), transparent 55%),
+    linear-gradient(160deg, #e2ede6, #edf2ea);
+}
 .auth-aside::before {
   /* drifting contour grid */
   content: '';
@@ -1863,7 +1870,7 @@
 /* ============ Footer ============ */
 .footer {
   margin-top: auto;
-  background: linear-gradient(180deg, var(--void), #080705);
+  background: linear-gradient(180deg, var(--void), var(--footer-deep));
   border-top: 1px solid var(--line);
   position: relative;
 }

@@ -31,6 +31,7 @@
   /* Semantic surfaces that flip with the theme */
   --scrim-panel: rgba(13, 11, 8, 0.55); /* page-level tinted strips (ticker) */
   --hover-fill: rgba(237, 230, 216, 0.07); /* subtle hover wash on surfaces */
+  --footer-deep: #080705; /* the darker end of the footer gradient */
 
   /* Glows */
   --glow-gold: 0 0 0 1px rgba(226, 180, 80, 0.28), 0 0 24px -6px rgba(226, 180, 80, 0.35);
@@ -103,6 +104,7 @@
 
   --scrim-panel: rgba(36, 29, 18, 0.05);
   --hover-fill: rgba(36, 29, 18, 0.06);
+  --footer-deep: #e7dfce; /* a touch deeper than parchment, not dark */
 
   --glow-gold: 0 0 0 1px rgba(179, 128, 28, 0.32), 0 8px 22px -10px rgba(179, 128, 28, 0.4);
   --glow-pine: 0 0 0 1px rgba(47, 125, 97, 0.3), 0 8px 26px -10px rgba(47, 125, 97, 0.42);
