@@ -1,3 +1,5 @@
+import SearchSuggest from './SearchSuggest.jsx'
+
 const ROASTS = ['Light', 'Medium', 'Dark']
 
 const SORTS = [
@@ -26,26 +28,11 @@ export default function ShopControls({
   onSort,
   onReset,
   hasFilters,
+  products = [],
 }) {
   return (
     <div className="shop-controls">
-      <div className="shop-controls__search">
-        <label className="sr-only" htmlFor="shop-search">
-          Search coffees
-        </label>
-        <svg className="shop-controls__icon" viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-          <line x1="13.5" y1="13.5" x2="18" y2="18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-        <input
-          id="shop-search"
-          type="search"
-          className="shop-controls__input"
-          placeholder="Search by name, origin, or tasting note…"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-        />
-      </div>
+      <SearchSuggest value={search} onChange={onSearch} products={products} />
 
       <div className="shop-controls__row">
         <div className="shop-controls__facets">
