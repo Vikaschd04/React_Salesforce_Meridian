@@ -54,11 +54,18 @@ The multi-stage [Dockerfile](../Dockerfile) builds the SPA, then runs the BFF
 with production-only server deps and the built `dist/`.
 
 ## Render (blueprint)
-[`render.yaml`](../render.yaml) defines a single web service. In Render: **New +
-→ Blueprint**, point it at the repo, and fill the `sync:false` secrets
-(`PUBLIC_URL`, `SF_*`, `STRIPE_*`) in the dashboard. `SESSION_SECRET` is
-auto-generated; health check is `/health`. The same shape works on Railway, Fly,
-or any container host (build command + `node server/src/index.js`).
+[`render.yaml`](../render.yaml) defines a single web service and **deploys
+immediately in mock mode** — no secrets to fill on the first deploy
+(`SESSION_SECRET` is auto-generated; health check is `/health`). In Render:
+**New + → Blueprint**, point it at the repo, Apply.
+
+To **go live**, open the service → **Environment**, add the vars, and redeploy:
+`PUBLIC_URL` (your `…onrender.com` URL), `DATA_SOURCE=salesforce` + `SF_LOGIN_URL`
+/ `SF_CLIENT_ID` / `SF_CLIENT_SECRET` / `SF_ACCOUNT_NAME`, and (for real payments)
+`PAYMENT_PROVIDER=stripe` + `STRIPE_*`.
+
+Node is pinned via [`.node-version`](../.node-version) (22). The same shape works
+on Railway, Fly, or any container host (build command + `node server/src/index.js`).
 
 ## Notes
 - **SEO** is client-rendered (per-route meta + JSON-LD) plus a catalog-driven

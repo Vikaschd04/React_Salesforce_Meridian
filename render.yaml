@@ -1,7 +1,15 @@
 # Render blueprint — one web service that builds the SPA and runs the BFF, which
 # serves dist/ + /api on a single origin. Deploy: push to a repo, "New +" →
-# "Blueprint" in Render, point at this file. Set the sync:false secrets in the
-# dashboard. Flip DATA_SOURCE/PAYMENT_PROVIDER to go live against Salesforce/Stripe.
+# "Blueprint" in Render, point at this file.
+#
+# This deploys straight away in mock mode (no secrets to fill). To go live, add
+# these in the Render dashboard (service → Environment) and redeploy:
+#   PUBLIC_URL         = https://<your-service>.onrender.com   (sitemap/canonical)
+#   DATA_SOURCE        = salesforce
+#   SF_LOGIN_URL       = https://<your-org>.my.salesforce.com
+#   SF_CLIENT_ID / SF_CLIENT_SECRET / SF_ACCOUNT_NAME
+#   PAYMENT_PROVIDER   = stripe   (also add `stripe` to server deps)
+#   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY
 services:
   - type: web
     name: meridian
@@ -12,28 +20,12 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
-        value: production
+        value: "production"
       - key: DATA_SOURCE
-        value: mock # flip to "salesforce" once SF_* are set
+        value: "mock"
       - key: PAYMENT_PROVIDER
-        value: mock # flip to "stripe" once STRIPE_* are set
+        value: "mock"
       - key: COOKIE_SECURE
-        value: true
+        value: "true"
       - key: SESSION_SECRET
         generateValue: true
-      - key: PUBLIC_URL
-        sync: false # set to the service's public URL (for sitemap/canonical)
-      # --- Salesforce (only when DATA_SOURCE=salesforce) ---
-      - key: SF_LOGIN_URL
-        sync: false
-      - key: SF_CLIENT_ID
-        sync: false
-      - key: SF_CLIENT_SECRET
-        sync: false
-      - key: SF_ACCOUNT_NAME
-        value: Meridian Web Orders
-      # --- Stripe (only when PAYMENT_PROVIDER=stripe; also `npm i stripe`) ---
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_PUBLISHABLE_KEY
-        sync: false
