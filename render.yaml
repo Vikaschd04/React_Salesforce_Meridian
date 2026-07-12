@@ -15,7 +15,9 @@ services:
     name: meridian
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build && npm --prefix server ci --omit=dev
+    # --include=dev: NODE_ENV=production (set below) otherwise makes npm skip
+    # devDependencies, so vite wouldn't be installed and the build would exit 127.
+    buildCommand: npm ci --include=dev && npm run build && npm --prefix server ci --omit=dev
     startCommand: node server/src/index.js
     healthCheckPath: /health
     envVars:

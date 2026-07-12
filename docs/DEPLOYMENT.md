@@ -14,7 +14,8 @@ browser ──▶  Node/Express (one origin)
 
 ## Build & run (any host)
 ```bash
-npm ci                       # root deps (build the SPA)
+npm ci --include=dev         # root deps incl. vite (--include=dev in case
+                             # NODE_ENV=production, which otherwise skips devDeps)
 npm run build                # → dist/
 npm --prefix server ci --omit=dev
 NODE_ENV=production node server/src/index.js
