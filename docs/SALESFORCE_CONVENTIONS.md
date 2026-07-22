@@ -38,6 +38,24 @@ The order display status the UI shows is derived **only** from standard
 (`orderStatus()`): Draft→pending, Activated→paid, Shipped→shipped,
 Completed→delivered, Cancelled→cancelled.
 
+### Gotcha: activated orders are locked, and `Canceled` StatusCode is reserved
+Two Salesforce behaviours bite when moving an order out of `Activated`. Both are
+handled by `sf:setup` — don't undo them:
+1. **Activated orders are locked.** Editing one requires the **Edit Activated
+   Orders** user permission, which itself depends on **Activate Order** plus
+   Read/Edit object permissions on Order. All are granted together on the
+   `Meridian_Web_Integration` permission set (Salesforce rejects the deploy if
+   any dependency is missing).
+2. **Never map a Status value to the `Canceled` StatusCode.** That category is
+   reserved for order amendments / reduction orders and can't be set by an
+   ordinary update — it fails with `ENTITY_IS_LOCKED` *even on a Draft order*.
+   Our `Cancelled` value is grouped under **`Draft`**, which makes cancelling a
+   normal deactivation. Nothing in the app reads `StatusCode`, so this is
+   invisible outside Salesforce.
+
+Advancing `Activated → Shipped → Completed` needs neither, since those values
+all sit inside the same `Activated` category.
+
 ## Custom fields we keep (no standard equivalent on this org)
 Each is justified; all are created/granted by `npm run sf:setup`.
 | Custom field | Why no standard field |

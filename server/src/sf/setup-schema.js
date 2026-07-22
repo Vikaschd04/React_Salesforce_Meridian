@@ -123,9 +123,17 @@ const FIELDS = [
 
 // Values we add to the STANDARD Order `Status` picklist so the whole lifecycle
 // rides the standard field. groupingString maps each to a StatusCode category.
+// NOTE on `Cancelled` → groupingString 'Draft' (not 'Canceled'):
+// Salesforce's 'Canceled' StatusCode is reserved for order amendments/reduction
+// orders and can't be set through an ordinary Order update — trying it fails
+// with ENTITY_IS_LOCKED ("You don't have permission to edit or delete an
+// activated order"), even when the order is already in Draft. Grouping our
+// Cancelled value under 'Draft' makes it a normal deactivation, which works.
+// The app never reads StatusCode — orderStatus() keys off Status — so this is
+// purely about what Salesforce will accept.
 const ORDER_STATUS_ADDITIONS = [
   { fullName: 'Shipped', label: 'Shipped', groupingString: 'Activated' },
-  { fullName: 'Cancelled', label: 'Cancelled', groupingString: 'Canceled' },
+  { fullName: 'Cancelled', label: 'Cancelled', groupingString: 'Draft' },
 ]
 
 async function ensureField(conn, { sobject, probe, def }) {
@@ -149,22 +157,38 @@ async function ensureOrderStatusValues(conn) {
   const read = await conn.metadata.read('StandardValueSet', 'OrderStatus')
   const vs = Array.isArray(read) ? read[0] : read
   const values = vs.standardValue || []
-  const have = new Set(values.map((v) => v.fullName))
-  const additions = ORDER_STATUS_ADDITIONS.filter((a) => !have.has(a.fullName)).map((a) => ({
-    ...a,
-    default: false,
-  }))
-  if (!additions.length) {
-    console.log('  • Order Status values (Shipped/Cancelled) already present')
+  const byName = new Map(values.map((v) => [v.fullName, v]))
+
+  // Add any missing value, and correct one whose groupingString drifted (an
+  // earlier version of this script mapped Cancelled to 'Canceled', which made
+  // cancellation fail at runtime — this repairs such an org in place).
+  const added = []
+  const fixed = []
+  const desired = [...values]
+  for (const want of ORDER_STATUS_ADDITIONS) {
+    const existing = byName.get(want.fullName)
+    if (!existing) {
+      desired.push({ ...want, default: false })
+      added.push(want.fullName)
+    } else if (existing.groupingString !== want.groupingString) {
+      const i = desired.findIndex((v) => v.fullName === want.fullName)
+      desired[i] = { ...existing, groupingString: want.groupingString }
+      fixed.push(`${want.fullName}→${want.groupingString}`)
+    }
+  }
+
+  if (!added.length && !fixed.length) {
+    console.log('  • Order Status values (Shipped/Cancelled) already correct')
     return
   }
   const res = await conn.metadata.update('StandardValueSet', {
     fullName: 'OrderStatus',
-    standardValue: [...values, ...additions],
+    standardValue: desired,
   })
   const r = Array.isArray(res) ? res[0] : res
-  if (!r.success) throw new Error(`Could not extend Order Status picklist: ${JSON.stringify(r.errors)}`)
-  console.log(`  • Added Order Status values: ${additions.map((a) => a.fullName).join(', ')}`)
+  if (!r.success) throw new Error(`Could not update Order Status picklist: ${JSON.stringify(r.errors)}`)
+  if (added.length) console.log(`  • Added Order Status values: ${added.join(', ')}`)
+  if (fixed.length) console.log(`  • Corrected Order Status grouping: ${fixed.join(', ')}`)
 }
 
 async function ensurePermissions(conn) {
@@ -174,20 +198,59 @@ async function ensurePermissions(conn) {
     editable: true,
   }))
 
+  // Salesforce LOCKS activated orders: once Status maps to the 'Activated'
+  // StatusCode, the record can't be edited without this permission. Cancelling
+  // moves an order to the 'Canceled' StatusCode category, which counts as
+  // editing a locked order — so without this the cancel fails with
+  // ENTITY_IS_LOCKED ("You don't have permission to edit or delete an
+  // activated order"). Advancing Activated→Shipped/Completed does NOT need it,
+  // since those stay inside the same 'Activated' category.
+  // Salesforce enforces a dependency chain here: EditActivatedOrders requires
+  // ActivateOrder, and both require Read+Edit object permissions on Order — so
+  // all of them have to be granted together or the deploy is rejected with
+  // FIELD_INTEGRITY_EXCEPTION ("depends on permission(s): …").
+  const userPermissions = [
+    { enabled: true, name: 'ActivateOrder' },
+    { enabled: true, name: 'EditActivatedOrders' },
+  ]
+  const objectPermissions = [
+    {
+      object: 'Order',
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: true,
+      allowDelete: false,
+      viewAllRecords: false,
+      modifyAllRecords: false,
+    },
+  ]
+  const permSetBody = {
+    fullName: PERM_SET,
+    label: 'Meridian Web Integration',
+    fieldPermissions,
+    objectPermissions,
+    userPermissions,
+  }
+
   // Create the permission set (ignore "already exists").
-  const res = await conn.metadata.create('PermissionSet', [
-    { fullName: PERM_SET, label: 'Meridian Web Integration', fieldPermissions },
-  ])
+  const res = await conn.metadata.create('PermissionSet', [permSetBody])
   const r = Array.isArray(res) ? res[0] : res
   if (r.success) console.log('  • Created permission set', PERM_SET)
   else console.log('  • Permission set already exists')
 
-  // Ensure every field permission is present even if the set pre-existed.
-  await conn.metadata
-    .update('PermissionSet', [
-      { fullName: PERM_SET, label: 'Meridian Web Integration', fieldPermissions },
-    ])
-    .catch(() => {})
+  // Ensure every field/object/user permission is present even if the set
+  // pre-existed. Surface failures — silently swallowing them once hid a missing
+  // EditActivatedOrders grant, which made order cancellation fail at runtime.
+  const upd = await conn.metadata.update('PermissionSet', [permSetBody]).catch((e) => {
+    console.warn('  ! Permission set update failed:', e.message, JSON.stringify(e.data || ''))
+    return null
+  })
+  const u = Array.isArray(upd) ? upd[0] : upd
+  if (u?.success) {
+    console.log('  • Permission set updated (fields + Order access + Edit Activated Orders)')
+  } else if (u && !u.success) {
+    console.warn('  ! Permission set update rejected:', JSON.stringify(u.errors))
+  }
 
   // Assign to the Run-As user.
   const id = await conn.identity()
