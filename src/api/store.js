@@ -119,11 +119,17 @@ export async function getOrder(id) {
 
 // ---- Auth (shopper accounts) ----
 
-/** Create a shopper account and start a session. Returns the user profile. */
-export async function signup({ firstName, lastName, email, password }) {
+/**
+ * Create a shopper account and start a session. Returns the user profile.
+ * `companyName` is optional — when given, the shopper is linked to (or, for
+ * the first person from that work-email domain, creates) a company account
+ * with shared team order history. Throws StoreError('personal_email_domain')
+ * if a free email address (gmail.com, etc.) is used with a company name.
+ */
+export async function signup({ firstName, lastName, email, password, companyName }) {
   return request('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, email, password }),
+    body: JSON.stringify({ firstName, lastName, email, password, ...(companyName ? { companyName } : {}) }),
   })
 }
 
@@ -158,9 +164,17 @@ export async function getMyOrders() {
   return request('/account/orders')
 }
 
-/** One of the shopper's own orders (404 if it isn't theirs). */
+/**
+ * One order: the shopper's own, or (view-only, `isOwner: false`) a teammate's
+ * order under the same company account. 404 if neither.
+ */
 export async function getMyOrder(id) {
   return request(`/account/orders/${encodeURIComponent(id)}`)
+}
+
+/** Shared order history for the shopper's company (any teammate's order). */
+export async function getCompanyOrders() {
+  return request('/account/company/orders')
 }
 
 /** Cancel the shopper's own draft order; returns the updated order. */

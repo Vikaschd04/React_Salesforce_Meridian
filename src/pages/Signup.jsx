@@ -16,7 +16,14 @@ export default function Signup() {
   const location = useLocation()
   const redirectTo = location.state?.from || '/account'
 
-  const [values, setValues] = useState({ firstName: '', lastName: '', email: '', password: '' })
+  const [values, setValues] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    isCompany: false,
+    companyName: '',
+  })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
@@ -28,10 +35,21 @@ export default function Signup() {
       setError('Password must be at least 8 characters.')
       return
     }
+    if (values.isCompany && !values.companyName.trim()) {
+      setError('Enter your company name, or uncheck "buying for a company".')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
-      await signup(values)
+      const { firstName, lastName, email, password, isCompany, companyName } = values
+      await signup({
+        firstName,
+        lastName,
+        email,
+        password,
+        companyName: isCompany ? companyName.trim() : undefined,
+      })
       navigate(redirectTo, { replace: true })
     } catch (err) {
       setError(err.message || 'Could not create your account. Please try again.')

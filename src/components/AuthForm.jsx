@@ -70,6 +70,36 @@ export default function AuthForm({
         {isSignup && <span className="field__hint">At least 8 characters.</span>}
       </label>
 
+      {isSignup && (
+        <div className="auth-form__company">
+          <label className="auth-form__checkbox">
+            <input
+              type="checkbox"
+              checked={values.isCompany}
+              onChange={(e) => onChange('isCompany', e.target.checked)}
+            />
+            <span>I’m buying for a company</span>
+          </label>
+          {values.isCompany && (
+            <label className="field">
+              <span className="field__label">Company name</span>
+              <input
+                type="text"
+                autoComplete="organization"
+                required
+                placeholder="Acme Roasters"
+                value={values.companyName}
+                onChange={(e) => onChange('companyName', e.target.value)}
+              />
+              <span className="field__hint">
+                Use your work email above — teammates with the same email domain
+                automatically share this account’s order history.
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+
       <button type="submit" className="btn btn--block" disabled={submitting}>
         {submitting ? 'Please wait…' : isSignup ? 'Create account' : 'Log in'}
       </button>

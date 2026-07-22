@@ -28,7 +28,8 @@ the data portable to other Salesforce tooling (reports, flows, list views).
 | Merchandise subtotal | **`Order.TotalAmount`** (currency rollup of the line items — read-only) |
 | Order date / activation | **`Order.EffectiveDate`** / **`Order.ActivatedDate`** |
 | Shipping address | standard **`Order.Shipping*`** fields (+ `ShippingStateCode` / `ShippingCountryCode` because State & Country picklists are enabled) |
-| Guest-order account | standard **`Account`** ("Meridian Web Orders") via `Order.AccountId` |
+| Guest/individual-order account | standard **`Account`** ("Meridian Web Orders") via `Order.AccountId` |
+| Company accounts (B2B team buying) | standard **`Account`** (one per business) + standard **`Contact.AccountId`** (an employee's employer) + standard **`Order.AccountId`** (a company-linked order lands on its own Account instead of the shared default — this is what makes the order "shared team history" instead of custom-built visibility rules) |
 | Shoppers (login/signup) | standard **`Contact`** |
 | Support requests | standard **`Case`** (`Origin`, `Subject`, `Description`, `Supplied*`) |
 
@@ -48,6 +49,7 @@ Each is justified; all are created/granted by `npm run sf:setup`.
 | `Order.Shipping_Cents__c` (Number) | No standard shipping-cost field on base Order. |
 | `Order.Payment_Intent__c` (Text) | No standard payment reference on base Order (payments live in separate managed packages/OMS). |
 | `Order.Tracking_Number__c` (Text) | No standard tracking-number field on base Order. |
+| `Account.Company_Domain__c` (Text) | The join key for B2B team buying — no standard field represents a normalized work-email domain used to auto-match teammates to their company's Account. First signer from a domain creates the Account; later signups with the same domain join it. |
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
 | `Product2.*` (Origin, Roast, Tasting_Notes, …) | Coffee attributes with no standard analog. |
 

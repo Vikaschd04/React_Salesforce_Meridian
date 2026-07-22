@@ -199,10 +199,11 @@ dollars. Conversion happens only at the `sf/mappers.js` boundary.
 Shoppers are **Salesforce Contacts**. Sessions are a **signed JWT in an httpOnly
 cookie** (`meridian_session`), so the token is unreachable from page JavaScript.
 
-- **Signup** (`POST /api/auth/signup`): validate → `sf/contacts.createShopper`
-  bcrypt-hashes the password and creates a `Contact`
-  (`FirstName`, `LastName`, `Email`, `Password_Hash__c`) → issue session cookie.
-  Duplicate email → `409`.
+- **Signup** (`POST /api/auth/signup`): validate → resolve an optional company
+  (`companyName`, see §9b) → `sf/contacts.createShopper` bcrypt-hashes the
+  password and creates a `Contact` (`FirstName`, `LastName`, `Email`,
+  `Password_Hash__c`, and `AccountId` if buying for a company) → issue session
+  cookie. Duplicate email → `409`.
 - **Login** (`POST /api/auth/login`): find the Contact by email → `bcrypt.compare`
   against `Password_Hash__c` → issue cookie. Bad credentials → `400`.
 - **Me** (`GET /api/auth/me`): decode the cookie → profile, or `401`.
@@ -233,6 +234,42 @@ the same bcrypt + cookie logic applies.
 > Why a custom `Shopper__c` and not standard `BillToContactId`? This org's
 > standard `Order` object does **not** expose `BillToContactId`, so a custom
 > lookup is the reliable way to relate an Order to a Contact.
+
+---
+
+### 9b. B2B: company accounts (team buying)
+
+A shopper can opt in to "buying for a company" at signup. Teammates are matched
+purely by **work email domain** — no invite links or email-sending:
+
+1. `lib/companyDomain.js` extracts the domain from the signup email
+   (`jane@acme.com` → `acme.com`) and rejects free providers (gmail.com,
+   yahoo.com, outlook.com, …) with a friendly `personal_email_domain` error.
+2. `store/companies.js` → `sf/companies.js` finds an `Account` where
+   `Company_Domain__c` matches; if found, the new Contact **joins it as-is**
+   (the typed company name is only used the first time); otherwise it creates
+   a new `Account { Name, Company_Domain__c }`.
+3. The Contact's standard `AccountId` is set to that company Account. The
+   shopper's session (JWT) carries `company: { id, name } | null`.
+
+**Order linkage & shared visibility:** a company-linked shopper's checkout sets
+`Order.AccountId` to their **own company's** Account (`sf/orders.js
+createOrder`) instead of the shared `Meridian Web Orders` default. Because of
+that single field:
+- `GET /api/account/company/orders` (`sf/orders.js listOrdersForCompany`) lists
+  every order under that Account — any teammate's order, most recent first,
+  each with a `placedByName` (from `Order.Shopper__r.FirstName/LastName`).
+- `GET /api/account/orders/:id` is relaxed from "must be my own order" to
+  "mine, **or** under my company's Account" — a teammate can **view** (not
+  cancel) another's order; the response's `isOwner: false` tells the UI to hide
+  the Cancel button. Cancelling stays restricted to whoever placed the order,
+  company or not — deliberately, to avoid needing an approval workflow this
+  phase doesn't build.
+- Guest/individual checkout is completely unaffected — it keeps using the
+  shared default Account exactly as before.
+
+A Contact belongs to at most one company (set once, at signup) — there's no
+account switcher or a way to join a company after the fact yet.
 
 ---
 
@@ -272,6 +309,10 @@ on this org are custom.
 `AccountId`, and the `Shipping*` address fields. New orders insert as `Draft`,
 the app activates them to `Activated` after payment, and **the merchant advances
 the rest by changing `Status` in Salesforce** — the storefront reads it back.
+`AccountId` is the shared `Meridian Web Orders` Account for guests/individual
+shoppers, or the shopper's **own company Account** when they belong to one (see
+§9b) — that single field is what makes an order part of a company's shared
+order history, with no extra visibility logic needed beyond a `WHERE AccountId`.
 
 The display status is derived **only** from `Status` in
 [server/src/sf/mappers.js](../server/src/sf/mappers.js) `orderStatus()`:
@@ -318,8 +359,11 @@ No custom fields or config required.
   default, so the integration user otherwise can't see it.
 
 ### 10.6 Account
-- **`Meridian Web Orders`** — one Account that all web orders (guest and
-  logged-in) are attached to. Created during setup (or by `npm run seed`).
+- **`Meridian Web Orders`** — one Account that guest/individual web orders are
+  attached to. Created during setup (or by `npm run seed`).
+- **Company accounts** — one real Account per business buying as a team,
+  created on demand at signup (see §9b) and keyed by the custom
+  `Company_Domain__c` field. Not seeded; these accumulate from real usage.
 
 ### 10.7 Connected App
 - **`Meridian BFF`** — OAuth enabled, scopes `api` + `refresh_token`, with the
@@ -373,14 +417,15 @@ No custom fields or config required.
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
 | `POST /api/promo/validate`           | –         | Validate a promo code against a subtotal → `{ code, discountCents, freeShipping, label }` |
 | `GET /api/payment-config`            | –         | `{ provider, publishableKey }` — which card UI to render |
-| `POST /api/auth/signup`              | –         | Create a shopper + session                  |
+| `POST /api/auth/signup`              | –         | Create a shopper + session; optional `companyName` links/creates a company (§9b) |
 | `POST /api/auth/login`               | –         | Log in + session                            |
 | `POST /api/auth/logout`              | –         | Clear session                               |
-| `GET /api/auth/me`                   | cookie    | Current shopper profile or 401              |
+| `GET /api/auth/me`                   | cookie    | Current shopper profile (incl. `company`) or 401 |
 | `PATCH /api/account/profile`         | required  | Update the shopper's name (updates Contact, re-issues session) |
-| `GET /api/account/orders`            | required  | The shopper's order history                 |
-| `GET /api/account/orders/:id`        | required  | One own order (ownership-scoped; 404 if not theirs) |
-| `POST /api/account/orders/:id/cancel`| required  | Cancel own draft order; restores stock      |
+| `GET /api/account/orders`            | required  | The shopper's own order history             |
+| `GET /api/account/orders/:id`        | required  | One order — own, or (view-only) a teammate's under the same company; 404 if neither |
+| `POST /api/account/orders/:id/cancel`| required  | Cancel **own** draft order; restores stock (teammates' orders can't be cancelled) |
+| `GET /api/account/company/orders`    | required  | Shared order history for the shopper's company (any teammate); 404 if not part of one |
 | `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding

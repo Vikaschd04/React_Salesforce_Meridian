@@ -16,7 +16,13 @@ const MAX_AGE_MS = ttlDays * 24 * 60 * 60 * 1000
 /** Issue the session cookie for a user profile. */
 export function setSessionCookie(res, user) {
   const token = jwt.sign(
-    { sub: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+    {
+      sub: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      company: user.company || null,
+    },
     secret,
     { expiresIn: `${ttlDays}d` },
   )
@@ -45,6 +51,7 @@ export function readSession(req) {
       email: claims.email,
       firstName: claims.firstName,
       lastName: claims.lastName,
+      company: claims.company || null,
     }
   } catch {
     return null

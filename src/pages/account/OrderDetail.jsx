@@ -69,7 +69,8 @@ export default function OrderDetail() {
   }
   if (!order) return <Spinner label="Loading order…" />
 
-  const cancellable = order.status === 'paid' || order.status === 'pending'
+  // A teammate's order under the same company account is view-only.
+  const cancellable = (order.status === 'paid' || order.status === 'pending') && order.isOwner !== false
 
   return (
     <section className="order-detail" aria-labelledby="order-detail-heading">
@@ -99,6 +100,12 @@ export default function OrderDetail() {
             </button>
           </div>
         </div>
+
+        {order.isOwner === false && order.placedByName && (
+          <p className="order-detail__placedby">
+            Placed by <strong>{order.placedByName}</strong> · view-only
+          </p>
+        )}
 
         <OrderTimeline order={order} />
 

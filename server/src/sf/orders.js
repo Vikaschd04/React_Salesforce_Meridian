@@ -5,7 +5,8 @@
  *
  * Security: totals and unit prices always come from server-trusted Salesforce
  * pricebook data — the client only supplies { id, qty } and shipping text.
- * Ownership: account reads/cancels are scoped to the session's Contact.
+ * Ownership: cancels are always scoped to the session's Contact; reads are
+ * scoped to the Contact OR (view-only) their company Account, see getOrder().
  */
 import { config } from '../config.js'
 import { withConn } from './client.js'
@@ -46,8 +47,10 @@ const esc = (s) => String(s).replace(/'/g, "\\'")
 /**
  * Create an Order from validated cart items: [{ id, qty }].
  * `shipping` = { name, email, street, city, state, postalCode, country }.
- * `auth` is optional { contactId }; when present the order is linked to that
- * Contact via Order.Shopper__c so it shows up in order history.
+ * `auth` is optional { contactId, companyAccountId }; when present the order is
+ * linked to that Contact via Order.Shopper__c so it shows up in order history,
+ * and — when the shopper belongs to a company — the Order's AccountId is the
+ * company's Account (shared team order history) instead of the shared default.
  */
 export async function createOrder(items, shipping, auth = null, promoCode = null, payment = null) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -99,7 +102,9 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // it. Only no-standard concepts (discount/promo/shipping cents, payment ref,
   // shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
   const orderBody = {
-    AccountId: accountId,
+    // A company-linked shopper's order lands on their own company Account
+    // (shared team order history); everyone else uses the shared default.
+    AccountId: auth?.companyAccountId || accountId,
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
     Status: 'Draft', // Salesforce requires new orders to start Draft
@@ -162,15 +167,26 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   return { ...order, freeShipping: promo.freeShipping }
 }
 
-/** Read an order by OrderNumber (preferred) or Salesforce Id. */
-export async function getOrder(idOrNumber, contactId = null) {
+/**
+ * Read an order by OrderNumber (preferred) or Salesforce Id.
+ * `scope` (optional) is { contactId, companyAccountId } for account-page reads:
+ * visible if it's the shopper's own order OR belongs to their company (teammates
+ * get view-only access — `isOwner` tells the UI whether to offer Cancel).
+ * Unscoped (scope=null) is used for internal reads and the public confirmation
+ * page, where no ownership check applies.
+ */
+export async function getOrder(idOrNumber, scope = null) {
   const raw = await readRawOrder(idOrNumber)
   if (!raw) throw notFoundError(`Order "${idOrNumber}" was not found.`)
-  // Ownership scope for account pages: the order must belong to this shopper.
-  if (contactId && raw.head.Shopper__c !== contactId) {
-    throw notFoundError(`Order "${idOrNumber}" was not found.`)
+  let isOwner
+  if (scope) {
+    const owns = Boolean(scope.contactId) && raw.head.Shopper__c === scope.contactId
+    const sameCompany = Boolean(scope.companyAccountId) && raw.head.AccountId === scope.companyAccountId
+    if (!owns && !sameCompany) throw notFoundError(`Order "${idOrNumber}" was not found.`)
+    isOwner = owns
   }
-  return orderFromSf(raw.head, raw.items)
+  const order = orderFromSf(raw.head, raw.items)
+  return scope ? { ...order, isOwner } : order
 }
 
 async function readRawOrder(idOrNumber) {
@@ -238,6 +254,33 @@ export async function listOrdersForContact(contactId) {
   return withConn(async (conn) => {
     const orders = await conn.query(
       `SELECT ${ORDER_FIELDS} FROM Order WHERE Shopper__c = '${safe}'
+       ORDER BY CreatedDate DESC LIMIT 50`,
+    )
+    if (orders.records.length === 0) return []
+    const ids = orders.records.map((o) => `'${o.Id}'`).join(', ')
+    const items = await conn.query(
+      `SELECT OrderId, Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
+       FROM OrderItem WHERE OrderId IN (${ids})`,
+    )
+    const byOrder = new Map()
+    for (const it of items.records) {
+      if (!byOrder.has(it.OrderId)) byOrder.set(it.OrderId, [])
+      byOrder.get(it.OrderId).push(it)
+    }
+    return orders.records.map((o) => orderFromSf(o, byOrder.get(o.Id) || []))
+  })
+}
+
+/**
+ * List a company's shared order history (most recent first) — every order
+ * placed by any teammate under that Account, each with its line items and
+ * `placedByName` (from Shopper__r, included in ORDER_FIELDS).
+ */
+export async function listOrdersForCompany(companyAccountId) {
+  const safe = esc(companyAccountId)
+  return withConn(async (conn) => {
+    const orders = await conn.query(
+      `SELECT ${ORDER_FIELDS} FROM Order WHERE AccountId = '${safe}'
        ORDER BY CreatedDate DESC LIMIT 50`,
     )
     if (orders.records.length === 0) return []

@@ -1,9 +1,9 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { listOrders, getOrder, cancelOrder } from '../store/orders.js'
+import { listOrders, listOrdersForCompany, getOrder, cancelOrder } from '../store/orders.js'
 import { updateProfile } from '../store/auth.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
-import { asyncHandler, badRequest } from '../lib/errors.js'
+import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
 
 const router = Router()
 
@@ -18,11 +18,25 @@ router.get(
   }),
 )
 
-// GET /api/account/orders/:id — one order, ownership-scoped (404 if not theirs)
+// GET /api/account/orders/:id — one order: the shopper's own, or (view-only)
+// any teammate's order under the same company account. 404 if neither.
 router.get(
   '/account/orders/:id',
   asyncHandler(async (req, res) => {
-    res.json(await getOrder(req.params.id, req.user.id))
+    const scope = { contactId: req.user.id, companyAccountId: req.user.company?.id || null }
+    res.json(await getOrder(req.params.id, scope))
+  }),
+)
+
+// GET /api/account/company/orders — shared order history for the shopper's
+// company (any teammate's order), most recent first. 404 if not part of one.
+router.get(
+  '/account/company/orders',
+  asyncHandler(async (req, res) => {
+    if (!req.user.company) {
+      throw notFoundError('You’re not part of a company account.')
+    }
+    res.json(await listOrdersForCompany(req.user.company.id))
   }),
 )
 

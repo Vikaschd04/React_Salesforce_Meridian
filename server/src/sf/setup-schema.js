@@ -1,20 +1,23 @@
 /**
  * One-time schema setup for the parts the app creates via API rather than by
- * hand: web-order fields on Order and the permission set that makes them
- * visible to the integration user.
+ * hand: web-order fields on Order, the one company-account field on Account,
+ * and the permission set that makes them visible to the integration user.
  *
  * Run:  DATA_SOURCE=salesforce node src/sf/setup-schema.js   (or: npm run sf:setup)
  *
  * Standard-first (see docs/SALESFORCE_CONVENTIONS.md): the order lifecycle uses
  * the STANDARD Order `Status` field — this step just adds the "Shipped" and
- * "Cancelled" values to it. Only concepts with no standard equivalent on this
- * org stay custom.
+ * "Cancelled" values to it. Company buying uses the STANDARD `Account` object
+ * and `Contact.AccountId`/`Order.AccountId` — the only new field is
+ * `Account.Company_Domain__c`, the join key with no standard equivalent. Only
+ * concepts with no standard equivalent on this org stay custom.
  *
  * Idempotent. Ensures:
  *   - Standard Order Status picklist has Shipped + Cancelled values
  *   - Custom Order fields with no standard equivalent: Shopper__c (Lookup→
  *     Contact), Guest_Email__c, Discount_Cents__c, Promo_Code__c,
  *     Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c
+ *   - Custom Account field: Company_Domain__c (join key for team buying)
  *   - Permission Set "Meridian_Web_Integration" with FLS on those custom fields,
  *     assigned to the integration (Run-As) user.
  *
@@ -28,9 +31,11 @@ import { withConn } from './client.js'
 const PERM_SET = 'Meridian_Web_Integration'
 
 // Field definitions in Metadata API shape. `probe` is the SOQL column used to
-// detect existence/visibility.
+// detect existence/visibility; `sobject` is the object it lives on (Order
+// unless noted).
 const FIELDS = [
   {
+    sobject: 'Order',
     probe: 'Shopper__c',
     def: {
       fullName: 'Order.Shopper__c',
@@ -42,6 +47,7 @@ const FIELDS = [
     },
   },
   {
+    sobject: 'Order',
     probe: 'Guest_Email__c',
     def: {
       fullName: 'Order.Guest_Email__c',
@@ -50,6 +56,7 @@ const FIELDS = [
     },
   },
   {
+    sobject: 'Order',
     probe: 'Discount_Cents__c',
     def: {
       fullName: 'Order.Discount_Cents__c',
@@ -60,6 +67,7 @@ const FIELDS = [
     },
   },
   {
+    sobject: 'Order',
     probe: 'Promo_Code__c',
     def: {
       fullName: 'Order.Promo_Code__c',
@@ -70,6 +78,7 @@ const FIELDS = [
   },
   // ---- Payments (no standard order-level equivalents on this org) ----
   {
+    sobject: 'Order',
     probe: 'Payment_Intent__c',
     def: {
       fullName: 'Order.Payment_Intent__c',
@@ -79,6 +88,7 @@ const FIELDS = [
     },
   },
   {
+    sobject: 'Order',
     probe: 'Shipping_Cents__c',
     def: {
       fullName: 'Order.Shipping_Cents__c',
@@ -89,12 +99,24 @@ const FIELDS = [
     },
   },
   {
+    sobject: 'Order',
     probe: 'Tracking_Number__c',
     def: {
       fullName: 'Order.Tracking_Number__c',
       label: 'Tracking Number',
       type: 'Text',
       length: 64,
+    },
+  },
+  // ---- B2B: company accounts (no standard field for a domain join key) ----
+  {
+    sobject: 'Account',
+    probe: 'Company_Domain__c',
+    def: {
+      fullName: 'Account.Company_Domain__c',
+      label: 'Company Domain',
+      type: 'Text',
+      length: 120,
     },
   },
 ]
@@ -106,10 +128,10 @@ const ORDER_STATUS_ADDITIONS = [
   { fullName: 'Cancelled', label: 'Cancelled', groupingString: 'Canceled' },
 ]
 
-async function ensureField(conn, { probe, def }) {
+async function ensureField(conn, { sobject, probe, def }) {
   try {
-    await conn.query(`SELECT ${probe} FROM Order LIMIT 1`)
-    console.log(`  • Order.${probe} already present`)
+    await conn.query(`SELECT ${probe} FROM ${sobject} LIMIT 1`)
+    console.log(`  • ${sobject}.${probe} already present`)
     return
   } catch {
     // Not visible/missing — (re)create it.

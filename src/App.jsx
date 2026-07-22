@@ -15,6 +15,7 @@ import AccountLayout from './pages/account/AccountLayout.jsx'
 import Profile from './pages/account/Profile.jsx'
 import Orders from './pages/account/Orders.jsx'
 import OrderDetail from './pages/account/OrderDetail.jsx'
+import Company from './pages/account/Company.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
             <Route index element={<Profile />} />
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
+            <Route path="company" element={<Company />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

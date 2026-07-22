@@ -12,6 +12,9 @@ const signupSchema = z
     lastName: z.string().trim().min(1).max(80),
     email: z.string().trim().email().max(120),
     password: z.string().min(8).max(200),
+    // Optional: "buying for a company" — resolved server-side by work-email
+    // domain (see store/companies.js). Omit/blank for an individual signup.
+    companyName: z.string().trim().min(1).max(120).optional(),
   })
   .strict()
 
