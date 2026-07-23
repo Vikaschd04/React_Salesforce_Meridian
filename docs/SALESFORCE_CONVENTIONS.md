@@ -68,7 +68,6 @@ Each is justified; all are created/granted by `npm run sf:setup`.
 | `Order.Payment_Intent__c` (Text) | No standard payment reference on base Order (payments live in separate managed packages/OMS). |
 | `Order.Tracking_Number__c` (Text) | No standard tracking-number field on base Order. |
 | `Account.Company_Domain__c` (Text) | The join key for B2B team buying — no standard field represents a normalized work-email domain used to auto-match teammates to their company's Account. First signer from a domain creates the Account; later signups with the same domain join it. |
-| `Account.Reorder_Likelihood__c` (Number) | Target field for an **Einstein Prediction Builder** model — a 0–100 reorder-likelihood score the model writes per company. No standard field holds an ML prediction. `sf:setup` creates the field; the model itself is trained by an admin in Setup (there's no Metadata API to create it), so the field is null until then and the app degrades gracefully. See `docs/SALESFORCE_SETUP.md`. |
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
 | `Product2.*` (Origin, Roast, Tasting_Notes, …) | Coffee attributes with no standard analog. |
 

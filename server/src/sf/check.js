@@ -137,19 +137,6 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
-  // 4g. Einstein reorder-likelihood field. Checks the FIELD is queryable —
-  // NOT that a Prediction Builder model has been trained (that's a manual
-  // Setup step; the field is simply null until then, which is expected).
-  try {
-    await withConn((conn) => conn.query('SELECT Reorder_Likelihood__c FROM Account LIMIT 1'))
-    ok('Account.Reorder_Likelihood__c exists (Einstein score field; null until a model is trained)')
-  } catch (err) {
-    failures++
-    bad(`Account.Reorder_Likelihood__c missing/hidden: ${err.message}`)
-    console.log('    → Run `npm run sf:setup` to create it. (Training the model is a')
-    console.log('      separate manual step — see docs/SALESFORCE_SETUP.md.)')
-  }
-
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

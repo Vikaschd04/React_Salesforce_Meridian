@@ -197,16 +197,6 @@ export async function getCompanyOrders() {
   return request('/account/company/orders')
 }
 
-/**
- * Forward-looking insights for the shopper's company:
- * { reorderLikelihood: number|null }. `reorderLikelihood` is an Einstein
- * Prediction Builder score (0–100), or null when no model has scored the
- * company yet (the normal state until an admin trains one in Salesforce).
- */
-export async function getCompanyInsights() {
-  return request('/account/company/insights')
-}
-
 /** Cancel the shopper's own draft order; returns the updated order. */
 export async function cancelOrder(id) {
   return request(`/account/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' })

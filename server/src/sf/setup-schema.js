@@ -120,21 +120,6 @@ const FIELDS = [
       length: 120,
     },
   },
-  // ---- Einstein Prediction Builder writes a reorder-likelihood score here.
-  // sf:setup only creates the FIELD; the model that populates it is trained
-  // by an admin in Setup → Einstein → Prediction Builder (no Metadata API to
-  // create it). Null until a model is trained + run — the app handles that. ----
-  {
-    sobject: 'Account',
-    probe: 'Reorder_Likelihood__c',
-    def: {
-      fullName: 'Account.Reorder_Likelihood__c',
-      label: 'Reorder Likelihood',
-      type: 'Number',
-      precision: 3,
-      scale: 0,
-    },
-  },
 ]
 
 // Values we add to the STANDARD Order `Status` picklist so the whole lifecycle

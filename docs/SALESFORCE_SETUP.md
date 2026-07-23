@@ -101,28 +101,6 @@ it, sharing that Account's order history. Free email providers (gmail.com,
 etc.) are rejected for company signup. See
 [DEVELOPER_GUIDE.md §9b](DEVELOPER_GUIDE.md) for the full flow.
 
-**Einstein "likely to reorder" (optional AI — separate from `sf:setup`).**
-`sf:setup` creates the field `Account.Reorder_Likelihood__c`, but the AI model
-that *fills it in* is trained by an admin in Salesforce Setup — there is no API
-to create it. **The app works fine without this step**: the score is simply
-null and the Company tab shows no badge until a model has scored the account.
-To turn it on (requires an edition with **Einstein Prediction Builder** — this
-org is Enterprise Edition, which has it):
-1. Setup → **Einstein Prediction Builder** → **New Prediction**.
-2. Predict on the **Account** object; set the field it writes to →
-   **`Reorder Likelihood`** (`Reorder_Likelihood__c`).
-3. Follow the wizard to choose what "reorder" means and which fields to learn
-   from (order recency/frequency, etc.). The exact screens vary by Salesforce
-   release, so follow the in-product guidance rather than a fixed script here.
-4. **Enable & train.** Training is asynchronous and needs enough historical
-   Order volume to be meaningful — a brand-new org won't produce useful scores
-   until real orders accumulate.
-
-Once trained, Salesforce writes a 0–100 score to the field on each Account; the
-BFF reads it (`GET /api/account/company/insights`) and the Company tab shows a
-"Likely to reorder" badge. No app deploy or code change needed — the field was
-already there. See [DEVELOPER_GUIDE.md §9d](DEVELOPER_GUIDE.md).
-
 **Order lifecycle — the merchant runs fulfillment in Salesforce, on the standard
 `Status` field.** A paid order lands as `Status = Activated`. To advance it, open
 the Order in Salesforce and change **`Status`** → `Shipped` (add a

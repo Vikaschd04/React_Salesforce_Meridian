@@ -308,40 +308,6 @@ for the object's schema and justification.
 
 ---
 
-### 9d. Einstein "likely to reorder" (Prediction Builder)
-
-The Company tab shows a reorder-likelihood badge driven by a real Salesforce
-AI feature, **Einstein Prediction Builder**. This is the project's first
-feature with a genuine automatable/manual split — worth understanding:
-
-| Automatable — `sf:setup` does it | Manual — an admin does it in Setup |
-|---|---|
-| `Account.Reorder_Likelihood__c` field + FLS | Creating & **training** the Prediction Builder model that writes the score |
-| The BFF read path, the endpoint, the UI badge | (there is no Metadata API to create/train a model) |
-
-- `GET /api/account/company/insights` (requireAuth, 404 if no company) →
-  `{ reorderLikelihood: number|null }`. On Salesforce, `sf/companies.js
-  getReorderLikelihood` just SELECTs the field — the model does the ML, the
-  BFF only reads a number, exactly like any other field.
-- **Null is the normal state**, not an error: until an admin trains a model
-  (see [SALESFORCE_SETUP.md](SALESFORCE_SETUP.md)), the field is null on every
-  Account, the endpoint returns `{ reorderLikelihood: null }` at HTTP 200, and
-  `Company.jsx` renders **no badge** (never a placeholder). Verified live —
-  the app ships in this state and works cleanly; a manual write of a score
-  round-trips to the badge with no code change.
-- **Mock mode has no ML runtime**, so `store/companies.js` computes a
-  clearly-labeled *heuristic* instead (days since the company's last order vs.
-  their average interval between orders — reusing `listOrdersForCompany`).
-  It's there only so the feature is exercisable/testable offline; it is
-  **not** and never claims to be the real Einstein model. Needs ≥2 orders to
-  have an interval, else returns null (matching the Salesforce pre-training
-  state, so the UI path is identical in both modes).
-- The badge bands: ≥70 "Likely to reorder soon" (pine), 40–69 "May reorder
-  soon" (gold), <40 "Recently stocked up" (muted) — colors reuse existing
-  tokens, no new design.
-
----
-
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -451,9 +417,6 @@ AutoNumber name field (`PR-{0000}`).
 - **Company accounts** — one real Account per business buying as a team,
   created on demand at signup (see §9b) and keyed by the custom
   `Company_Domain__c` field. Not seeded; these accumulate from real usage.
-- Two custom fields on Account: `Company_Domain__c` (the B2B join key, §9b)
-  and `Reorder_Likelihood__c` (Number 0–100 — the Einstein Prediction Builder
-  target, §9d; null until a model is trained). Both created by `sf:setup`.
 
 ### 10.7 Connected App
 - **`Meridian BFF`** — OAuth enabled, scopes `api` + `refresh_token`, with the
@@ -518,7 +481,6 @@ AutoNumber name field (`PR-{0000}`).
 | `GET /api/account/orders/:id`        | required  | One order — own, or (view-only) a teammate's under the same company; 404 if neither |
 | `POST /api/account/orders/:id/cancel`| required  | Cancel **own** draft order; restores stock (teammates' orders can't be cancelled) |
 | `GET /api/account/company/orders`    | required  | Shared order history for the shopper's company (any teammate); 404 if not part of one |
-| `GET /api/account/company/insights`  | required  | `{ reorderLikelihood: number\|null }` — Einstein reorder score; null until a model is trained (§9d); 404 if not part of a company |
 | `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding
