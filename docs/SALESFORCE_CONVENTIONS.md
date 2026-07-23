@@ -81,6 +81,7 @@ this app the answer was yes (`Product2`, `Order`, `Account`, `Contact`,
 | Custom object | Why no standard object |
 |---|---|
 | `Meridian_Product_Review__c` | Star ratings + written reviews on a product are a Commerce Cloud B2C concept — this org is Sales Cloud, which has no standard review/rating object. Fields: `Product__c` (Lookup→Product2), `Contact__c` (Lookup→Contact), `Rating__c` (Number 1–5), `Title__c` (Text), `Body__c` (Long Text Area), `Reviewer_Name__c` (Text, a display-name snapshot). One review per (shopper, product) pair, enforced by the app, not a validation rule. Created/granted by `npm run sf:setup`. |
+| `Meridian_Wishlist_Item__c` | A shopper's saved products — a B2C wishlist, with no standard object on Sales Cloud. A junction: `Contact__c` (Lookup→Contact) + `Product__c` (Lookup→Product2), one row per saved (shopper, product) pair. Created/granted by `npm run sf:setup`. Its permission grant is read/**create/edit/delete** (rows are added and removed) — note Salesforce requires `allowEdit` whenever `allowDelete` is granted, even though the app never edits a row. |
 
 > **Naming note:** this org already has an unrelated, pre-existing custom
 > object literally named `Product_Review__c` (no `Contact__c`, uses

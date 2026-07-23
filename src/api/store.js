@@ -210,6 +210,26 @@ export async function updateProfile({ firstName, lastName }) {
   })
 }
 
+// ---- Wishlist ----
+
+/** The shopper's saved product ids (slugs). Requires login. */
+export async function getWishlist() {
+  return request('/account/wishlist')
+}
+
+/** Save a product; returns the updated id list. */
+export async function addToWishlist(productId) {
+  return request('/account/wishlist', {
+    method: 'POST',
+    body: JSON.stringify({ productId }),
+  })
+}
+
+/** Unsave a product; returns the updated id list. */
+export async function removeFromWishlist(productId) {
+  return request(`/account/wishlist/${encodeURIComponent(productId)}`, { method: 'DELETE' })
+}
+
 /** Send a support request; returns { caseNumber } (a Salesforce Case). */
 export async function sendSupportRequest({ name, email, subject, message }) {
   return request('/support', {

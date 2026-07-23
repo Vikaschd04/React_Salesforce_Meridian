@@ -7,6 +7,7 @@ import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import RelatedProducts from '../components/RelatedProducts.jsx'
 import ProductReviews from '../components/ProductReviews.jsx'
+import WishlistButton from '../components/WishlistButton.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import JsonLd from '../components/JsonLd.jsx'
 import useSeo from '../lib/useSeo.js'
@@ -160,6 +161,7 @@ export default function ProductDetail() {
               >
                 {product.stock <= 0 ? 'Sold out' : added ? 'Added to cart ✓' : 'Add to cart'}
               </button>
+              <WishlistButton productId={product.id} productName={product.name} variant="labeled" />
             </div>
             <p className="detail__ship" role={added ? 'status' : undefined}>
               {added ? 'In your cart — keep shopping or head to checkout.' : 'Free shipping over $45 · Roasted to order'}

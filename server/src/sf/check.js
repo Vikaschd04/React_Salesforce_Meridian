@@ -137,6 +137,18 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
+  // 4h. Meridian_Wishlist_Item__c custom object (saved products), visible to Run-As
+  try {
+    await withConn((conn) =>
+      conn.query('SELECT Id, Contact__c, Product__c FROM Meridian_Wishlist_Item__c LIMIT 1'),
+    )
+    ok('Meridian_Wishlist_Item__c exists and is visible')
+  } catch (err) {
+    failures++
+    bad(`Meridian_Wishlist_Item__c missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

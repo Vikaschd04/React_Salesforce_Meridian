@@ -4,6 +4,7 @@ import ProductImage from './ProductImage.jsx'
 import CoordTag from './CoordTag.jsx'
 import { formatCents } from '../lib/money.js'
 import { useCart } from '../context/CartContext.jsx'
+import WishlistButton from './WishlistButton.jsx'
 import useTilt from '../lib/useTilt.js'
 
 export default function ProductCard({ product }) {
@@ -31,6 +32,9 @@ export default function ProductCard({ product }) {
       onPointerMove={tilt.onPointerMove}
       onPointerLeave={tilt.onPointerLeave}
     >
+      {/* Sibling of the card link (not nested inside it) — a button inside an
+          <a> is invalid/inaccessible. Positioned over the card corner via CSS. */}
+      <WishlistButton productId={product.id} productName={product.name} variant="icon" />
       <Link to={`/product/${product.id}`} className="card__link" viewTransition>
         <div className="card__art">
           <ProductImage

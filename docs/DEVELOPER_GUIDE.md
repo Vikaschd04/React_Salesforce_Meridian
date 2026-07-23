@@ -308,6 +308,33 @@ for the object's schema and justification.
 
 ---
 
+### 9d. Wishlist / favorites
+
+Logged-in shoppers can save coffees to a wishlist — a heart on every product
+card and detail page, plus a Wishlist tab in the account showing saved
+coffees. Server-persisted (keyed to the shopper's Contact) so it follows them
+across devices.
+
+- Backed by a junction custom object **`Meridian_Wishlist_Item__c`**
+  (`Contact__c` + `Product__c`); one row per saved (shopper, product). No
+  standard wishlist object exists on Sales Cloud — see
+  [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
+- `GET /api/account/wishlist` → `string[]` of saved product slugs (tiny
+  payload; the UI joins to full products from the catalog it already loads).
+  `POST` adds (idempotent — `sf/wishlist.js` skips if a row exists, so no
+  duplicate per pair), `DELETE /:productId` removes. All require a session.
+- **v1 requires login to save** — a guest tapping the heart is routed to
+  `/login` (matches how reviews gate on auth). Guest-wishlist +
+  merge-on-login is out of scope.
+- Client state lives in `WishlistContext` (a `Set` of saved ids, so the heart
+  on any card reflects state via `has(id)` with no per-card fetch); `toggle`
+  is optimistic and reverts on failure. Mirrors `CartContext`, but
+  server-persisted rather than `localStorage`.
+- Mock mode (`store/wishlist.js`, in-memory `Map<contactId, Set>`) mirrors the
+  same rules incl. the 404-on-missing-product check.
+
+---
+
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -399,17 +426,29 @@ AutoNumber name field (`PR-{0000}`).
 | `Body__c`             | Long Text Area (4000) | the written review         |
 | `Reviewer_Name__c`    | Text (120)        | display-name snapshot at review time |
 
+### 10.4d `Meridian_Wishlist_Item__c` — new custom object (no standard equivalent)
+A junction for the B2C wishlist — one row per saved (shopper, product).
+Created via `npm run sf:setup` (§9d above). AutoNumber name field
+(`MWL-{0000}`).
+
+| API name     | Type              | Purpose                    |
+|--------------|-------------------|----------------------------|
+| `Contact__c` | Lookup → Contact  | the shopper who saved it   |
+| `Product__c` | Lookup → Product2 | the saved coffee           |
+
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration"). Grants
   read/edit field-level security on every API-created field (the Order
-  fields, `Account.Company_Domain__c`, and every `Meridian_Product_Review__c` field
-  above) and object-level access on `Order` and `Meridian_Product_Review__c`
-  (`Meridian_Product_Review__c` is read/create only with `viewAllRecords: true` — the
-  integration user reads every shopper's reviews for the aggregate rating,
-  but the app never edits or deletes one). Assigned to the integration user.
-  Created/updated and assigned by `npm run sf:setup`. Needed because a field
-  or object created via the API has no access by default, so the integration
-  user otherwise can't see it.
+  fields, `Account.Company_Domain__c`, and every `Meridian_Product_Review__c` /
+  `Meridian_Wishlist_Item__c` field above) and object-level access on `Order`,
+  `Meridian_Product_Review__c` (read/create, `viewAllRecords: true` — the
+  integration user reads every shopper's reviews for the aggregate rating, but
+  the app never edits or deletes one), and `Meridian_Wishlist_Item__c`
+  (read/create/edit/delete — wishlist rows are added and removed; Salesforce
+  requires `allowEdit` alongside `allowDelete` even though the app never edits
+  a row). Assigned to the integration user. Created/updated and assigned by
+  `npm run sf:setup`. Needed because a field or object created via the API has
+  no access by default, so the integration user otherwise can't see it.
 
 ### 10.6 Account
 - **`Meridian Web Orders`** — one Account that guest/individual web orders are
@@ -481,6 +520,9 @@ AutoNumber name field (`PR-{0000}`).
 | `GET /api/account/orders/:id`        | required  | One order — own, or (view-only) a teammate's under the same company; 404 if neither |
 | `POST /api/account/orders/:id/cancel`| required  | Cancel **own** draft order; restores stock (teammates' orders can't be cancelled) |
 | `GET /api/account/company/orders`    | required  | Shared order history for the shopper's company (any teammate); 404 if not part of one |
+| `GET /api/account/wishlist`          | required  | The shopper's saved product ids (slugs)     |
+| `POST /api/account/wishlist`         | required  | Save a product (`{productId}`); idempotent; returns the updated id list |
+| `DELETE /api/account/wishlist/:productId` | required | Unsave a product; returns the updated id list |
 | `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding

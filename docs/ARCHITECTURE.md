@@ -51,7 +51,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | File | Role |
 |---|---|
 | [`index.html`](../index.html) | Vite entry HTML. Contains the **no-FOUC theme script** — reads `localStorage`/`prefers-color-scheme` and sets `<html data-theme>` *before* React mounts, so there's never a flash of the wrong theme. |
-| [`src/main.jsx`](../src/main.jsx) | Mounts `<App/>` wrapped in `ThemeProvider`, `AuthProvider`, `CartProvider`, and the router. |
+| [`src/main.jsx`](../src/main.jsx) | Mounts `<App/>` wrapped in `ThemeProvider`, `AuthProvider`, `WishlistProvider`, `CartProvider`, and the router. |
 | [`src/App.jsx`](../src/App.jsx) | All routes (`react-router-dom` v7). Renders `Navbar` + `Footer` around a `<Routes>` outlet; keys the `<main>` on `location.pathname` so the CSS page-enter animation replays on navigation (collapses under `prefers-reduced-motion`). Nested `/account/*` routes render inside `AccountLayout`. |
 
 **Full route table:**
@@ -67,6 +67,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 /account                 AccountLayout.jsx → Profile.jsx        (index)
 /account/orders          AccountLayout.jsx → Orders.jsx
 /account/orders/:id      AccountLayout.jsx → OrderDetail.jsx
+/account/wishlist        AccountLayout.jsx → Wishlist.jsx
 /account/company         AccountLayout.jsx → Company.jsx        (only if user.company)
 /about                   About.jsx
 /contact                 Contact.jsx
@@ -85,6 +86,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 |---|---|
 | [`AuthContext.jsx`](../src/context/AuthContext.jsx) | Holds the logged-in shopper's profile (`{ id, email, firstName, lastName, company }`), fetched via `getMe()` on mount. Exposes `login`, `signup`, `logout`, `updateProfile`, `refresh`. `user.company` (set only for B2B shoppers) is what `AccountLayout` checks to decide whether to render the "Company" tab. |
 | [`CartContext.jsx`](../src/context/CartContext.jsx) | Cart state (`{ id, qty }[]`) persisted to `localStorage`. Joins cart line items against live `getProducts()` data so prices/names/stock are always current, not stale from when the item was added. |
+| [`WishlistContext.jsx`](../src/context/WishlistContext.jsx) | A `Set` of the shopper's saved product ids, so the heart on any card reflects state via `has(id)` with no per-card fetch. Loaded on login, cleared on logout; `toggle` is optimistic. Server-persisted (keyed to the Contact), unlike the localStorage cart. See §4.7. |
 | [`ThemeContext.jsx`](../src/context/ThemeContext.jsx) | Light/dark theme. Reads the initial value the `index.html` script already set on `<html data-theme>` (so no re-render flash), then keeps the attribute, the `theme-color` meta tag, and `localStorage` in sync on every `toggleTheme()`/`setTheme()` call. |
 
 ### 2.4 `src/pages/` — one file per route
@@ -105,6 +107,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Exports `formatOrderDate` (reused by `Company.jsx`). |
 | `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Uses `useRefreshOnFocus` + a manual Refresh button so a merchant-side status change in Salesforce shows up without a hard reload. |
 | `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
+| `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
 
 ### 2.5 `src/components/` — reusable UI
 
@@ -125,6 +128,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `PaymentFields.jsx` | Card number/expiry/CVC inputs for checkout (mock or Stripe-ready — see §4.3). |
 | `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
 | `ProductReviews.jsx` | Reviews section on `ProductDetail` — summary + list + (if eligible) the write-a-review form. See §4.6. |
+| `WishlistButton.jsx` | Heart toggle (♥/♡) for saving a product. `icon` variant sits in the product-card corner (a sibling of the card `<Link>`, not nested); `labeled` variant is a "Save"/"Saved" button on the detail page. Routes logged-out shoppers to `/login`. See §4.7. |
 | `OrderTimeline.jsx` | Visual Paid → Shipped → Delivered (or Cancelled) progress, driven by the order's `status`. |
 | `AuthForm.jsx` / `AuthLayout.jsx` | Shared login/signup form + page chrome (includes the company-signup toggle). |
 | `ThemeToggle.jsx` | Sun/moon button calling `useTheme().toggleTheme()`. |
@@ -171,7 +175,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders` | `store/orders.js`, `store/auth.js` (all require a session) |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist` | `store/orders.js`, `store/auth.js`, `store/wishlist.js` (all require a session) |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
 | `payment.js` | `GET /api/payment-config` | `pay/index.js` |
@@ -190,6 +194,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
 | `companies.js` | In-memory domain→company Map | `sf/companies.js` |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
+| `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
 | `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
 | `support.js` | Mock: logs + returns a fake case number | `sf/cases.js` |
 
@@ -203,6 +208,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `listOrdersForCompany` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
 | `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
+| `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
 | `cases.js` | `createCase` | `Case` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
@@ -294,7 +300,18 @@ why no standard object fits. Deliberately out of scope for now: a moderation
 queue, a verified-purchase requirement, and star badges on the catalog grid
 (`ProductCard.jsx`) — the detail page is the only place ratings show up.
 
-### 4.7 Testing & CI
+### 4.7 Wishlist / favorites (`WishlistButton.jsx` + `WishlistContext.jsx` → `routes/account.js` → `store/wishlist.js` → `sf/wishlist.js`)
+
+Logged-in shoppers save coffees via a heart on every product card/detail and
+review them on a Wishlist account tab (`Wishlist.jsx`). Server-persisted to a
+junction object `Meridian_Wishlist_Item__c` (Contact↔Product2), so it follows
+the shopper across devices. `WishlistContext` holds a `Set` of saved ids for
+instant heart state; `toggle` is optimistic. On product cards the heart is a
+sibling of the card `<Link>` (not nested — a button inside an `<a>` is
+invalid/inaccessible). v1 requires login to save (a guest is routed to
+`/login`). See [DEVELOPER_GUIDE.md §9d](DEVELOPER_GUIDE.md).
+
+### 4.8 Testing & CI
 
 | File | Role |
 |---|---|

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { listOrders, listOrdersForCompany, getOrder, cancelOrder } from '../store/orders.js'
 import { updateProfile } from '../store/auth.js'
+import * as wishlist from '../store/wishlist.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
 import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
 
@@ -45,6 +46,38 @@ router.post(
   '/account/orders/:id/cancel',
   asyncHandler(async (req, res) => {
     res.json(await cancelOrder(req.params.id, req.user))
+  }),
+)
+
+// ---- Wishlist ----
+
+// GET /api/account/wishlist — the shopper's saved product ids (slugs).
+router.get(
+  '/account/wishlist',
+  asyncHandler(async (req, res) => {
+    res.json(await wishlist.list(req.user.id))
+  }),
+)
+
+const wishlistSchema = z.object({ productId: z.string().trim().min(1).max(120) }).strict()
+
+// POST /api/account/wishlist — save a product; returns the updated id list.
+router.post(
+  '/account/wishlist',
+  asyncHandler(async (req, res) => {
+    const parsed = wishlistSchema.safeParse(req.body)
+    if (!parsed.success) throw badRequest('Invalid product.', 'invalid_product')
+    await wishlist.add(req.user.id, parsed.data.productId)
+    res.json(await wishlist.list(req.user.id))
+  }),
+)
+
+// DELETE /api/account/wishlist/:productId — unsave a product; returns the list.
+router.delete(
+  '/account/wishlist/:productId',
+  asyncHandler(async (req, res) => {
+    await wishlist.remove(req.user.id, req.params.productId)
+    res.json(await wishlist.list(req.user.id))
   }),
 )
 

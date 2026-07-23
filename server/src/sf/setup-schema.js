@@ -198,29 +198,83 @@ const PRODUCT_REVIEW_FIELDS = [
   },
 ]
 
-async function ensureProductReviewObject(conn) {
+// ---- Wishlist (new junction custom object — no standard "wishlist" object
+// on Sales Cloud; one row per saved (Contact, Product) pair). Same
+// shell-then-fields pattern as reviews above. ----
+const WISHLIST_OBJECT = 'Meridian_Wishlist_Item__c'
+const WISHLIST_FIELDS = [
+  {
+    sobject: WISHLIST_OBJECT,
+    probe: 'Contact__c',
+    def: {
+      fullName: `${WISHLIST_OBJECT}.Contact__c`,
+      label: 'Shopper',
+      type: 'Lookup',
+      referenceTo: 'Contact',
+      relationshipLabel: 'Wishlist Items',
+      relationshipName: 'Meridian_Wishlist_Items',
+    },
+  },
+  {
+    sobject: WISHLIST_OBJECT,
+    probe: 'Product__c',
+    def: {
+      fullName: `${WISHLIST_OBJECT}.Product__c`,
+      label: 'Product',
+      type: 'Lookup',
+      referenceTo: 'Product2',
+      relationshipLabel: 'Wishlist Items',
+      relationshipName: 'Meridian_Wishlist_Items',
+    },
+  },
+]
+
+/**
+ * Create a custom object SHELL (no fields — fields are created separately via
+ * ensureField). Inline `fields` on a CustomObject create silently no-op, so we
+ * never use them. Idempotent: probes for the object first.
+ */
+async function ensureCustomObject(conn, { apiName, label, pluralLabel, displayFormat }) {
   try {
-    await conn.query(`SELECT Id FROM ${PRODUCT_REVIEW_OBJECT} LIMIT 1`)
-    console.log(`  • ${PRODUCT_REVIEW_OBJECT} already present`)
+    await conn.query(`SELECT Id FROM ${apiName} LIMIT 1`)
+    console.log(`  • ${apiName} already present`)
     return
   } catch {
     // Missing — create the object shell; fields are created separately below.
   }
   const res = await conn.metadata.create('CustomObject', [
     {
-      fullName: PRODUCT_REVIEW_OBJECT,
-      label: 'Meridian Product Review',
-      pluralLabel: 'Meridian Product Reviews',
-      nameField: { type: 'AutoNumber', label: 'Review Number', displayFormat: 'MPR-{0000}' },
+      fullName: apiName,
+      label,
+      pluralLabel,
+      nameField: { type: 'AutoNumber', label: 'Number', displayFormat },
       deploymentStatus: 'Deployed',
       sharingModel: 'ReadWrite',
     },
   ])
   const r = Array.isArray(res) ? res[0] : res
   if (!r.success) {
-    throw new Error(`Could not create ${PRODUCT_REVIEW_OBJECT}: ${JSON.stringify(r.errors)}`)
+    throw new Error(`Could not create ${apiName}: ${JSON.stringify(r.errors)}`)
   }
-  console.log(`  • Created ${PRODUCT_REVIEW_OBJECT}`)
+  console.log(`  • Created ${apiName}`)
+}
+
+async function ensureProductReviewObject(conn) {
+  await ensureCustomObject(conn, {
+    apiName: PRODUCT_REVIEW_OBJECT,
+    label: 'Meridian Product Review',
+    pluralLabel: 'Meridian Product Reviews',
+    displayFormat: 'MPR-{0000}',
+  })
+}
+
+async function ensureWishlistObject(conn) {
+  await ensureCustomObject(conn, {
+    apiName: WISHLIST_OBJECT,
+    label: 'Meridian Wishlist Item',
+    pluralLabel: 'Meridian Wishlist Items',
+    displayFormat: 'MWL-{0000}',
+  })
 }
 
 async function ensureField(conn, { sobject, probe, def }) {
@@ -279,7 +333,7 @@ async function ensureOrderStatusValues(conn) {
 }
 
 async function ensurePermissions(conn) {
-  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS].map(({ def }) => ({
+  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...WISHLIST_FIELDS].map(({ def }) => ({
     field: def.fullName,
     readable: true,
     editable: true,
@@ -319,6 +373,18 @@ async function ensurePermissions(conn) {
       allowCreate: true,
       allowEdit: false,
       allowDelete: false,
+      viewAllRecords: true,
+      modifyAllRecords: false,
+    },
+    // Wishlist items get removed, so allowDelete: true here (unlike reviews).
+    // Salesforce requires allowEdit whenever allowDelete is granted (a
+    // FIELD_INTEGRITY dependency), even though the app never edits a row.
+    {
+      object: WISHLIST_OBJECT,
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: true,
+      allowDelete: true,
       viewAllRecords: true,
       modifyAllRecords: false,
     },
@@ -378,6 +444,8 @@ async function main() {
     for (const field of FIELDS) await ensureField(conn, field)
     await ensureProductReviewObject(conn)
     for (const field of PRODUCT_REVIEW_FIELDS) await ensureField(conn, field)
+    await ensureWishlistObject(conn)
+    for (const field of WISHLIST_FIELDS) await ensureField(conn, field)
     await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
   })
