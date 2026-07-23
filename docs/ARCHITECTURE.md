@@ -104,7 +104,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `account/Profile.jsx` | Edit name; `updateProfile()`. |
 | `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Exports `formatOrderDate` (reused by `Company.jsx`). |
 | `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Uses `useRefreshOnFocus` + a manual Refresh button so a merchant-side status change in Salesforce shows up without a hard reload. |
-| `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
+| `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. Also shows an Einstein "likely to reorder" badge (`getCompanyInsights()`) when a Prediction Builder model has scored the company; absent otherwise. See §4.8. |
 
 ### 2.5 `src/components/` — reusable UI
 
@@ -171,7 +171,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders` | `store/orders.js`, `store/auth.js` (all require a session) |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET /api/account/company/insights` | `store/orders.js`, `store/companies.js`, `store/auth.js` (all require a session) |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
 | `payment.js` | `GET /api/payment-config` | `pay/index.js` |
@@ -188,7 +188,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `catalog.js` | Filters `server/src/data/products.js` | `sf/catalog.js` — cached behind a short TTL (`lib/cache.js`) |
 | `orders.js` | In-memory order Map, stock tracked in-memory | `sf/orders.js` |
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
-| `companies.js` | In-memory domain→company Map | `sf/companies.js` |
+| `companies.js` | In-memory domain→company Map; a mock reorder-likelihood **heuristic** (days-since-last-order vs. avg interval) since mock has no ML runtime | `sf/companies.js` — reads the Einstein score field |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
 | `support.js` | Mock: logs + returns a fake case number | `sf/cases.js` |
@@ -202,7 +202,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
 | `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `listOrdersForCompany` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
-| `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
+| `companies.js` | `findOrCreateCompanyAccount`, `getReorderLikelihood` | `Account` (keyed by `Company_Domain__c`; reads the Einstein `Reorder_Likelihood__c` score — see [DEVELOPER_GUIDE.md §9d](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
 | `cases.js` | `createCase` | `Case` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
@@ -294,7 +294,18 @@ why no standard object fits. Deliberately out of scope for now: a moderation
 queue, a verified-purchase requirement, and star badges on the catalog grid
 (`ProductCard.jsx`) — the detail page is the only place ratings show up.
 
-### 4.7 Testing & CI
+### 4.7 Einstein "likely to reorder" (`Company.jsx` → `GET /api/account/company/insights` → `store/companies.js` → `sf/companies.js`)
+
+A reorder-likelihood badge on the B2B Company tab, powered by a real
+Salesforce AI feature — **Einstein Prediction Builder**. The model is trained
+declaratively by an admin in Salesforce Setup (no API for that step); it
+writes a 0–100 score to `Account.Reorder_Likelihood__c`, which the BFF reads
+like any other field. Null until a model is trained, in which case the badge
+is simply absent (verified live — this is the ship state). Mock mode has no ML
+runtime, so it substitutes a clearly-labeled heuristic so the feature stays
+testable offline. Full detail: [DEVELOPER_GUIDE.md §9d](DEVELOPER_GUIDE.md).
+
+### 4.8 Testing & CI
 
 | File | Role |
 |---|---|

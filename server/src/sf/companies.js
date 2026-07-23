@@ -27,3 +27,20 @@ export async function findOrCreateCompanyAccount(name, domain) {
     return { id: created.id, name }
   })
 }
+
+/**
+ * The Einstein Prediction Builder reorder-likelihood score (0–100) for a
+ * company Account, or null when no model has scored it yet — which is the
+ * normal state until an admin trains + runs a Prediction Builder model in
+ * Salesforce Setup (see docs/SALESFORCE_SETUP.md). The BFF only reads the
+ * field; it never computes the score.
+ */
+export async function getReorderLikelihood(accountId) {
+  return withConn(async (conn) => {
+    const res = await conn.query(
+      `SELECT Reorder_Likelihood__c FROM Account WHERE Id = '${esc(accountId)}' LIMIT 1`,
+    )
+    const raw = res.records[0]?.Reorder_Likelihood__c
+    return raw != null ? Number(raw) : null
+  })
+}

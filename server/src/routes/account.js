@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { listOrders, listOrdersForCompany, getOrder, cancelOrder } from '../store/orders.js'
+import { getCompanyInsights } from '../store/companies.js'
 import { updateProfile } from '../store/auth.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
 import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
@@ -37,6 +38,19 @@ router.get(
       throw notFoundError('You’re not part of a company account.')
     }
     res.json(await listOrdersForCompany(req.user.company.id))
+  }),
+)
+
+// GET /api/account/company/insights — forward-looking signals for the
+// company (Einstein reorder-likelihood score). `reorderLikelihood` is null
+// until a Prediction Builder model has scored the Account. 404 if no company.
+router.get(
+  '/account/company/insights',
+  asyncHandler(async (req, res) => {
+    if (!req.user.company) {
+      throw notFoundError('You’re not part of a company account.')
+    }
+    res.json(await getCompanyInsights(req.user.company.id))
   }),
 )
 

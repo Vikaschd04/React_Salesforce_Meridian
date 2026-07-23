@@ -2308,6 +2308,57 @@
   margin-bottom: var(--sp-1);
 }
 
+/* Einstein reorder-likelihood badge */
+.company-insight {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: 0.7rem 1.1rem 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.company-insight__score {
+  font-family: var(--font-mono);
+  font-size: var(--step-2);
+  font-weight: 700;
+  line-height: 1;
+}
+.company-insight__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.company-insight__label {
+  font-size: var(--step-0);
+  font-weight: 500;
+}
+.company-insight__by {
+  font-size: var(--step--1);
+  color: var(--mist);
+  letter-spacing: 0.02em;
+}
+.company-insight--high {
+  border-left-color: var(--pine-bright);
+}
+.company-insight--high .company-insight__score {
+  color: var(--pine-bright);
+}
+.company-insight--medium {
+  border-left-color: var(--gold);
+}
+.company-insight--medium .company-insight__score {
+  color: var(--gold);
+}
+.company-insight--low {
+  border-left-color: var(--line-strong);
+}
+.company-insight--low .company-insight__score {
+  color: var(--ink-70);
+}
+
 /* Profile card */
 .profile-card {
   max-width: 34rem;
