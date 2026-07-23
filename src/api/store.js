@@ -77,6 +77,26 @@ export async function getProduct(id) {
 }
 
 /**
+ * Reviews for a product: { reviews, average, count, myReview }. `myReview` is
+ * the caller's own review if logged in and they've already reviewed it, else
+ * null. Public — works logged out.
+ */
+export async function getProductReviews(id) {
+  return request(`/products/${encodeURIComponent(id)}/reviews`)
+}
+
+/**
+ * Submit a review for a product. Requires login. Throws StoreError('already_reviewed')
+ * if the shopper has already reviewed this product.
+ */
+export async function submitProductReview(id, { rating, title, body }) {
+  return request(`/products/${encodeURIComponent(id)}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({ rating, title, body }),
+  })
+}
+
+/**
  * Place an order from cart items + shipping details.
  * `shipping` = { name, email, street, city, state, postalCode, country }.
  * The BFF recomputes the total from trusted prices and returns

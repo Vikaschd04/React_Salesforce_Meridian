@@ -71,6 +71,27 @@ Each is justified; all are created/granted by `npm run sf:setup`.
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
 | `Product2.*` (Origin, Roast, Tasting_Notes, …) | Coffee attributes with no standard analog. |
 
+## Custom objects we keep (no standard equivalent on this org)
+The checklist above is field-first ("is there a standard *field*?") — the
+same question applies one level up before adding a whole custom *object*:
+is there a standard object for this concept at all? For everything else in
+this app the answer was yes (`Product2`, `Order`, `Account`, `Contact`,
+`Case`). Product reviews are the first exception.
+
+| Custom object | Why no standard object |
+|---|---|
+| `Meridian_Product_Review__c` | Star ratings + written reviews on a product are a Commerce Cloud B2C concept — this org is Sales Cloud, which has no standard review/rating object. Fields: `Product__c` (Lookup→Product2), `Contact__c` (Lookup→Contact), `Rating__c` (Number 1–5), `Title__c` (Text), `Body__c` (Long Text Area), `Reviewer_Name__c` (Text, a display-name snapshot). One review per (shopper, product) pair, enforced by the app, not a validation rule. Created/granted by `npm run sf:setup`. |
+
+> **Naming note:** this org already has an unrelated, pre-existing custom
+> object literally named `Product_Review__c` (no `Contact__c`, uses
+> `Reviewer_Email__c` instead, plus an `Is_Approved__c` moderation flag —
+> someone else's setup, not part of this app). `sf:setup`'s existence probe
+> matched that name and correctly refused to touch it (the follow-up
+> permission grant failed safely, atomically, with zero changes to the org).
+> Meridian's object is named `Meridian_Product_Review__c` — matching the
+> `Meridian_Web_Integration` permission-set naming convention — specifically
+> to avoid this collision. Don't rename it back to the shorter form.
+
 ## Deprecated (migrated to standard — left in the org for old data, unused by the app)
 `Order.Total_Cents__c` → `TotalAmount`; `Order.Cancelled__c` /
 `Order.Payment_Status__c` / `Order.Fulfillment_Status__c` → `Status`;

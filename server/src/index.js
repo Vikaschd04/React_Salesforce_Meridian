@@ -16,6 +16,7 @@ import supportRoutes from './routes/support.js'
 import promoRoutes from './routes/promo.js'
 import paymentRoutes from './routes/payment.js'
 import seoRoutes from './routes/seo.js'
+import reviewRoutes from './routes/reviews.js'
 
 assertProductionConfig()
 
@@ -57,6 +58,7 @@ app.use('/api', promoRoutes)
 app.use('/api', paymentRoutes)
 app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
+app.use('/api', reviewRoutes)
 
 // In production the BFF also serves the built SPA (same origin as /api, so the
 // session cookie just works). Dev is served by Vite instead.

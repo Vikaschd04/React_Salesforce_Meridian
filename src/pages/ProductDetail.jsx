@@ -6,6 +6,7 @@ import { formatCents } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import RelatedProducts from '../components/RelatedProducts.jsx'
+import ProductReviews from '../components/ProductReviews.jsx'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import JsonLd from '../components/JsonLd.jsx'
 import useSeo from '../lib/useSeo.js'
@@ -167,6 +168,7 @@ export default function ProductDetail() {
         </article>
       )}
 
+      {product && <ProductReviews productId={product.id} />}
       {product && <RelatedProducts product={product} />}
     </div>
   )

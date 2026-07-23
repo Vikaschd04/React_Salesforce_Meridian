@@ -2847,3 +2847,124 @@
   font-size: var(--step-0);
   color: var(--ink-70);
 }
+
+/* ============ Product reviews ============ */
+.product-reviews {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+.product-reviews__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.product-reviews__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--step--1);
+  color: var(--ink-70);
+}
+.product-reviews__empty {
+  color: var(--ink-70);
+  margin-bottom: var(--sp-4);
+}
+.product-reviews__prompt {
+  color: var(--ink-70);
+  font-size: var(--step-0);
+}
+.product-reviews__prompt a {
+  color: var(--gold);
+}
+
+.star-rating {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+.star {
+  color: var(--line-strong);
+  font-size: var(--step-0);
+  line-height: 1;
+}
+.star--filled {
+  color: var(--gold);
+}
+.star-rating--lg .star {
+  font-size: var(--step-2);
+}
+.star-rating--sm .star {
+  font-size: var(--step--1);
+}
+.star--btn {
+  background: none;
+  border: none;
+  padding: 0.1rem;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.star--btn:hover,
+.star--btn:focus-visible {
+  transform: scale(1.15);
+  color: var(--gold-soft);
+}
+.star--btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+.review-card {
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+}
+.review-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.review-card__date {
+  font-size: var(--step--1);
+  color: var(--mist);
+}
+.review-card__title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.review-card__body {
+  color: var(--ink-70);
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+.review-card__by {
+  font-size: var(--step--1);
+  color: var(--mist);
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 32rem;
+}
+.review-form__title {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+.review-form__error {
+  color: var(--danger);
+  font-size: var(--step--1);
+}

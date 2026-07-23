@@ -125,6 +125,18 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant field access.')
   }
 
+  // 4f. Meridian_Product_Review__c custom object (reviews/ratings), visible to Run-As
+  try {
+    await withConn((conn) =>
+      conn.query('SELECT Id, Product__c, Contact__c, Rating__c, Title__c, Body__c, Reviewer_Name__c FROM Meridian_Product_Review__c LIMIT 1'),
+    )
+    ok('Meridian_Product_Review__c exists and is visible')
+  } catch (err) {
+    failures++
+    bad(`Meridian_Product_Review__c missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

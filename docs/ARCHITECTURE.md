@@ -122,6 +122,8 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
 | `PromoInput.jsx` | Promo code entry on Checkout — calls `applyPromo()`, shows the discount inline. |
 | `PaymentFields.jsx` | Card number/expiry/CVC inputs for checkout (mock or Stripe-ready — see §4.3). |
+| `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
+| `ProductReviews.jsx` | Reviews section on `ProductDetail` — summary + list + (if eligible) the write-a-review form. See §4.6. |
 | `OrderTimeline.jsx` | Visual Paid → Shipped → Delivered (or Cancelled) progress, driven by the order's `status`. |
 | `AuthForm.jsx` / `AuthLayout.jsx` | Shared login/signup form + page chrome (includes the company-signup toggle). |
 | `ThemeToggle.jsx` | Sun/moon button calling `useTheme().toggleTheme()`. |
@@ -165,6 +167,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | File | Mounted paths | Delegates to |
 |---|---|---|
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
+| `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
 | `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders` | `store/orders.js`, `store/auth.js` (all require a session) |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
@@ -184,6 +187,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `orders.js` | In-memory order Map, stock tracked in-memory | `sf/orders.js` |
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
 | `companies.js` | In-memory domain→company Map | `sf/companies.js` |
+| `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
 | `support.js` | Mock: logs + returns a fake case number | `sf/cases.js` |
 
@@ -197,6 +201,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `listOrdersForCompany` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
 | `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
+| `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
 | `cases.js` | `createCase` | `Case` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
 | `setup-schema.js` | *(script)* — `npm run sf:setup` | creates custom fields, extends `OrderStatus` picklist, creates/updates the `Meridian_Web_Integration` permission set |
@@ -276,7 +281,18 @@ server-side from the live product list (`routes/seo.js`), and a static
 `robots.txt`. No SSR/prerendering — if guaranteed crawler-visible HTML is ever
 needed, that's a future addition, not implemented here.
 
-### 4.6 Testing & CI
+### 4.6 Product reviews & ratings (`StarRating.jsx` + `ProductReviews.jsx` → `routes/reviews.js` → `store/reviews.js` → `sf/reviews.js`)
+
+Logged-in shoppers can leave one star rating + written review per product,
+shown on `ProductDetail`. The first Meridian feature backed by a whole new
+custom Salesforce **object** (`Meridian_Product_Review__c`) rather than a field on a
+standard one — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md) for the flow
+and [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md) for the schema and
+why no standard object fits. Deliberately out of scope for now: a moderation
+queue, a verified-purchase requirement, and star badges on the catalog grid
+(`ProductCard.jsx`) — the detail page is the only place ratings show up.
+
+### 4.7 Testing & CI
 
 | File | Role |
 |---|---|

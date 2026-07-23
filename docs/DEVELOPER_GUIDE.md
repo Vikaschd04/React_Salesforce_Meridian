@@ -269,6 +269,45 @@ account switcher or a way to join a company after the fact yet.
 
 ---
 
+### 9c. Product reviews & ratings
+
+Any logged-in shopper can leave one star rating + written review per product.
+There's no standard Salesforce object for this on a Sales Cloud org (reviews
+are a Commerce Cloud B2C concept, not present here), so this is the first
+feature to add a whole new **custom object**, `Meridian_Product_Review__c` — every
+prior custom addition (B2B, order lifecycle) only added fields to existing
+standard objects. See [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md)
+for the object's schema and justification.
+
+- `GET /api/products/:id/reviews` (public) → `{ reviews, average, count,
+  myReview }`. `sf/reviews.js` resolves the app's ProductCode slug to the
+  real `Product2` Id via `sf/catalog.js`'s `getProduct()` — same pattern
+  `sf/orders.js` uses for order lines — which also gives the 404-if-missing
+  behavior for free. `myReview` is populated only when the request carries a
+  session and that shopper has already reviewed the product.
+- `POST /api/products/:id/reviews` (requires a session) — one review per
+  shopper per product, enforced **server-side** (not a Salesforce validation
+  rule): `sf/reviews.js` checks for an existing `Product__c`+`Contact__c` row
+  before insert and throws a 409 (`already_reviewed`) if found.
+- **No moderation queue and no verified-purchase requirement** — a review is
+  visible immediately on submission. The merchant can remove an inappropriate
+  one directly in Salesforce (same pattern as order fulfillment — no custom
+  admin UI exists or is planned for this). Both are explicit, deliberate cuts
+  for this phase, not gaps that were missed.
+- **Catalog-grid star badges are not implemented** — only the product detail
+  page shows ratings. Adding them to `ProductCard.jsx`/the Shop grid would
+  mean either an aggregate query per catalog list fetch or reworking the
+  shared, cached `store/catalog.js` query that checkout pricing also depends
+  on — deliberately out of scope for this pass; the reviews endpoint already
+  returns `average`/`count`, so this is a cheap follow-up later.
+- Mock mode (`store/reviews.js`) mirrors every rule above with an in-memory
+  array, including the 404-on-missing-product and 409-on-duplicate behavior —
+  confirmed to match the Salesforce path exactly (an earlier draft of the
+  mock path let a nonexistent product return an empty list instead of 404;
+  fixed before this shipped).
+
+---
+
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -345,14 +384,32 @@ The contact form creates a standard **`Case`** (`Origin='Web'`, `Subject`,
 `Description`, `SuppliedName`, `SuppliedEmail`) and reads back its `CaseNumber`.
 No custom fields or config required.
 
+### 10.4c `Meridian_Product_Review__c` — new custom object (no standard equivalent)
+The first Meridian feature to add a whole custom **object**, not just a field
+on a standard one — created via `npm run sf:setup` (§9c above,
+[SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md) for the justification).
+AutoNumber name field (`PR-{0000}`).
+
+| API name             | Type              | Purpose                        |
+|-----------------------|-------------------|--------------------------------|
+| `Product__c`          | Lookup → Product2 | the reviewed coffee            |
+| `Contact__c`          | Lookup → Contact  | the reviewing shopper          |
+| `Rating__c`           | Number (1,0)      | 1–5 stars                      |
+| `Title__c`            | Text (120)        | review headline                |
+| `Body__c`             | Long Text Area (4000) | the written review         |
+| `Reviewer_Name__c`    | Text (120)        | display-name snapshot at review time |
+
 ### 10.5 Permission set
-- **`Meridian_Web_Integration`** (label "Meridian Web Integration",
-  id `0PSKa000006czzoOAA`). Grants read/edit field-level security on the
-  API-created Order fields (`Shopper__c`, `Guest_Email__c`, `Discount_Cents__c`,
-  `Promo_Code__c`, `Shipping_Cents__c`, `Payment_Intent__c`, `Tracking_Number__c`)
-  and is **assigned to the integration user**. Created/updated and assigned by
-  `npm run sf:setup`. Needed because a field created via the API has no FLS by
-  default, so the integration user otherwise can't see it.
+- **`Meridian_Web_Integration`** (label "Meridian Web Integration"). Grants
+  read/edit field-level security on every API-created field (the Order
+  fields, `Account.Company_Domain__c`, and every `Meridian_Product_Review__c` field
+  above) and object-level access on `Order` and `Meridian_Product_Review__c`
+  (`Meridian_Product_Review__c` is read/create only with `viewAllRecords: true` — the
+  integration user reads every shopper's reviews for the aggregate rating,
+  but the app never edits or deletes one). Assigned to the integration user.
+  Created/updated and assigned by `npm run sf:setup`. Needed because a field
+  or object created via the API has no access by default, so the integration
+  user otherwise can't see it.
 
 ### 10.6 Account
 - **`Meridian Web Orders`** — one Account that guest/individual web orders are
@@ -409,6 +466,8 @@ No custom fields or config required.
 | `GET /health`                        | –         | Liveness                                    |
 | `GET /api/products`                  | –         | List active Meridian products               |
 | `GET /api/products/:id`              | –         | One product by slug                         |
+| `GET /api/products/:id/reviews`      | optional  | `{ reviews, average, count, myReview }` — `myReview` set only when logged in and reviewed |
+| `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |
 | `POST /api/orders`                   | optional  | **Charge payment** then create the order (items + shipping + promo + payment); enforces stock, re-validates the promo. A decline → 402, no order |
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
 | `POST /api/promo/validate`           | –         | Validate a promo code against a subtotal → `{ code, discountCents, freeShipping, label }` |
