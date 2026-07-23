@@ -62,13 +62,20 @@ export function CartProvider({ children }) {
   }, [items])
 
   function addItem(id, qty = 1) {
-    const add = Math.max(1, Math.floor(Number(qty) || 1))
+    addItems([{ id, qty }])
+  }
+
+  /** Add several items in one update (e.g. reordering a past order). */
+  function addItems(newItems) {
     setItems((prev) => {
-      const existing = prev.find((it) => it.id === id)
-      if (existing) {
-        return prev.map((it) => (it.id === id ? { ...it, qty: it.qty + add } : it))
+      const byId = new Map(prev.map((it) => [it.id, { ...it }]))
+      for (const { id, qty } of newItems) {
+        const add = Math.max(1, Math.floor(Number(qty) || 1))
+        const existing = byId.get(id)
+        if (existing) existing.qty += add
+        else byId.set(id, { id, qty: add })
       }
-      return [...prev, { id, qty: add }]
+      return [...byId.values()]
     })
   }
 
@@ -148,15 +155,17 @@ export function CartProvider({ children }) {
       totalCents,
       promo,
       discountCents,
+      catalog,
       applyPromoCode,
       clearPromo,
       addItem,
+      addItems,
       setQty,
       removeItem,
       clear,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, lines, count, totalCents, promo, discountCents],
+    [items, lines, count, totalCents, promo, discountCents, catalog],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

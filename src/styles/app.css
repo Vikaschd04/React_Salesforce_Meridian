@@ -2351,7 +2351,6 @@
 .order-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-3);
   flex-wrap: wrap;
   padding: var(--sp-4);
@@ -2366,6 +2365,21 @@
   border-color: var(--gold-soft);
   box-shadow: var(--glow-gold);
   transform: translateY(-2px);
+}
+/* The card (.order-row) and the link are separate elements — a <button>
+   can't nest inside an <a>, so the Reorder button sits as a sibling of this
+   link, both inside the card. This class just carries the layout that used
+   to live directly on .order-row. */
+.order-row__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 .order-row__main {
   display: flex;
@@ -2393,6 +2407,34 @@
 }
 .order-row:hover .order-row__chev {
   transform: translateX(4px);
+}
+.order-row__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.order-row__reorder {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink);
+  font-size: var(--step--1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.order-row__reorder:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.order-row__reorder-msg {
+  font-size: var(--step--1);
+  color: var(--ink-70);
+  text-align: right;
+  max-width: 12rem;
 }
 .status--cancelled {
   background: rgba(224, 106, 80, 0.14) !important;
@@ -2541,6 +2583,13 @@
 .order-detail__addr {
   color: var(--ink-70);
   line-height: 1.7;
+}
+.order-detail__reorder {
+  margin-top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 .order-detail__actions {
   margin-top: var(--sp-4);

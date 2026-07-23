@@ -6,6 +6,7 @@ import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
 import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
+import useReorder from '../../lib/useReorder.js'
 import { formatOrderDate } from './Orders.jsx'
 
 /** One order: items, totals, live status timeline — with cancel while unshipped. */
@@ -16,6 +17,7 @@ export default function OrderDetail() {
   const [refreshing, setRefreshing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState(null)
+  const { reorder, result: reorderResult } = useReorder()
 
   // `silent` refreshes update the order in place (no spinner) — used by the
   // focus refetch + the Refresh button so a Salesforce change appears live.
@@ -164,6 +166,27 @@ export default function OrderDetail() {
             </p>
           </div>
         )}
+
+        <div className="order-detail__reorder">
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => reorder(order.items)}
+          >
+            Reorder these items
+          </button>
+          {reorderResult && (
+            <p className="field__hint" role="status">
+              {reorderResult.added > 0
+                ? `Added ${reorderResult.added} item${reorderResult.added === 1 ? '' : 's'} to your cart.`
+                : 'None of these items are available anymore.'}
+              {reorderResult.skipped > 0
+                ? ` ${reorderResult.skipped} item${reorderResult.skipped === 1 ? ' is' : 's are'} no longer available.`
+                : ''}{' '}
+              {reorderResult.added > 0 && <Link to="/cart">View cart →</Link>}
+            </p>
+          )}
+        </div>
 
         {cancelError && (
           <p className="summary__error" role="alert">

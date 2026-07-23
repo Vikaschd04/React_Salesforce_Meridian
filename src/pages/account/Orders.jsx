@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyOrders } from '../../api/store.js'
-import { formatCents } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
+import OrderRow from '../../components/OrderRow.jsx'
 import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
 
 export function formatOrderDate(iso) {
@@ -58,28 +58,7 @@ export default function Orders() {
     <ul className="order-list">
       {orders.map((order) => (
         <li key={order.orderId}>
-          <Link to={`/account/orders/${order.orderId}`} className="order-row">
-            <div className="order-row__main">
-              <span className="order-card__id">{order.orderId}</span>
-              <span className="order-row__summary">
-                {order.items.reduce((n, it) => n + it.qty, 0)} bag
-                {order.items.reduce((n, it) => n + it.qty, 0) === 1 ? '' : 's'} ·{' '}
-                {order.items
-                  .map((it) => it.name)
-                  .slice(0, 2)
-                  .join(', ')}
-                {order.items.length > 2 ? '…' : ''}
-              </span>
-            </div>
-            <div className="order-row__meta">
-              <span className={`order-card__status status--${order.status}`}>{order.status}</span>
-              <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
-              <span className="order-row__total">{formatCents(order.totalCents)}</span>
-              <span className="order-row__chev" aria-hidden="true">
-                →
-              </span>
-            </div>
-          </Link>
+          <OrderRow order={order} />
         </li>
       ))}
     </ul>

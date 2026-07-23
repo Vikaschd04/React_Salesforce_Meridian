@@ -120,6 +120,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav) over the loaded catalog — suggests matching coffees and tasting notes. |
 | `RelatedProducts.jsx` | "You might also like" strip on `ProductDetail`, calls `getProducts()` and picks by shared roast/origin. |
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
+| `OrderRow.jsx` | One row in an order list — shared by `Orders.jsx` (own history) and `Company.jsx` (B2B shared history), whose rows used to be duplicated inline markup. Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
 | `PromoInput.jsx` | Promo code entry on Checkout — calls `applyPromo()`, shows the discount inline. |
 | `PaymentFields.jsx` | Card number/expiry/CVC inputs for checkout (mock or Stripe-ready — see §4.3). |
 | `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
@@ -138,6 +139,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `geo.js` | Formats `{lat, long}` into the coordinate-label strings used by `CoordTag`. |
 | `useSeo.js` | Sets `document.title` + meta description/OG tags per route (§4.5). |
 | `useRefreshOnFocus.js` | Re-runs a callback when the tab regains focus/visibility — used on account pages so a Salesforce-side order-status change appears without a manual reload. |
+| `useReorder.js` | Re-adds a past order's line items to the cart (`OrderRow.jsx`, `OrderDetail.jsx`). Pure frontend — filters against `CartContext`'s already-loaded catalog to skip any item whose product is no longer active, reporting `{ added, skipped }` for the UI. Not ownership-gated: a teammate can reorder from a company order they didn't place, unlike cancelling. |
 | `useParallax.js` / `useTilt.js` / `useReveal.js` | Small scroll/hover motion hooks for the homepage's design flourishes; all respect `prefers-reduced-motion`. |
 
 ### 2.7 `src/data/` and `src/styles/`
