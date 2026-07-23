@@ -46,9 +46,9 @@ orientation:
   src/routes/         thin HTTP layer — products, orders, auth, account, …
   src/store/          mock ⇄ Salesforce switch (branches on DATA_SOURCE)
   src/sf/             Salesforce layer — the only files with field names (§5)
-  docs/SALESFORCE_SETUP.md   org setup checklist
-/docs                 this guide + ARCHITECTURE.md, SALESFORCE_CONVENTIONS.md,
-                      DEPLOYMENT.md
+/docs                 every doc lives here — this guide, ARCHITECTURE.md,
+                      SALESFORCE_CONVENTIONS.md, SALESFORCE_SETUP.md,
+                      DEPLOYMENT.md, meridian-plan/ (project history)
 ```
 
 ---
@@ -374,7 +374,7 @@ No custom fields or config required.
   3 shopper contacts, 3 shopper-linked orders.
 
 > To recreate this org from scratch: do the manual steps in
-> [`server/docs/SALESFORCE_SETUP.md`](../server/docs/SALESFORCE_SETUP.md)
+> [`SALESFORCE_SETUP.md`](SALESFORCE_SETUP.md)
 > (§1–§4: Product2/Order/Contact fields, the Account, the Connected App), then
 > `npm run sf:setup` (Shopper__c + permission set) and `npm run seed` (products).
 > `npm run sf:check` verifies all of it.

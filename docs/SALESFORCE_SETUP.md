@@ -1,4 +1,4 @@
-# Salesforce setup — Meridian (Phase 3)
+# Salesforce setup — Meridian
 
 This is the one-time setup to connect the BFF to your Salesforce sandbox using
 **standard objects** (Product2 / Pricebook / Order / OrderItem) and the
@@ -27,7 +27,7 @@ Setup → Object Manager → **Product** → Fields & Relationships → **New**,
 | Accent           | `Accent__c`          | Text (10)         | Hex color, e.g. `#c98a3c`     |
 | Image Path       | `Image_Path__c`      | Text (255)        | e.g. `/products/x.jpg`        |
 
-The BFF reads field API names from this exact list ([server/src/sf/mappers.js](../src/sf/mappers.js)
+The BFF reads field API names from this exact list ([server/src/sf/mappers.js](../server/src/sf/mappers.js)
 `PRODUCT_FIELDS`). Salesforce derives the API name from the label (spaces →
 underscores), so "Tasting Notes" becomes `Tasting_Notes__c`. If your names differ,
 update `mappers.js` (and `seed.js`) to match, or rename the fields.
@@ -75,7 +75,7 @@ Shoppers are stored as **Contacts**. Add one custom field:
 
 Give the integration user create/read access to Contact and to this field.
 
-The app is **standard-first** (see [docs/SALESFORCE_CONVENTIONS.md](../../docs/SALESFORCE_CONVENTIONS.md)):
+The app is **standard-first** (see [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md)):
 the order lifecycle uses the **standard `Status`** field and the merchandise
 total is the standard **`TotalAmount`**. `sf:setup` therefore only (a) adds the
 `Shipped` + `Cancelled` values to the standard `Status` picklist and (b) creates
@@ -99,7 +99,7 @@ are matched automatically by **work email domain** (`jane@acme.com` →
 (`Company_Domain__c` = the domain), and later signups from the same domain join
 it, sharing that Account's order history. Free email providers (gmail.com,
 etc.) are rejected for company signup. See
-[docs/DEVELOPER_GUIDE.md §9b](../../docs/DEVELOPER_GUIDE.md) for the full flow.
+[DEVELOPER_GUIDE.md §9b](DEVELOPER_GUIDE.md) for the full flow.
 
 **Order lifecycle — the merchant runs fulfillment in Salesforce, on the standard
 `Status` field.** A paid order lands as `Status = Activated`. To advance it, open

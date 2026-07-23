@@ -353,18 +353,53 @@ front-end code, never committed.**
   package.json           root (frontend) scripts — see §6.5
 /server                  Node BFF
   src/                   see §3
-  docs/SALESFORCE_SETUP.md   one-time org setup checklist
   package.json           server scripts — see §6.5
-/docs
+/docs                    every doc in the repo lives here (see §6.4b)
   ARCHITECTURE.md         this file
   DEVELOPER_GUIDE.md       Salesforce data flows + full API reference
   SALESFORCE_CONVENTIONS.md  standard-vs-custom field rule
+  SALESFORCE_SETUP.md      one-time org setup checklist
   DEPLOYMENT.md            hosting/env vars/Docker/Render
+  meridian-plan/           project history — original spec/phase plans, updated to
+                           track what actually shipped; not needed day-to-day
 /.github/workflows/ci.yml  lint + build + Playwright on every push/PR
 Dockerfile                multi-stage build (SPA + BFF)
 render.yaml                Render blueprint (deploys in mock mode out of the box)
 .node-version               pins Node 22 for hosting platforms
 ```
+
+### 6.4b Where every doc lives
+
+Every doc in the repo lives under `/docs` (no docs anywhere else — e.g.
+`server/docs/` no longer exists; `SALESFORCE_SETUP.md` moved to `/docs`
+alongside everything else), so there's one place to look:
+
+```
+docs/
+  ARCHITECTURE.md              this file — start here
+  DEVELOPER_GUIDE.md            Salesforce data flows + API reference
+  SALESFORCE_CONVENTIONS.md     standard-vs-custom field rule
+  SALESFORCE_SETUP.md           one-time org setup checklist
+  DEPLOYMENT.md                 hosting/env vars/Docker/Render
+  meridian-plan/                 project history (see below)
+    CLAUDE.md                    working conventions for this repo
+    PROMPT.md                    how to pick up a new piece of work here
+    docs/
+      PROJECT_SPEC.md            the full current product spec
+      ARCHITECTURE.md            how the architecture evolved from the
+                                 original plan (points back to this file)
+      PHASE_1_REACT.md            retrospective: original scope vs. shipped
+      PHASE_2_BFF.md              retrospective: original scope vs. shipped
+      PHASE_3_SALESFORCE.md       retrospective: original scope vs. shipped
+      PHASE_4_PRODUCTION.md       retrospective: original scope vs. shipped
+```
+
+`docs/meridian-plan/` is the project's history — the original spec and
+four-phase build plan this app started from, each doc updated to record what
+actually shipped (which grew well past the original scope — theming, B2B,
+discovery, promos, SEO, testing/CI weren't in the original plan). It isn't
+needed for day-to-day work; the five files directly under `docs/` are current
+and load-bearing.
 
 ### 6.5 Scripts
 

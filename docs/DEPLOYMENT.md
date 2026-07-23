@@ -35,7 +35,7 @@ Set these in the host's environment (never commit real secrets):
 | `COOKIE_SECURE` | yes | `true` (cookies over HTTPS) |
 | `DATA_SOURCE` | yes | `mock` or `salesforce` |
 | `PAYMENT_PROVIDER` | yes | `mock` or `stripe` |
-| `SF_LOGIN_URL`, `SF_CLIENT_ID`, `SF_CLIENT_SECRET`, `SF_ACCOUNT_NAME` | if `salesforce` | see [SALESFORCE_SETUP.md](../server/docs/SALESFORCE_SETUP.md) |
+| `SF_LOGIN_URL`, `SF_CLIENT_ID`, `SF_CLIENT_SECRET`, `SF_ACCOUNT_NAME` | if `salesforce` | see [SALESFORCE_SETUP.md](SALESFORCE_SETUP.md) |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | if `stripe` | also `npm i stripe` |
 
 Start in **mock/mock** to verify the deploy, then flip `DATA_SOURCE=salesforce`

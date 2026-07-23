@@ -32,7 +32,7 @@ runs fully offline out of the box: `DATA_SOURCE=mock` and
 account is required to develop or run the E2E suite.
 
 To connect a real Salesforce org, follow
-[server/docs/SALESFORCE_SETUP.md](server/docs/SALESFORCE_SETUP.md), then set
+[docs/SALESFORCE_SETUP.md](docs/SALESFORCE_SETUP.md), then set
 `DATA_SOURCE=salesforce` in `server/.env`.
 
 ## Architecture, one seam per layer
@@ -60,7 +60,11 @@ end-to-end with zero external dependencies. Full detail:
 | [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Salesforce data flows (catalog, checkout, accounts, B2B), the full org inventory, and the API reference |
 | [docs/SALESFORCE_CONVENTIONS.md](docs/SALESFORCE_CONVENTIONS.md) | The standard-fields-first rule and every custom field's justification |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosting, environment variables, Docker, Render |
-| [server/docs/SALESFORCE_SETUP.md](server/docs/SALESFORCE_SETUP.md) | One-time checklist to connect a Salesforce org from scratch |
+| [docs/SALESFORCE_SETUP.md](docs/SALESFORCE_SETUP.md) | One-time checklist to connect a Salesforce org from scratch |
+| [docs/meridian-plan/](docs/meridian-plan/) | Project history — the original spec and four-phase build plan, each doc updated to record what actually shipped. Not needed day-to-day. |
+
+All documentation lives under `docs/` — nothing is scattered elsewhere in the
+repo.
 
 ## Design
 
