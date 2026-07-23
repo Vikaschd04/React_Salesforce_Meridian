@@ -1,8 +1,13 @@
 # Meridian — Developer & Salesforce Guide
 
-A single reference for how the Meridian storefront is built, how the runtime
-flows (products, orders, accounts) work, and **exactly what was created in
-Salesforce** so you can find, change, or recreate it.
+A reference for how the Meridian runtime flows (products, orders, accounts,
+B2B) work, and **exactly what was created in Salesforce** so you can find,
+change, or recreate it.
+
+> For a file-by-file map of the whole codebase (every frontend/backend file,
+> theming, discovery/search, promos, payments, SEO, testing/CI, git workflow),
+> see [ARCHITECTURE.md](ARCHITECTURE.md) — read that one first if you're new
+> here. This guide goes deep on the Salesforce side specifically.
 
 Last updated to match the current `main` branch.
 
@@ -31,28 +36,19 @@ toggled by one env var (`DATA_SOURCE`).
 
 ## 2. Repo layout
 
+Full file-by-file breakdown: [ARCHITECTURE.md §2–3](ARCHITECTURE.md). Quick
+orientation:
+
 ```
-/                     React app (Vite root)
-  src/
-    api/store.js      the ONLY data-access module the UI uses
-    context/          CartContext, AuthContext
-    pages/            Home, Shop, ProductDetail, Cart, Confirmation,
-                      Login, Signup, Account, About, NotFound
-    components/       Navbar, Footer, ProductCard, AuthForm, AuthLayout, …
-    lib/              money.js (cents↔display), geo.js (coordinate labels)
-  public/products/    16 bundled coffee photos
+/                     React app (Vite root) — src/api/store.js is the ONLY
+                      data-access module the UI uses
 /server               Node BFF
-  src/
-    index.js          Express app (helmet, cors, cookies, routes)
-    config.js         env-driven config
-    routes/           products, orders, auth, account, health
-    store/            catalog, orders, auth  ← branch on DATA_SOURCE
-    sf/               Salesforce layer (see §5)
-    data/products.js  the mock/seed catalog (source of truth for seeding)
-    lib/              cache, errors, session (JWT cookie)
+  src/routes/         thin HTTP layer — products, orders, auth, account, …
+  src/store/          mock ⇄ Salesforce switch (branches on DATA_SOURCE)
+  src/sf/             Salesforce layer — the only files with field names (§5)
   docs/SALESFORCE_SETUP.md   org setup checklist
-/docs/DEVELOPER_GUIDE.md     this file
-/meridian-plan/docs/         original phase specs
+/docs                 this guide + ARCHITECTURE.md, SALESFORCE_CONVENTIONS.md,
+                      DEPLOYMENT.md
 ```
 
 ---
@@ -440,11 +436,20 @@ with the right HTTP status.
 
 ## 13. Security posture (current)
 
-- Order totals and unit prices are **always recomputed server-side** from
-  Salesforce pricebook data; the client cannot set prices.
+- Order totals, unit prices, and promo discounts are **always recomputed
+  server-side** from Salesforce pricebook data; the client cannot set a price.
 - Sessions are **httpOnly signed JWT cookies**; passwords are **bcrypt-hashed**
   in Salesforce and never returned to the client.
 - `helmet`, CORS locked to `APP_ORIGIN`, JSON body size limit, strict input
   validation (`zod`).
-- **Not yet done** (future phases): payments (Stripe), transactional email,
-  rate limiting, deployment/CI, HTTPS/`COOKIE_SECURE=true` in production.
+- Production **refuses to start** with an unset/default `SESSION_SECRET`
+  (`config.js` → `assertProductionConfig()`); `COOKIE_SECURE=true` is required
+  in prod so the session cookie only ever travels over HTTPS.
+- Payments go through a provider seam (`server/src/pay/index.js`) — mock by
+  default, real Stripe test-mode PaymentIntents with `PAYMENT_PROVIDER=stripe`.
+- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs lint,
+  build, and the Playwright E2E suite on every push/PR.
+- **Still not implemented:** transactional email (order receipts are
+  in-browser only), rate limiting, and SSR/prerendering for guaranteed
+  crawler-visible HTML (SEO is currently client-rendered — see
+  [ARCHITECTURE.md §4.5](ARCHITECTURE.md)).

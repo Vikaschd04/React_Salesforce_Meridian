@@ -1,80 +1,90 @@
 # Meridian — Single-Origin Coffee Storefront
 
-A production-bound e-commerce storefront for a single-origin coffee roaster.
-React SPA (Vite) → Node BFF → Salesforce, built in four phases.
+A production-ready e-commerce storefront for a single-origin coffee roaster:
+**React SPA (Vite) → Node BFF (Express) → Salesforce** (system of record for
+products, orders, and shopper accounts).
 
-**Phase 1 (this build):** a polished, responsive React storefront running on
-mock data behind one swappable data-layer module. Browse → product detail →
-cart → checkout → confirmation, with zero backend.
+Browse → filter/search → product detail → cart → checkout (payment) →
+confirmation → account (order history, B2B company team-order history) —
+backed by real Salesforce `Product2`/`Order`/`Contact`/`Account` records, with
+dark/light theming, promo codes, and SEO throughout.
+
+**→ For a full file-by-file map of how everything is wired together, see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).** That's the doc to read first.
 
 ## Run it
 
 ```bash
+# Front end
 npm install
-npm run dev      # start the dev server (http://localhost:5173)
-npm run build    # production build to dist/
-npm run preview  # preview the production build
-npm run lint     # oxlint
+# BFF
+cd server && npm install && cp .env.example .env && cd ..
+
+npm run dev:all      # web :5173 + BFF :8787, both mock (no Salesforce needed)
+npm run build        # production build to dist/
+npm run lint         # oxlint
+npm run test:e2e     # Playwright E2E suite (mock mode)
 ```
 
-Requires Node 18+.
+Requires Node 18+ (22 pinned for deployment — see `.node-version`). The app
+runs fully offline out of the box: `DATA_SOURCE=mock` and
+`PAYMENT_PROVIDER=mock` are the defaults, so no Salesforce org or Stripe
+account is required to develop or run the E2E suite.
 
-## The data-layer swap point
+To connect a real Salesforce org, follow
+[server/docs/SALESFORCE_SETUP.md](server/docs/SALESFORCE_SETUP.md), then set
+`DATA_SOURCE=salesforce` in `server/.env`.
 
-All UI data access goes through **one** module: [`src/api/store.js`](src/api/store.js).
-Pages and components never touch the catalog or a backend directly — they only
-call `getProducts()`, `getProduct(id)`, and `placeOrder(items)` from the store.
+## Architecture, one seam per layer
 
-This is deliberate. The store module evolves across phases **without the pages
-changing**:
+```
+Browser → React SPA → src/api/store.js (the ONLY module that calls fetch)
+            │  same-origin  fetch('/api/...')
+            ▼
+          Node BFF (Express) → server/src/store/*.js (mock ⇄ Salesforce switch)
+            │  OAuth Client Credentials + jsforce
+            ▼
+          Salesforce (Product2, Order, Contact, Account, Case)
+```
 
-1. **Phase 1 (now):** returns mock data from `src/data/products.js` behind a
-   small simulated latency.
-2. **Phase 2/3:** the same functions call the BFF via `fetch('/api/...')`.
-3. The BFF calls Salesforce.
+Every layer has exactly one seam where the next layer can be swapped without
+touching anything upstream — which is also what makes the app runnable
+end-to-end with zero external dependencies. Full detail:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Because every store function is already `async`, swapping the implementation is
-isolated to this file (plus the server). A `/api` dev proxy is pre-wired in
-[`vite.config.js`](vite.config.js) for when the BFF arrives.
+## Docs
 
-> Enforced rule: only `src/api/store.js` may import from `src/data/`.
+| Doc | What's in it |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | File-by-file map: every frontend/backend file, cross-cutting systems (theming, discovery, promos, payments, SEO, testing/CI), git workflow, deployment |
+| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Salesforce data flows (catalog, checkout, accounts, B2B), the full org inventory, and the API reference |
+| [docs/SALESFORCE_CONVENTIONS.md](docs/SALESFORCE_CONVENTIONS.md) | The standard-fields-first rule and every custom field's justification |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosting, environment variables, Docker, Render |
+| [server/docs/SALESFORCE_SETUP.md](server/docs/SALESFORCE_SETUP.md) | One-time checklist to connect a Salesforce org from scratch |
 
 ## Design
 
 Cartographic / editorial system — "Meridian" = lines of longitude. The
-signature element is each coffee's **origin coordinates** rendered in monospace
-on a gold "meridian" hairline, on every card and detail page. Product photos are
-real coffee images bundled locally in `public/products/` (served offline, with
-the origin accent shown behind while they load). Design tokens live in
-[`src/styles/tokens.css`](src/styles/tokens.css).
-
-- Type: Fraunces (display) · Space Grotesk (body) · Space Mono (coordinates),
-  bundled via `@fontsource` (no runtime CDN).
-- Quality floor: mobile-responsive, visible `:focus-visible`, respects
-  `prefers-reduced-motion`, semantic HTML.
-
-## Structure
-
-```
-src/
-  api/store.js         # the ONLY data-access module (swap point)
-  data/products.js     # mock catalog (imported only by store.js)
-  context/CartContext  # cart state (Context) + localStorage persistence
-  lib/                 # money.js (cents→display), geo.js (coordinate labels)
-  components/          # Navbar, ProductCard, BagArt, CoordTag, QtyStepper, states…
-  pages/               # Catalog, ProductDetail, Cart, Confirmation, NotFound
-  styles/              # tokens.css, global.css, app.css
-```
+signature element is each coffee's **origin coordinates** rendered in
+monospace on a gold hairline, on every card and detail page. Fully
+light/dark-themed (design tokens in
+[`src/styles/tokens.css`](src/styles/tokens.css)); type is Fraunces (display),
+Space Grotesk (body), Space Mono (coordinates), bundled via `@fontsource` —
+no runtime CDN.
 
 ## Conventions
 
-- Money is stored as **integer cents**; formatted only at display time via
-  `formatCents`.
+- **One data-access module**: only `src/api/store.js` calls `fetch`; only
+  `server/src/store/*.js` decides mock vs. Salesforce; only
+  `server/src/sf/*.js` knows a Salesforce field's API name.
+- Money is stored as **integer cents** everywhere, formatted only at display
+  time (`src/lib/money.js`); every price/discount/total is recomputed
+  **server-side** from trusted Salesforce data — the client never sets a
+  price.
 - Every data-fetching screen handles loading and error states.
-- No secrets in front-end code (none exist in Phase 1).
-
-## Roadmap
-
-- **Phase 2** — Node BFF (Express + jsforce) exposing `/api`, still on mock data.
-- **Phase 3** — Connect to a Salesforce sandbox (products + orders).
-- **Phase 4** — Shopper auth, Stripe payments, tests, CI/CD, deployment.
+- **No secrets in front-end code, ever.** Secrets live only in
+  `server/.env` (git-ignored) or the hosting platform's environment
+  variables.
+- Salesforce work prefers **standard objects/fields**; a custom field is
+  added only when no standard equivalent exists, and the reason is recorded
+  in [docs/SALESFORCE_CONVENTIONS.md](docs/SALESFORCE_CONVENTIONS.md).
