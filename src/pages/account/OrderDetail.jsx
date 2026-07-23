@@ -170,15 +170,21 @@ export default function OrderDetail() {
         <div className="order-detail__reorder">
           <button
             type="button"
-            className="btn btn--ghost"
+            className="btn order-detail__reorder-btn"
             onClick={() => reorder(order.items)}
           >
+            <span className="order-detail__reorder-icon" aria-hidden="true">
+              ↻
+            </span>
             Reorder these items
           </button>
           {reorderResult && (
-            <p className="field__hint" role="status">
+            <p
+              className={`order-detail__reorder-msg${reorderResult.added > 0 ? ' order-detail__reorder-msg--ok' : ''}`}
+              role="status"
+            >
               {reorderResult.added > 0
-                ? `Added ${reorderResult.added} item${reorderResult.added === 1 ? '' : 's'} to your cart.`
+                ? `✓ Added ${reorderResult.added} item${reorderResult.added === 1 ? '' : 's'} to your cart.`
                 : 'None of these items are available anymore.'}
               {reorderResult.skipped > 0
                 ? ` ${reorderResult.skipped} item${reorderResult.skipped === 1 ? ' is' : 's are'} no longer available.`

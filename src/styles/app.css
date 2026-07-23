@@ -2412,29 +2412,51 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.25rem;
+  gap: 0.35rem;
   flex-shrink: 0;
 }
 .order-row__reorder {
-  padding: 0.4rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem 0.4rem 0.7rem;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: none;
-  color: var(--ink);
+  color: var(--ink-70);
   font-size: var(--step--1);
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease), background var(--dur-1) var(--ease);
+}
+.order-row__reorder-icon {
+  display: inline-block;
+  font-size: 0.95em;
+  transition: transform var(--dur-3) var(--ease-spring);
 }
 .order-row__reorder:hover {
   border-color: var(--gold);
   color: var(--gold);
+  background: var(--hover-fill);
+  box-shadow: var(--glow-gold);
+}
+.order-row__reorder:hover .order-row__reorder-icon {
+  transform: rotate(180deg);
+}
+.order-row__reorder:active .order-row__reorder-icon {
+  transform: rotate(300deg);
 }
 .order-row__reorder-msg {
   font-size: var(--step--1);
   color: var(--ink-70);
   text-align: right;
-  max-width: 12rem;
+  max-width: 13rem;
+}
+.order-row__reorder-msg--ok {
+  color: var(--pine-bright);
+  font-weight: 500;
 }
 .status--cancelled {
   background: rgba(224, 106, 80, 0.14) !important;
@@ -2587,9 +2609,35 @@
 .order-detail__reorder {
   margin-top: var(--sp-4);
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.order-detail__reorder-btn {
+  --btn-bg: var(--pine);
+}
+.order-detail__reorder-icon {
+  display: inline-block;
+  transition: transform var(--dur-3) var(--ease-spring);
+}
+.order-detail__reorder-btn:hover .order-detail__reorder-icon {
+  transform: rotate(180deg);
+}
+.order-detail__reorder-btn:active .order-detail__reorder-icon {
+  transform: rotate(300deg);
+}
+.order-detail__reorder-msg {
+  font-size: var(--step--1);
+  color: var(--ink-70);
+  margin: 0;
+}
+.order-detail__reorder-msg--ok {
+  color: var(--pine-bright);
+  font-weight: 500;
+}
+.order-detail__reorder-msg a {
+  color: var(--gold);
+  font-weight: 600;
 }
 .order-detail__actions {
   margin-top: var(--sp-4);

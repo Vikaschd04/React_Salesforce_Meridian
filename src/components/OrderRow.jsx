@@ -47,16 +47,20 @@ export default function OrderRow({ order }) {
           className="order-row__reorder"
           onClick={() => reorder(order.items)}
         >
+          <span className="order-row__reorder-icon" aria-hidden="true">
+            ↻
+          </span>
           Reorder
         </button>
         {result && (
-          <span className="order-row__reorder-msg" role="status">
+          <span
+            className={`order-row__reorder-msg${result.added > 0 ? ' order-row__reorder-msg--ok' : ''}`}
+            role="status"
+          >
             {result.added > 0
-              ? `Added ${result.added} item${result.added === 1 ? '' : 's'} to cart`
-              : 'No longer available'}
-            {result.skipped > 0
-              ? ` · ${result.skipped} unavailable`
-              : ''}
+              ? `✓ Added ${result.added} item${result.added === 1 ? '' : 's'}`
+              : 'Unavailable'}
+            {result.skipped > 0 ? ` · ${result.skipped} unavailable` : ''}
           </span>
         )}
       </div>
