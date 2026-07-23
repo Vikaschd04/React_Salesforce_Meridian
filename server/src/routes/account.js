@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { listOrders, listOrdersForCompany, getOrder, cancelOrder } from '../store/orders.js'
 import { updateProfile } from '../store/auth.js'
 import * as wishlist from '../store/wishlist.js'
+import * as addresses from '../store/addresses.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
 import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
 
@@ -78,6 +79,60 @@ router.delete(
   asyncHandler(async (req, res) => {
     await wishlist.remove(req.user.id, req.params.productId)
     res.json(await wishlist.list(req.user.id))
+  }),
+)
+
+// ---- Saved addresses ----
+
+const addressSchema = z
+  .object({
+    label: z.string().trim().max(80).optional().default(''),
+    name: z.string().trim().min(1, 'Add a recipient name.').max(120),
+    street: z.string().trim().min(1, 'Add a street address.').max(255),
+    city: z.string().trim().min(1, 'Add a city.').max(80),
+    stateCode: z.string().trim().max(10).optional().default(''),
+    postalCode: z.string().trim().min(1, 'Add a postal code.').max(20),
+    countryCode: z.string().trim().min(1).max(10),
+    isDefault: z.boolean().optional(),
+  })
+  .strict()
+
+// Partial for PATCH (edit / set-default) — every field optional.
+const addressPatchSchema = addressSchema.partial()
+
+// GET /api/account/addresses — the shopper's saved addresses (default first).
+router.get(
+  '/account/addresses',
+  asyncHandler(async (req, res) => {
+    res.json(await addresses.list(req.user.id))
+  }),
+)
+
+// POST /api/account/addresses — save a new address; returns the updated list.
+router.post(
+  '/account/addresses',
+  asyncHandler(async (req, res) => {
+    const parsed = addressSchema.safeParse(req.body)
+    if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message || 'Invalid address.', 'invalid_address')
+    res.json(await addresses.create(req.user.id, parsed.data))
+  }),
+)
+
+// PATCH /api/account/addresses/:id — edit or set-default; returns the list.
+router.patch(
+  '/account/addresses/:id',
+  asyncHandler(async (req, res) => {
+    const parsed = addressPatchSchema.safeParse(req.body)
+    if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message || 'Invalid address.', 'invalid_address')
+    res.json(await addresses.update(req.user.id, req.params.id, parsed.data))
+  }),
+)
+
+// DELETE /api/account/addresses/:id — remove an address; returns the list.
+router.delete(
+  '/account/addresses/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await addresses.remove(req.user.id, req.params.id))
   }),
 )
 

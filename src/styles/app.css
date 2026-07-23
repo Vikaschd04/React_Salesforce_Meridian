@@ -3136,3 +3136,116 @@
 .wishlist-grid {
   margin-top: var(--sp-2);
 }
+
+/* ============ Saved addresses ============ */
+.address-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.address-card {
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+}
+.address-card--editing {
+  grid-column: 1 / -1;
+  background: var(--surface);
+}
+.address-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: 0.4rem;
+}
+.address-card__label {
+  font-weight: 600;
+}
+.address-card__badge {
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--pine-bright);
+  border: 1px solid rgba(85, 178, 142, 0.4);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+.address-card__name {
+  color: var(--ink);
+  margin-bottom: 0.2rem;
+}
+.address-card__lines {
+  color: var(--ink-70);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  margin-bottom: var(--sp-3);
+}
+.address-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.address-card__action {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: var(--step--1);
+  color: var(--gold);
+  transition: color var(--dur-1) var(--ease);
+}
+.address-card__action:hover {
+  color: var(--gold-soft);
+}
+.address-card__action--danger {
+  color: var(--danger);
+}
+.address-form__actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.addresses__add {
+  margin-top: var(--sp-2);
+}
+
+/* Checkout saved-address picker */
+.checkout__saved {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.checkout__saved-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  min-width: 12rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.checkout__saved-opt:hover {
+  border-color: var(--gold-soft);
+}
+.checkout__saved-opt.is-selected {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+}
+.checkout__saved-label {
+  font-weight: 600;
+  font-size: var(--step--1);
+}
+.checkout__saved-line {
+  font-size: var(--step--1);
+  color: var(--ink-70);
+}
+.checkout__save-addr {
+  margin-top: var(--sp-2);
+}

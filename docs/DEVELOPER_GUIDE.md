@@ -335,6 +335,35 @@ across devices.
 
 ---
 
+### 9e. Saved addresses
+
+Logged-in shoppers save shipping addresses (Addresses account tab) and pick
+one at checkout instead of retyping.
+
+- **Standard-vs-custom, decided by evidence:** Salesforce's standard
+  `ContactPointAddress` exists and is writable on this org, but its `ParentId`
+  only accepts `Account`/`Individual`, **not `Contact`** — proven by a real
+  insert that failed `FIELD_INTEGRITY_EXCEPTION`. Our shoppers are Contacts, so
+  the app uses a custom `Meridian_Address__c` keyed to `Contact__c`. Its fields
+  mirror the app's `shipping` shape (ISO `State_Code__c`/`Country_Code__c` text,
+  validated by `src/data/regions.js`, flowing into the Order's standard
+  `ShippingStateCode`/`ShippingCountryCode` at checkout).
+- CRUD API under `/api/account/addresses` (`GET`/`POST`/`PATCH`/`DELETE`), all
+  requiring a session. **One default per shopper**, enforced server-side
+  (`sf/addresses.js`/`store/addresses.js` clear the flag on the shopper's other
+  addresses whenever one is set default) — verified live that setting a new
+  default flips the old one off. The first address a shopper saves becomes the
+  default automatically.
+- Checkout integration (`Checkout.jsx`): a logged-in shopper with saved
+  addresses sees a picker above the shipping form; the **default auto-fills** on
+  load, selecting another fills the form from it, and a "Save this address for
+  next time" checkbox persists a newly-typed one (best-effort — never blocks
+  the order). Guests see no picker and check out exactly as before.
+- Mock mode (`store/addresses.js`, in-memory `Map<contactId, Address[]>`)
+  mirrors the same one-default invariant so both modes behave identically.
+
+---
+
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -436,6 +465,23 @@ Created via `npm run sf:setup` (§9d above). AutoNumber name field
 | `Contact__c` | Lookup → Contact  | the shopper who saved it   |
 | `Product__c` | Lookup → Product2 | the saved coffee           |
 
+### 10.4e `Meridian_Address__c` — new custom object (standard didn't fit)
+Saved shipping addresses. Standard `ContactPointAddress` exists but can't
+parent to a Contact (§9e) — so a custom object keyed to `Contact__c`. Created
+via `npm run sf:setup`. AutoNumber name field (`MAD-{0000}`).
+
+| API name           | Type             | Purpose                          |
+|--------------------|------------------|----------------------------------|
+| `Contact__c`       | Lookup → Contact | the shopper                      |
+| `Label__c`         | Text (80)        | "Home", "Office"                 |
+| `Recipient_Name__c`| Text (120)       | name on the parcel               |
+| `Street__c`        | Text (255)       |                                  |
+| `City__c`          | Text (80)        |                                  |
+| `State_Code__c`    | Text (10)        | ISO code (validated by the app)  |
+| `Postal_Code__c`   | Text (20)        |                                  |
+| `Country_Code__c`  | Text (10)        | ISO code                         |
+| `Is_Default__c`    | Checkbox         | one default per shopper          |
+
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration"). Grants
   read/edit field-level security on every API-created field (the Order
@@ -446,9 +492,11 @@ Created via `npm run sf:setup` (§9d above). AutoNumber name field
   the app never edits or deletes one), and `Meridian_Wishlist_Item__c`
   (read/create/edit/delete — wishlist rows are added and removed; Salesforce
   requires `allowEdit` alongside `allowDelete` even though the app never edits
-  a row). Assigned to the integration user. Created/updated and assigned by
-  `npm run sf:setup`. Needed because a field or object created via the API has
-  no access by default, so the integration user otherwise can't see it.
+  a row), and `Meridian_Address__c` (full read/create/edit/delete — addresses
+  are added, edited, deleted, and re-defaulted). Assigned to the integration
+  user. Created/updated and assigned by `npm run sf:setup`. Needed because a
+  field or object created via the API has no access by default, so the
+  integration user otherwise can't see it.
 
 ### 10.6 Account
 - **`Meridian Web Orders`** — one Account that guest/individual web orders are
@@ -523,6 +571,10 @@ Created via `npm run sf:setup` (§9d above). AutoNumber name field
 | `GET /api/account/wishlist`          | required  | The shopper's saved product ids (slugs)     |
 | `POST /api/account/wishlist`         | required  | Save a product (`{productId}`); idempotent; returns the updated id list |
 | `DELETE /api/account/wishlist/:productId` | required | Unsave a product; returns the updated id list |
+| `GET /api/account/addresses`         | required  | The shopper's saved addresses (default first) |
+| `POST /api/account/addresses`        | required  | Save a new address; returns the updated list |
+| `PATCH /api/account/addresses/:id`   | required  | Edit or set-default (enforces one default); returns the list |
+| `DELETE /api/account/addresses/:id`  | required  | Remove an address; returns the list         |
 | `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding

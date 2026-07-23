@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { placeOrder, getPaymentConfig } from '../api/store.js'
+import { placeOrder, getPaymentConfig, getAddresses, addAddress } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
@@ -38,6 +38,9 @@ export default function Checkout() {
   const [payProvider, setPayProvider] = useState('mock')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState(null)
+  const [savedAddresses, setSavedAddresses] = useState([])
+  const [selectedAddressId, setSelectedAddressId] = useState('new')
+  const [saveAddress, setSaveAddress] = useState(false)
 
   // Learn which payment UI to render (mock card form vs Stripe Elements).
   useEffect(() => {
@@ -49,6 +52,51 @@ export default function Checkout() {
       alive = false
     }
   }, [])
+
+  // Logged-in shoppers: load saved addresses and auto-fill the default.
+  useEffect(() => {
+    if (!user) return undefined
+    let alive = true
+    getAddresses()
+      .then((list) => {
+        if (!alive || !list.length) return
+        setSavedAddresses(list)
+        const def = list.find((a) => a.isDefault) || list[0]
+        setSelectedAddressId(def.id)
+        setValues((prev) => ({
+          ...prev,
+          name: def.name || prev.name,
+          street: def.street,
+          city: def.city,
+          stateCode: def.stateCode,
+          postalCode: def.postalCode,
+          countryCode: def.countryCode,
+        }))
+      })
+      .catch(() => {
+        /* non-fatal: just type the address manually */
+      })
+    return () => {
+      alive = false
+    }
+  }, [user])
+
+  // Pick a saved address (or "new" to type a fresh one).
+  function selectAddress(id) {
+    setSelectedAddressId(id)
+    if (id === 'new') return
+    const a = savedAddresses.find((x) => x.id === id)
+    if (!a) return
+    setValues((prev) => ({
+      ...prev,
+      name: a.name || prev.name,
+      street: a.street,
+      city: a.city,
+      stateCode: a.stateCode,
+      postalCode: a.postalCode,
+      countryCode: a.countryCode,
+    }))
+  }
 
   // Redirect only a genuinely empty cart back to the cart page. We key off the
   // raw `items` (not catalog-joined `lines`) so a refresh / direct link to
@@ -75,6 +123,20 @@ export default function Checkout() {
       // { paymentMethodId } created client-side by Stripe Elements instead.
       const payment = payProvider === 'stripe' ? { card } : { card }
       const order = await placeOrder(items, values, promo?.code || null, payment)
+      // Best-effort: save this shipping address for next time (never blocks the
+      // order if it fails). Only when the shopper opted in and typed a new one.
+      if (user && saveAddress && selectedAddressId === 'new') {
+        addAddress({
+          label: '',
+          name: values.name,
+          street: values.street,
+          city: values.city,
+          stateCode: values.stateCode,
+          postalCode: values.postalCode,
+          countryCode: values.countryCode,
+          isDefault: savedAddresses.length === 0,
+        }).catch(() => {})
+      }
       clear()
       navigate(`/confirmation/${order.orderId}`, { state: { order } })
     } catch (err) {
@@ -110,6 +172,34 @@ export default function Checkout() {
             <p className="auth-form__error" role="alert">
               {error.message || 'Checkout failed. Please try again.'}
             </p>
+          )}
+
+          {savedAddresses.length > 0 && (
+            <div className="checkout__saved" role="radiogroup" aria-label="Saved addresses">
+              {savedAddresses.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  className={`checkout__saved-opt${selectedAddressId === a.id ? ' is-selected' : ''}`}
+                  aria-pressed={selectedAddressId === a.id}
+                  onClick={() => selectAddress(a.id)}
+                >
+                  <span className="checkout__saved-label">{a.label || a.name}</span>
+                  <span className="checkout__saved-line">
+                    {a.street}, {a.city} {a.stateCode}
+                  </span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`checkout__saved-opt${selectedAddressId === 'new' ? ' is-selected' : ''}`}
+                aria-pressed={selectedAddressId === 'new'}
+                onClick={() => selectAddress('new')}
+              >
+                <span className="checkout__saved-label">+ New address</span>
+                <span className="checkout__saved-line">Ship somewhere else</span>
+              </button>
+            </div>
           )}
 
           <div className="checkout__fields">
@@ -162,6 +252,13 @@ export default function Checkout() {
               </label>
             )}
           </div>
+
+          {user && selectedAddressId === 'new' && (
+            <label className="auth-form__checkbox checkout__save-addr">
+              <input type="checkbox" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
+              Save this address to my account
+            </label>
+          )}
 
           <PaymentFields value={card} onChange={setCard} />
 

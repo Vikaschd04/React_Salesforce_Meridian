@@ -229,6 +229,46 @@ const WISHLIST_FIELDS = [
   },
 ]
 
+// ---- Saved addresses (custom object). The standard ContactPointAddress
+// object exists on this org but its ParentId only accepts Account/Individual,
+// not Contact (verified by a failed insert) — and our shoppers are Contacts.
+// So a custom object, keyed to Contact, mirroring the app's shipping shape.
+// State/Country are stored as ISO codes (Text), validated by the app's
+// regions.js dropdowns, and flow into the Order's standard ShippingStateCode/
+// ShippingCountryCode picklists at checkout. ----
+const ADDRESS_OBJECT = 'Meridian_Address__c'
+const T = (name, label, length) => ({
+  sobject: ADDRESS_OBJECT,
+  probe: name,
+  def: { fullName: `${ADDRESS_OBJECT}.${name}`, label, type: 'Text', length },
+})
+const ADDRESS_FIELDS = [
+  {
+    sobject: ADDRESS_OBJECT,
+    probe: 'Contact__c',
+    def: {
+      fullName: `${ADDRESS_OBJECT}.Contact__c`,
+      label: 'Shopper',
+      type: 'Lookup',
+      referenceTo: 'Contact',
+      relationshipLabel: 'Addresses',
+      relationshipName: 'Meridian_Addresses',
+    },
+  },
+  T('Label__c', 'Label', 80),
+  T('Recipient_Name__c', 'Recipient Name', 120),
+  T('Street__c', 'Street', 255),
+  T('City__c', 'City', 80),
+  T('State_Code__c', 'State Code', 10),
+  T('Postal_Code__c', 'Postal Code', 20),
+  T('Country_Code__c', 'Country Code', 10),
+  {
+    sobject: ADDRESS_OBJECT,
+    probe: 'Is_Default__c',
+    def: { fullName: `${ADDRESS_OBJECT}.Is_Default__c`, label: 'Is Default', type: 'Checkbox', defaultValue: false },
+  },
+]
+
 /**
  * Create a custom object SHELL (no fields — fields are created separately via
  * ensureField). Inline `fields` on a CustomObject create silently no-op, so we
@@ -274,6 +314,15 @@ async function ensureWishlistObject(conn) {
     label: 'Meridian Wishlist Item',
     pluralLabel: 'Meridian Wishlist Items',
     displayFormat: 'MWL-{0000}',
+  })
+}
+
+async function ensureAddressObject(conn) {
+  await ensureCustomObject(conn, {
+    apiName: ADDRESS_OBJECT,
+    label: 'Meridian Address',
+    pluralLabel: 'Meridian Addresses',
+    displayFormat: 'MAD-{0000}',
   })
 }
 
@@ -333,11 +382,9 @@ async function ensureOrderStatusValues(conn) {
 }
 
 async function ensurePermissions(conn) {
-  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...WISHLIST_FIELDS].map(({ def }) => ({
-    field: def.fullName,
-    readable: true,
-    editable: true,
-  }))
+  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...WISHLIST_FIELDS, ...ADDRESS_FIELDS].map(
+    ({ def }) => ({ field: def.fullName, readable: true, editable: true }),
+  )
 
   // Salesforce LOCKS activated orders: once Status maps to the 'Activated'
   // StatusCode, the record can't be edited without this permission. Cancelling
@@ -381,6 +428,16 @@ async function ensurePermissions(conn) {
     // FIELD_INTEGRITY dependency), even though the app never edits a row.
     {
       object: WISHLIST_OBJECT,
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: true,
+      allowDelete: true,
+      viewAllRecords: true,
+      modifyAllRecords: false,
+    },
+    // Addresses are fully CRUD (add / edit / delete / set-default).
+    {
+      object: ADDRESS_OBJECT,
       allowRead: true,
       allowCreate: true,
       allowEdit: true,
@@ -446,6 +503,8 @@ async function main() {
     for (const field of PRODUCT_REVIEW_FIELDS) await ensureField(conn, field)
     await ensureWishlistObject(conn)
     for (const field of WISHLIST_FIELDS) await ensureField(conn, field)
+    await ensureAddressObject(conn)
+    for (const field of ADDRESS_FIELDS) await ensureField(conn, field)
     await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
   })

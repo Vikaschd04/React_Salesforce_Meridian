@@ -149,6 +149,20 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
+  // 4i. Meridian_Address__c custom object (saved addresses), visible to Run-As
+  try {
+    await withConn((conn) =>
+      conn.query(
+        'SELECT Id, Contact__c, Label__c, Street__c, City__c, State_Code__c, Postal_Code__c, Country_Code__c, Is_Default__c FROM Meridian_Address__c LIMIT 1',
+      ),
+    )
+    ok('Meridian_Address__c exists and is visible')
+  } catch (err) {
+    failures++
+    bad(`Meridian_Address__c missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

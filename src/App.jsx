@@ -17,6 +17,7 @@ import Orders from './pages/account/Orders.jsx'
 import OrderDetail from './pages/account/OrderDetail.jsx'
 import Company from './pages/account/Company.jsx'
 import Wishlist from './pages/account/Wishlist.jsx'
+import Addresses from './pages/account/Addresses.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
             <Route path="wishlist" element={<Wishlist />} />
+            <Route path="addresses" element={<Addresses />} />
             <Route path="company" element={<Company />} />
           </Route>
           <Route path="*" element={<NotFound />} />

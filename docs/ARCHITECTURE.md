@@ -97,7 +97,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `Shop.jsx` | **Discovery/catalog page.** Filters (search text, roast, origin country, price bucket) and sort all live in the URL via `useSearchParams` — a filtered view is shareable and survives a refresh/back-button. See §4.1. |
 | `ProductDetail.jsx` | One coffee's full detail (origin, tasting notes, process, altitude/lat-long) + `RelatedProducts`. |
 | `Cart.jsx` | Cart line items with `QtyStepper`, subtotal, link to checkout. Guards against navigating to checkout while the cart is still hydrating from `localStorage`. |
-| `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. |
+| `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. For a logged-in shopper with saved addresses, shows a picker that auto-fills the default; a "save this address" checkbox persists a new one (§4.8). |
 | `Confirmation.jsx` | Post-checkout receipt; re-fetches the order by id so a refresh always shows current data. |
 | `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx`. `Signup.jsx` owns the "I'm buying for a company" checkbox state (§4.4 in DEVELOPER_GUIDE.md). |
 | `About.jsx` / `Contact.jsx` | Static content page / support form (`sendSupportRequest` → Salesforce `Case`). |
@@ -108,6 +108,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Uses `useRefreshOnFocus` + a manual Refresh button so a merchant-side status change in Salesforce shows up without a hard reload. |
 | `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
 | `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
+| `account/Addresses.jsx` | Manage saved shipping addresses (add/edit/delete/set-default). Uses `AddressForm`. See §4.8. |
 
 ### 2.5 `src/components/` — reusable UI
 
@@ -129,6 +130,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
 | `ProductReviews.jsx` | Reviews section on `ProductDetail` — summary + list + (if eligible) the write-a-review form. See §4.6. |
 | `WishlistButton.jsx` | Heart toggle (♥/♡) for saving a product. `icon` variant sits in the product-card corner (a sibling of the card `<Link>`, not nested); `labeled` variant is a "Save"/"Saved" button on the detail page. Routes logged-out shoppers to `/login`. See §4.7. |
+| `AddressForm.jsx` | Shared add/edit form for a saved address — label, recipient, street/city/postal + the same country/dependent-state dropdowns as Checkout (`src/data/regions.js`), and a "default" checkbox. Controlled; parent owns persistence. See §4.8. |
 | `OrderTimeline.jsx` | Visual Paid → Shipped → Delivered (or Cancelled) progress, driven by the order's `status`. |
 | `AuthForm.jsx` / `AuthLayout.jsx` | Shared login/signup form + page chrome (includes the company-signup toggle). |
 | `ThemeToggle.jsx` | Sun/moon button calling `useTheme().toggleTheme()`. |
@@ -175,7 +177,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist` | `store/orders.js`, `store/auth.js`, `store/wishlist.js` (all require a session) |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js` (all require a session) |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
 | `payment.js` | `GET /api/payment-config` | `pay/index.js` |
@@ -195,6 +197,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `companies.js` | In-memory domain→company Map | `sf/companies.js` |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
+| `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
 | `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
 | `support.js` | Mock: logs + returns a fake case number | `sf/cases.js` |
 
@@ -209,6 +212,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
 | `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
+| `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
 | `cases.js` | `createCase` | `Case` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
@@ -311,7 +315,19 @@ sibling of the card `<Link>` (not nested — a button inside an `<a>` is
 invalid/inaccessible). v1 requires login to save (a guest is routed to
 `/login`). See [DEVELOPER_GUIDE.md §9d](DEVELOPER_GUIDE.md).
 
-### 4.8 Testing & CI
+### 4.8 Saved addresses (`AddressForm.jsx` + `Addresses.jsx` + `Checkout.jsx` → `routes/account.js` → `store/addresses.js` → `sf/addresses.js`)
+
+Logged-in shoppers save shipping addresses (Addresses account tab) and pick
+one at checkout — the default auto-fills, a picker switches between saved
+addresses, and a checkbox saves a newly-typed one. Backed by a custom
+`Meridian_Address__c` keyed to the Contact: the standard `ContactPointAddress`
+object exists but its `ParentId` can't reference a Contact (proven by a failed
+insert), and our shoppers are Contacts. One default per shopper, enforced
+server-side in both mock and Salesforce paths. See
+[DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md) and
+[SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
+
+### 4.9 Testing & CI
 
 | File | Role |
 |---|---|

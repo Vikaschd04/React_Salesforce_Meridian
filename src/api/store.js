@@ -230,6 +230,31 @@ export async function removeFromWishlist(productId) {
   return request(`/account/wishlist/${encodeURIComponent(productId)}`, { method: 'DELETE' })
 }
 
+// ---- Saved addresses ----
+
+/** The shopper's saved addresses (default first). Requires login. */
+export async function getAddresses() {
+  return request('/account/addresses')
+}
+
+/** Save a new address; returns the updated list. */
+export async function addAddress(address) {
+  return request('/account/addresses', { method: 'POST', body: JSON.stringify(address) })
+}
+
+/** Edit an address or set it default (partial); returns the updated list. */
+export async function updateAddress(id, patch) {
+  return request(`/account/addresses/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+/** Delete an address; returns the updated list. */
+export async function deleteAddress(id) {
+  return request(`/account/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 /** Send a support request; returns { caseNumber } (a Salesforce Case). */
 export async function sendSupportRequest({ name, email, subject, message }) {
   return request('/support', {

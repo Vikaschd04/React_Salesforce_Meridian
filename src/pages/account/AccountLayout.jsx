@@ -42,6 +42,9 @@ export default function AccountLayout() {
         <NavLink to="/account/wishlist" className="account-tab">
           Wishlist
         </NavLink>
+        <NavLink to="/account/addresses" className="account-tab">
+          Addresses
+        </NavLink>
         {user.company && (
           <NavLink to="/account/company" className="account-tab">
             Company
