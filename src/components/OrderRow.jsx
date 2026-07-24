@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { formatCents } from '../lib/money.js'
-import { formatOrderDate } from '../pages/account/Orders.jsx'
+import { formatOrderDate, isLiveStatus } from '../pages/account/Orders.jsx'
 import useReorder from '../lib/useReorder.js'
 
 /**
@@ -13,9 +13,10 @@ import useReorder from '../lib/useReorder.js'
  * is invalid HTML and breaks keyboard/screen-reader navigation. The Reorder
  * button is a sibling of the Link, both inside the styled card wrapper.
  */
-export default function OrderRow({ order }) {
+export default function OrderRow({ order, live = false }) {
   const { reorder, result } = useReorder()
   const qty = order.items.reduce((n, it) => n + it.qty, 0)
+  const glow = live && isLiveStatus(order.status)
 
   return (
     <div className="order-row">
@@ -33,7 +34,9 @@ export default function OrderRow({ order }) {
           </span>
         </div>
         <div className="order-row__meta">
-          <span className={`order-card__status status--${order.status}`}>{order.status}</span>
+          <span className={`order-card__status status--${order.status}${glow ? ' order-card__status--live' : ''}`}>
+            {order.status}
+          </span>
           <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
           <span className="order-row__total">{formatCents(order.totalCents)}</span>
           <span className="order-row__chev" aria-hidden="true">

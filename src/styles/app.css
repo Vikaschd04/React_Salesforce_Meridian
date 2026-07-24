@@ -2077,25 +2077,7 @@
   color: var(--mist);
   font-size: var(--step--1);
 }
-.order-card__refresh {
-  background: none;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  padding: 0.12rem 0.6rem;
-  color: var(--mist);
-  font-size: var(--step--1);
-  cursor: pointer;
-  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
-}
-.order-card__refresh:hover:not([disabled]) {
-  border-color: var(--gold-soft);
-  color: var(--ink);
-}
-.order-card__refresh[disabled] {
-  opacity: 0.6;
-  cursor: default;
-}
-/* Reorder sits right beside Refresh — same pill shape/size, pine accent to
+/* Reorder sits in the order-card header — pine accent to
    read as a distinct action. */
 .order-card__reorder {
   display: inline-flex;
@@ -2126,26 +2108,13 @@
 .order-card__reorder:active .order-card__reorder-icon {
   transform: rotate(300deg);
 }
-/* "Live" indicator — shown while the SSE stream is connected, so the shopper
-   knows the order updates on its own (the Refresh button is then a fallback). */
-.order-card__live {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: var(--step--1);
-  font-weight: 500;
-  color: var(--pine-bright);
+/* The status tag itself pulses while the SSE stream is connected and the order
+   is still in flight — signalling it updates on its own (no Refresh button). */
+.order-card__status--live {
+  animation: statusLive 2s var(--ease) infinite;
 }
-.order-card__live-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
-  background: var(--pine-bright);
-  box-shadow: 0 0 0 0 rgba(85, 178, 142, 0.6);
-  animation: livePulse 2s var(--ease) infinite;
-}
-@keyframes livePulse {
-  0% { box-shadow: 0 0 0 0 rgba(85, 178, 142, 0.55); }
+@keyframes statusLive {
+  0% { box-shadow: 0 0 0 0 rgba(85, 178, 142, 0.5); }
   70% { box-shadow: 0 0 0 0.5rem rgba(85, 178, 142, 0); }
   100% { box-shadow: 0 0 0 0 rgba(85, 178, 142, 0); }
 }
@@ -2162,7 +2131,7 @@
   100% { background: transparent; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .order-card__live-dot { animation: none; }
+  .order-card__status--live { animation: none; }
   .order-detail__timeline--flash { animation: none; }
 }
 .order-card__lines {

@@ -31,12 +31,22 @@ test('order status updates live via the SSE stream (no reload)', async ({ page }
 
   await page.goto(`/account/orders/${orderId}`)
   await expect(page.locator('.order-card__status')).toHaveText(/paid/i)
-  // The "Live" indicator confirms the SSE stream connected.
-  await expect(page.locator('.order-card__live')).toBeVisible()
+  // The glowing status tag confirms the SSE stream connected (replaces the old
+  // Refresh button + "Live" chip — the tag itself pulses while live).
+  await expect(page.locator('.order-card__status')).toHaveClass(/order-card__status--live/)
+  // The manual Refresh button is gone — updates arrive on their own.
+  await expect(page.locator('.order-card__refresh')).toHaveCount(0)
 
   // Merchant advances the order server-side — no interaction with the page.
   await page.request.post(`/api/dev/orders/${orderId}/advance`)
 
   // The status flips to "shipped" purely from the pushed event.
   await expect(page.locator('.order-card__status')).toHaveText(/shipped/i)
+
+  // The order-history LIST updates live too: advance again and assert the row's
+  // status flips with no reload.
+  await page.goto('/account/orders')
+  await expect(page.locator('.order-row .order-card__status')).toHaveText(/shipped/i)
+  await page.request.post(`/api/dev/orders/${orderId}/advance`)
+  await expect(page.locator('.order-row .order-card__status')).toHaveText(/delivered/i)
 })

@@ -5,12 +5,19 @@ import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderRow from '../../components/OrderRow.jsx'
 import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
+import useOrderStream from '../../lib/useOrderStream.js'
 
 export function formatOrderDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+// A status still "in flight" — the one worth glowing while the live stream is
+// connected. Terminal states (delivered/cancelled) don't glow.
+export function isLiveStatus(status) {
+  return status === 'pending' || status === 'paid' || status === 'shipped'
 }
 
 /** Order-history tab: compact list, each row linking to the order detail. */
@@ -36,7 +43,12 @@ export default function Orders() {
     load()
   }, [load])
 
-  useRefreshOnFocus(useCallback(() => load({ silent: true }), [load]))
+  const refresh = useCallback(() => load({ silent: true }), [load])
+  useRefreshOnFocus(refresh)
+  // Live: a status change to any of the shopper's orders (CDC → SSE) silently
+  // re-fetches the list so the row updates in place. `connected` makes the
+  // in-flight status tags glow, matching the order detail page.
+  const { connected } = useOrderStream(refresh)
 
   if (error) {
     return <ErrorState message={error.message} onRetry={() => load()} />
@@ -58,7 +70,7 @@ export default function Orders() {
     <ul className="order-list">
       {orders.map((order) => (
         <li key={order.orderId}>
-          <OrderRow order={order} />
+          <OrderRow order={order} live={connected} />
         </li>
       ))}
     </ul>

@@ -104,8 +104,8 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `NotFound.jsx` | 404 page. |
 | `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Company` — last tab conditional on `user.company`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
 | `account/Profile.jsx` | Edit name; `updateProfile()`. |
-| `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Exports `formatOrderDate` (reused by `Company.jsx`). |
-| `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Updates **live** via `useOrderStream` (a "● Live" dot + timeline flash; §4.9), with `useRefreshOnFocus` + a manual Refresh button as fallback. |
+| `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Updates **live** — `useOrderStream` re-fetches the list on any status change and in-flight status tags glow (§4.9). Exports `formatOrderDate` + `isLiveStatus` (reused by `OrderRow.jsx` / `Company.jsx`). |
+| `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Updates **live** via `useOrderStream` — the status tag glows while streaming and the timeline flashes on a change (§4.9); there's no manual Refresh button, with `useRefreshOnFocus` as an invisible fallback. |
 | `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
 | `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
 | `account/Addresses.jsx` | Manage saved shipping addresses (add/edit/delete/set-default). Uses `AddressForm`. See §4.8. |
@@ -342,10 +342,14 @@ metadata deploy — a platform capability, not custom schema) publishes to
 owner + order number with one SOQL lookup (CDC carries only changed fields), and
 publishes to an in-process bus (`lib/orderEvents.js`). The SSE route
 `GET /api/account/orders/stream` forwards only events matching the logged-in
-shopper's `contactId` (isolation verified in tests); the browser
-(`useOrderStream.js`) re-fetches the viewed order and flashes the timeline, with
-a "● Live" indicator. Focus-refresh + the Refresh button remain the fallback.
-In mock mode a dev-trigger (`POST /api/dev/orders/:id/advance`, mounted only when
+shopper's `contactId` (isolation verified in tests). Both the order **detail**
+page (`OrderDetail.jsx` — re-fetches the order, flashes the timeline) and the
+order **list** (`Orders.jsx` — re-fetches the list) subscribe via
+`useOrderStream.js`; there's no manual Refresh button (focus-refresh is the
+invisible fallback). While the stream is connected, an in-flight status tag
+(`isLiveStatus`: pending/paid/shipped — not terminal delivered/cancelled) glows,
+the same visual language on both pages. In mock mode a dev-trigger
+(`POST /api/dev/orders/:id/advance`, mounted only when
 `DATA_SOURCE=mock`) publishes to the same bus, so the live path is demoable and
 E2E-tested (`e2e/realtime.spec.js`) with no Salesforce. `useOrderStream` is the
 one sanctioned place the client opens the network outside `store.js` (SSE, not

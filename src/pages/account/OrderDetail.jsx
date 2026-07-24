@@ -8,24 +8,22 @@ import OrderTimeline from '../../components/OrderTimeline.jsx'
 import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
 import useOrderStream from '../../lib/useOrderStream.js'
 import useReorder from '../../lib/useReorder.js'
-import { formatOrderDate } from './Orders.jsx'
+import { formatOrderDate, isLiveStatus } from './Orders.jsx'
 
 /** One order: items, totals, live status timeline — with cancel while unshipped. */
 export default function OrderDetail() {
   const { id } = useParams()
   const [order, setOrder] = useState(null)
   const [error, setError] = useState(null)
-  const [refreshing, setRefreshing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState(null)
   const { reorder, result: reorderResult } = useReorder()
 
   // `silent` refreshes update the order in place (no spinner) — used by the
-  // focus refetch + the Refresh button so a Salesforce change appears live.
+  // live stream + focus refetch so a Salesforce change appears without a reload.
   const load = useCallback(
     async ({ silent = false } = {}) => {
-      if (silent) setRefreshing(true)
-      else {
+      if (!silent) {
         setOrder(null)
         setError(null)
       }
@@ -35,8 +33,6 @@ export default function OrderDetail() {
         setError(null)
       } catch (err) {
         if (!silent) setError(err)
-      } finally {
-        setRefreshing(false)
       }
     },
     [id],
@@ -47,12 +43,11 @@ export default function OrderDetail() {
   }, [load])
 
   const refresh = useCallback(() => load({ silent: true }), [load])
-  useRefreshOnFocus(refresh)
+  useRefreshOnFocus(refresh) // invisible fallback if the live stream drops
 
   // Live updates: when a merchant changes this order's Status in Salesforce, a
   // CDC event streams in (SSE) and we silently re-fetch, briefly flashing the
-  // timeline. `connected` drives the "Live" indicator. Falls back gracefully to
-  // the focus-refresh + Refresh button above if the stream is unavailable.
+  // timeline. `connected` makes the status tag glow to signal it's live.
   const [flash, setFlash] = useState(false)
   const { connected } = useOrderStream(({ orderId }) => {
     if (!order || orderId !== order.orderId) return
@@ -102,23 +97,15 @@ export default function OrderDetail() {
             </h2>
           </div>
           <div className="order-card__meta">
-            <span className={`order-card__status status--${order.status}`}>{order.status}</span>
-            {connected && (
-              <span className="order-card__live" title="Live — this order updates automatically">
-                <span className="order-card__live-dot" aria-hidden="true" />
-                Live
-              </span>
-            )}
-            <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
-            <button
-              type="button"
-              className="order-card__refresh"
-              onClick={refresh}
-              disabled={refreshing}
-              title="Check for updates"
+            <span
+              className={`order-card__status status--${order.status}${
+                connected && isLiveStatus(order.status) ? ' order-card__status--live' : ''
+              }`}
+              title={connected && isLiveStatus(order.status) ? 'Live — this order updates automatically' : undefined}
             >
-              {refreshing ? 'Refreshing…' : '↻ Refresh'}
-            </button>
+              {order.status}
+            </span>
+            <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
             <button
               type="button"
               className="order-card__reorder"

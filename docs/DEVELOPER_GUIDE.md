@@ -383,11 +383,14 @@ page updates **live** — no reload, no manual Refresh.
   open `text/event-stream`, forwards only bus events whose `contactId` matches
   the logged-in shopper (verified in tests: a second shopper receives nothing),
   with a 25s heartbeat.
-- **Browser** (`useOrderStream.js` → `OrderDetail.jsx`): opens an `EventSource`,
-  and on an `order-update` for the viewed order silently re-fetches (reusing the
-  existing `load({silent})`), briefly flashing the timeline. A "● Live"
-  indicator shows while connected. Focus-refresh + the Refresh button remain as
-  fallback, so a missed event (e.g. while disconnected) is always recoverable.
+- **Browser** (`useOrderStream.js`): both the order **detail** page
+  (`OrderDetail.jsx` — silently re-fetches the viewed order, flashes the
+  timeline) and the order **list** (`Orders.jsx` — re-fetches the list)
+  subscribe, so status updates land on both without a reload. While the stream
+  is connected, an in-flight status tag (`isLiveStatus`: pending/paid/shipped)
+  **glows** — the same visual cue on both pages. There's no manual Refresh
+  button; `useRefreshOnFocus` is the invisible fallback, so a missed event
+  (e.g. while disconnected) is always recoverable on the next focus.
 - **Mock parity**: with no Salesforce, a mock-only dev-trigger
   `POST /api/dev/orders/:id/advance` (mounted **only** when `DATA_SOURCE=mock`)
   advances an order one step and publishes to the same bus — so the live path is
