@@ -2060,6 +2060,7 @@
 .order-card__meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--sp-3);
 }
 .order-card__status {
@@ -2093,6 +2094,37 @@
 .order-card__refresh[disabled] {
   opacity: 0.6;
   cursor: default;
+}
+/* Reorder sits right beside Refresh — same pill shape/size, pine accent to
+   read as a distinct action. */
+.order-card__reorder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: 1px solid rgba(85, 178, 142, 0.35);
+  border-radius: 999px;
+  padding: 0.12rem 0.6rem;
+  color: var(--pine-bright);
+  font-size: var(--step--1);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.order-card__reorder:hover {
+  border-color: var(--pine);
+  background: var(--hover-fill);
+}
+.order-card__reorder-icon {
+  display: inline-block;
+  transition: transform var(--dur-3) var(--ease-spring);
+}
+.order-card__reorder:hover .order-card__reorder-icon {
+  transform: rotate(180deg);
+}
+.order-card__reorder:active .order-card__reorder-icon {
+  transform: rotate(300deg);
 }
 .order-card__lines {
   display: flex;
@@ -2607,30 +2639,10 @@
   color: var(--ink-70);
   line-height: 1.7;
 }
-.order-detail__reorder {
-  margin-top: var(--sp-4);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-}
-.order-detail__reorder-btn {
-  --btn-bg: var(--pine);
-}
-.order-detail__reorder-icon {
-  display: inline-block;
-  transition: transform var(--dur-3) var(--ease-spring);
-}
-.order-detail__reorder-btn:hover .order-detail__reorder-icon {
-  transform: rotate(180deg);
-}
-.order-detail__reorder-btn:active .order-detail__reorder-icon {
-  transform: rotate(300deg);
-}
 .order-detail__reorder-msg {
   font-size: var(--step--1);
   color: var(--ink-70);
-  margin: 0;
+  margin: var(--sp-2) 0 0;
 }
 .order-detail__reorder-msg--ok {
   color: var(--pine-bright);
@@ -2651,6 +2663,9 @@
 }
 .order-detail__cancel:hover {
   box-shadow: 0 0 0 1px rgba(224, 106, 80, 0.5), 0 0 24px -6px rgba(224, 106, 80, 0.4);
+}
+.order-detail__cancel-hint {
+  margin-top: var(--sp-2);
 }
 
 /* Checkout */
@@ -3113,6 +3128,12 @@
   backdrop-filter: blur(6px);
   font-size: var(--step-1);
 }
+/* The ♥/♡ glyph sits high-left of its own em box in most fonts — nudge it
+   to look visually centered inside the round button (flexbox alone only
+   centers the box, not the glyph within it). */
+.wishlist-btn--icon .wishlist-btn__heart {
+  transform: translate(1px, 1px);
+}
 .wishlist-btn--icon.is-saved {
   box-shadow: 0 0 20px -6px rgba(224, 106, 80, 0.5);
 }
@@ -3200,6 +3221,9 @@
 }
 .address-card__action--danger {
   color: var(--danger);
+}
+.address-form__default {
+  margin-top: var(--sp-3);
 }
 .address-form__actions {
   display: flex;

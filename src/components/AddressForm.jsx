@@ -118,7 +118,7 @@ export default function AddressForm({ initial, onSubmit, onCancel, submitting })
         )}
       </div>
 
-      <label className="auth-form__checkbox">
+      <label className="auth-form__checkbox address-form__default">
         <input
           type="checkbox"
           checked={!!values.isDefault}

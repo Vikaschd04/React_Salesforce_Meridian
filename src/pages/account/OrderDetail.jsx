@@ -100,8 +100,34 @@ export default function OrderDetail() {
             >
               {refreshing ? 'Refreshing…' : '↻ Refresh'}
             </button>
+            <button
+              type="button"
+              className="order-card__reorder"
+              onClick={() => reorder(order.items)}
+              title="Add these items to your cart again"
+            >
+              <span className="order-card__reorder-icon" aria-hidden="true">
+                ↻
+              </span>
+              Reorder
+            </button>
           </div>
         </div>
+
+        {reorderResult && (
+          <p
+            className={`order-detail__reorder-msg${reorderResult.added > 0 ? ' order-detail__reorder-msg--ok' : ''}`}
+            role="status"
+          >
+            {reorderResult.added > 0
+              ? `✓ Added ${reorderResult.added} item${reorderResult.added === 1 ? '' : 's'} to your cart.`
+              : 'None of these items are available anymore.'}
+            {reorderResult.skipped > 0
+              ? ` ${reorderResult.skipped} item${reorderResult.skipped === 1 ? ' is' : 's are'} no longer available.`
+              : ''}{' '}
+            {reorderResult.added > 0 && <Link to="/cart">View cart →</Link>}
+          </p>
+        )}
 
         {order.isOwner === false && order.placedByName && (
           <p className="order-detail__placedby">
@@ -167,33 +193,6 @@ export default function OrderDetail() {
           </div>
         )}
 
-        <div className="order-detail__reorder">
-          <button
-            type="button"
-            className="btn order-detail__reorder-btn"
-            onClick={() => reorder(order.items)}
-          >
-            <span className="order-detail__reorder-icon" aria-hidden="true">
-              ↻
-            </span>
-            Reorder these items
-          </button>
-          {reorderResult && (
-            <p
-              className={`order-detail__reorder-msg${reorderResult.added > 0 ? ' order-detail__reorder-msg--ok' : ''}`}
-              role="status"
-            >
-              {reorderResult.added > 0
-                ? `✓ Added ${reorderResult.added} item${reorderResult.added === 1 ? '' : 's'} to your cart.`
-                : 'None of these items are available anymore.'}
-              {reorderResult.skipped > 0
-                ? ` ${reorderResult.skipped} item${reorderResult.skipped === 1 ? ' is' : 's are'} no longer available.`
-                : ''}{' '}
-              {reorderResult.added > 0 && <Link to="/cart">View cart →</Link>}
-            </p>
-          )}
-        </div>
-
         {cancelError && (
           <p className="summary__error" role="alert">
             {cancelError}
@@ -205,7 +204,7 @@ export default function OrderDetail() {
             <button type="button" className="btn btn--ghost order-detail__cancel" onClick={onCancel} disabled={cancelling}>
               {cancelling ? 'Cancelling…' : 'Cancel order'}
             </button>
-            <p className="field__hint">Orders can be cancelled until roasting begins.</p>
+            <p className="field__hint order-detail__cancel-hint">Orders can be cancelled until roasting begins.</p>
           </div>
         )}
       </div>
