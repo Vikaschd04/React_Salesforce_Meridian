@@ -105,7 +105,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Company` — last tab conditional on `user.company`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
 | `account/Profile.jsx` | Edit name; `updateProfile()`. |
 | `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Exports `formatOrderDate` (reused by `Company.jsx`). |
-| `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Uses `useRefreshOnFocus` + a manual Refresh button so a merchant-side status change in Salesforce shows up without a hard reload. |
+| `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Updates **live** via `useOrderStream` (a "● Live" dot + timeline flash; §4.9), with `useRefreshOnFocus` + a manual Refresh button as fallback. |
 | `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
 | `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
 | `account/Addresses.jsx` | Manage saved shipping addresses (add/edit/delete/set-default). Uses `AddressForm`. See §4.8. |
@@ -145,6 +145,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `geo.js` | Formats `{lat, long}` into the coordinate-label strings used by `CoordTag`. |
 | `useSeo.js` | Sets `document.title` + meta description/OG tags per route (§4.5). |
 | `useRefreshOnFocus.js` | Re-runs a callback when the tab regains focus/visibility — used on account pages so a Salesforce-side order-status change appears without a manual reload. |
+| `useOrderStream.js` | Opens an `EventSource` to `/api/account/orders/stream` and calls back on live order-status changes (§4.9). The one sanctioned exception to "only `store.js` calls the network" — SSE is a different, long-lived transport, not `fetch`. |
 | `useReorder.js` | Re-adds a past order's line items to the cart (`OrderRow.jsx`, `OrderDetail.jsx`). Pure frontend — filters against `CartContext`'s already-loaded catalog to skip any item whose product is no longer active, reporting `{ added, skipped }` for the UI. Not ownership-gated: a teammate can reorder from a company order they didn't place, unlike cancelling. |
 | `useParallax.js` / `useTilt.js` / `useReveal.js` | Small scroll/hover motion hooks for the homepage's design flourishes; all respect `prefers-reduced-motion`. |
 
@@ -177,7 +178,8 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js` (all require a session) |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `lib/orderEvents.js` (all require a session) |
+| `dev.js` | `POST /api/dev/orders/:id/advance` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); advances a mock order + publishes to the event bus to drive the live stream in dev/E2E | `store/orders.js`, `lib/orderEvents.js` |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
 | `payment.js` | `GET /api/payment-config` | `pay/index.js` |
@@ -209,6 +211,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `mappers.js` | Field-name lists + record⇄app-shape converters (`orderFromSf`, `productFromSf`, `orderStatus()`) | — (shared helper, no calls of its own) |
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
 | `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `listOrdersForCompany` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
+| `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
 | `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
@@ -232,6 +235,7 @@ standard vs. custom and why.
 | `session.js` | Signs/verifies the shopper session **JWT**, stored in an httpOnly cookie (`meridian_session`); carries `{ id, email, firstName, lastName, company }` — never the password hash. |
 | `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in integer cents. Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
 | `cache.js` | Tiny TTL wrap-cache (`cache.wrap(key, fn)`) used for product reads, to stay under Salesforce API limits. |
+| `orderEvents.js` | In-process `EventEmitter` bus for order-status changes (`{contactId, orderId, status}`) — the seam between the change *sources* (`sf/orderStream.js` / the mock dev-trigger) and the SSE route that fans out to browsers (§4.9). |
 | `companyDomain.js` | `domainFromEmail(email)`, `assertCompanyDomainAllowed(domain)` — free-email-provider blocklist for B2B signup (gmail.com, yahoo.com, outlook.com, …). |
 
 ### 3.6 `server/src/pay/`
@@ -327,7 +331,27 @@ server-side in both mock and Salesforce paths. See
 [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md) and
 [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
 
-### 4.9 Testing & CI
+### 4.9 Real-time order tracking (`sf/orderStream.js` → `lib/orderEvents.js` → SSE → `useOrderStream.js` → `OrderDetail.jsx`)
+
+A merchant's order-status change in Salesforce updates the shopper's order page
+**live**, no reload. Salesforce Change Data Capture (`Order` on the standard
+`ChangeEvents` channel, enabled by `sf:setup` via a `PlatformEventChannelMember`
+metadata deploy — a platform capability, not custom schema) publishes to
+`/data/OrderChangeEvent`. In salesforce mode the BFF subscribes once at startup
+(`sf/orderStream.js`, self-healing on token expiry), resolves each change's
+owner + order number with one SOQL lookup (CDC carries only changed fields), and
+publishes to an in-process bus (`lib/orderEvents.js`). The SSE route
+`GET /api/account/orders/stream` forwards only events matching the logged-in
+shopper's `contactId` (isolation verified in tests); the browser
+(`useOrderStream.js`) re-fetches the viewed order and flashes the timeline, with
+a "● Live" indicator. Focus-refresh + the Refresh button remain the fallback.
+In mock mode a dev-trigger (`POST /api/dev/orders/:id/advance`, mounted only when
+`DATA_SOURCE=mock`) publishes to the same bus, so the live path is demoable and
+E2E-tested (`e2e/realtime.spec.js`) with no Salesforce. `useOrderStream` is the
+one sanctioned place the client opens the network outside `store.js` (SSE, not
+`fetch`). See [DEVELOPER_GUIDE.md §9f](DEVELOPER_GUIDE.md).
+
+### 4.10 Testing & CI
 
 | File | Role |
 |---|---|

@@ -364,6 +364,37 @@ one at checkout instead of retyping.
 
 ---
 
+### 9f. Real-time order tracking (Change Data Capture → SSE)
+
+When a merchant changes an order's `Status` in Salesforce, the shopper's order
+page updates **live** — no reload, no manual Refresh.
+
+- **Salesforce side**: `Order` is on the standard Change Data Capture channel
+  (enabled by `sf:setup`; see SALESFORCE_CONVENTIONS.md). Any `Order` change
+  publishes to `/data/OrderChangeEvent`.
+- **BFF subscriber** (`sf/orderStream.js`, salesforce mode, booted once at
+  startup): subscribes to the CDC channel via the jsforce Streaming API. A CDC
+  event carries only the changed fields + record ids — **not** the owner — so
+  the subscriber does one SOQL lookup (`Shopper__c`, `OrderNumber`, `Status`)
+  and publishes `{contactId, orderId, status}` to an in-process event bus
+  (`lib/orderEvents.js`). It self-heals: on transport drop / token expiry it
+  resets the connection and re-subscribes with capped backoff.
+- **SSE endpoint** `GET /api/account/orders/stream` (`requireAuth`): holds an
+  open `text/event-stream`, forwards only bus events whose `contactId` matches
+  the logged-in shopper (verified in tests: a second shopper receives nothing),
+  with a 25s heartbeat.
+- **Browser** (`useOrderStream.js` → `OrderDetail.jsx`): opens an `EventSource`,
+  and on an `order-update` for the viewed order silently re-fetches (reusing the
+  existing `load({silent})`), briefly flashing the timeline. A "● Live"
+  indicator shows while connected. Focus-refresh + the Refresh button remain as
+  fallback, so a missed event (e.g. while disconnected) is always recoverable.
+- **Mock parity**: with no Salesforce, a mock-only dev-trigger
+  `POST /api/dev/orders/:id/advance` (mounted **only** when `DATA_SOURCE=mock`)
+  advances an order one step and publishes to the same bus — so the live path is
+  demoable and E2E-testable (`e2e/realtime.spec.js`) with zero Salesforce.
+
+---
+
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -482,6 +513,13 @@ via `npm run sf:setup`. AutoNumber name field (`MAD-{0000}`).
 | `Country_Code__c`  | Text (10)        | ISO code                         |
 | `Is_Default__c`    | Checkbox         | one default per shopper          |
 
+### 10.4f Order Change Data Capture (platform capability, not schema)
+`Order` is added to the standard `ChangeEvents` channel via a
+`PlatformEventChannelMember` (`ChangeEvents_OrderChangeEvent`) metadata deploy in
+`npm run sf:setup` — no custom object/field. This lets the BFF subscribe to
+`/data/OrderChangeEvent` for real-time order updates (§9f). Idempotent and
+non-fatal; `sf:check` reports whether it's on.
+
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration"). Grants
   read/edit field-level security on every API-created field (the Order
@@ -575,6 +613,8 @@ via `npm run sf:setup`. AutoNumber name field (`MAD-{0000}`).
 | `POST /api/account/addresses`        | required  | Save a new address; returns the updated list |
 | `PATCH /api/account/addresses/:id`   | required  | Edit or set-default (enforces one default); returns the list |
 | `DELETE /api/account/addresses/:id`  | required  | Remove an address; returns the list         |
+| `GET /api/account/orders/stream`     | required  | SSE — live order-status updates for the shopper (§9f) |
+| `POST /api/dev/orders/:id/advance`   | required  | **Mock mode only** — advance an order one step (simulates a merchant); drives the live stream in dev/E2E |
 | `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding

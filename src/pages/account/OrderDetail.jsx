@@ -6,6 +6,7 @@ import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
 import useRefreshOnFocus from '../../lib/useRefreshOnFocus.js'
+import useOrderStream from '../../lib/useOrderStream.js'
 import useReorder from '../../lib/useReorder.js'
 import { formatOrderDate } from './Orders.jsx'
 
@@ -47,6 +48,18 @@ export default function OrderDetail() {
 
   const refresh = useCallback(() => load({ silent: true }), [load])
   useRefreshOnFocus(refresh)
+
+  // Live updates: when a merchant changes this order's Status in Salesforce, a
+  // CDC event streams in (SSE) and we silently re-fetch, briefly flashing the
+  // timeline. `connected` drives the "Live" indicator. Falls back gracefully to
+  // the focus-refresh + Refresh button above if the stream is unavailable.
+  const [flash, setFlash] = useState(false)
+  const { connected } = useOrderStream(({ orderId }) => {
+    if (!order || orderId !== order.orderId) return
+    refresh()
+    setFlash(true)
+    setTimeout(() => setFlash(false), 1600)
+  })
 
   async function onCancel() {
     if (!window.confirm('Cancel this order? The bags go back on the shelf.')) return
@@ -90,6 +103,12 @@ export default function OrderDetail() {
           </div>
           <div className="order-card__meta">
             <span className={`order-card__status status--${order.status}`}>{order.status}</span>
+            {connected && (
+              <span className="order-card__live" title="Live — this order updates automatically">
+                <span className="order-card__live-dot" aria-hidden="true" />
+                Live
+              </span>
+            )}
             <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
             <button
               type="button"
@@ -135,7 +154,9 @@ export default function OrderDetail() {
           </p>
         )}
 
-        <OrderTimeline order={order} />
+        <div className={`order-detail__timeline${flash ? ' order-detail__timeline--flash' : ''}`}>
+          <OrderTimeline order={order} />
+        </div>
 
         <ul className="order-card__lines">
           {order.items.map((item) => (

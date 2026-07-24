@@ -94,6 +94,15 @@ this app the answer was yes (`Product2`, `Order`, `Account`, `Contact`,
 > `Meridian_Web_Integration` permission-set naming convention — specifically
 > to avoid this collision. Don't rename it back to the shorter form.
 
+## Standard platform capabilities we enable (not custom schema)
+Some features lean on standard Salesforce *platform* capabilities rather than
+new objects/fields. These are enabled via the Metadata API by `npm run sf:setup`,
+consistent with the standard-first rule (no custom schema where a platform
+feature already does the job).
+| Capability | What / why |
+|---|---|
+| **Order Change Data Capture** | Real-time order tracking. `Order` is added to the standard `ChangeEvents` channel via a `PlatformEventChannelMember` metadata deploy, so the BFF can subscribe to `/data/OrderChangeEvent` (Streaming API) and push a merchant's status change to the shopper's order page live. PushTopic was **not** an option — it rejects the `Order` object ("'Order' is not supported"); CDC is the modern, supported path. Idempotent + non-fatal in `sf:setup`; if disabled the order page falls back to focus-refresh. |
+
 ## Deprecated (migrated to standard — left in the org for old data, unused by the app)
 `Order.Total_Cents__c` → `TotalAmount`; `Order.Cancelled__c` /
 `Order.Payment_Status__c` / `Order.Fulfillment_Status__c` → `Status`;

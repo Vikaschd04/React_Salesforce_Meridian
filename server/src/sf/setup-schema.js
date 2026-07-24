@@ -491,6 +491,38 @@ async function ensurePermissions(conn) {
   console.log('  • Assigned permission set to', id.username)
 }
 
+// Enable Change Data Capture for Order by adding it to the standard
+// `ChangeEvents` channel (a PlatformEventChannelMember metadata component). This
+// is what lets the BFF subscribe to /data/OrderChangeEvent and stream live
+// order-status changes to shoppers. Idempotent + non-fatal: if it's already a
+// member, or the deploy is rejected, real-time simply stays off and the app
+// falls back to the order page's focus-refresh + Refresh button.
+const CDC_MEMBER = 'ChangeEvents_OrderChangeEvent'
+async function ensureOrderCdc(conn) {
+  try {
+    const existing = await conn.metadata.read('PlatformEventChannelMember', [CDC_MEMBER])
+    if (Array.isArray(existing) ? existing[0]?.fullName : existing?.fullName) {
+      console.log('  • Order CDC already enabled')
+      return
+    }
+  } catch {
+    // read failed (not present / not readable) — fall through to create
+  }
+  try {
+    const res = await conn.metadata.create('PlatformEventChannelMember', [
+      { fullName: CDC_MEMBER, eventChannel: 'ChangeEvents', selectedEntity: 'OrderChangeEvent' },
+    ])
+    const r = Array.isArray(res) ? res[0] : res
+    if (r?.success || /already/i.test(JSON.stringify(r?.errors || ''))) {
+      console.log('  • Enabled Order CDC (live order updates)')
+    } else {
+      console.warn(`  ! Could not enable Order CDC (real-time off): ${JSON.stringify(r?.errors)}`)
+    }
+  } catch (err) {
+    console.warn(`  ! Could not enable Order CDC (real-time off): ${err.message}`)
+  }
+}
+
 async function main() {
   if (config.dataSource !== 'salesforce') {
     console.error('Set DATA_SOURCE=salesforce (and SF_* creds) before running setup.')
@@ -507,6 +539,7 @@ async function main() {
     for (const field of ADDRESS_FIELDS) await ensureField(conn, field)
     await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
+    await ensureOrderCdc(conn)
   })
   console.log('Schema setup complete.')
 }

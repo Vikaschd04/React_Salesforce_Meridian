@@ -60,6 +60,13 @@ app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 app.use('/api', reviewRoutes)
 
+// Mock-only helper routes (never against a real org) — e.g. the real-time
+// dev-trigger that stands in for merchant-side Salesforce changes.
+if (config.dataSource === 'mock') {
+  const { default: devRoutes } = await import('./routes/dev.js')
+  app.use('/api', devRoutes)
+}
+
 // In production the BFF also serves the built SPA (same origin as /api, so the
 // session cookie just works). Dev is served by Vite instead.
 if (config.isProd) {
@@ -79,3 +86,13 @@ app.listen(config.port, () => {
   console.log(`Meridian BFF listening on http://localhost:${config.port}`)
   if (config.isProd) console.log(`Serving SPA from ${DIST_DIR}`)
 })
+
+// In salesforce mode, start the Order Change Data Capture subscriber so
+// merchant-side status changes stream live to shoppers' order pages. Guarded so
+// a streaming failure can never crash the BFF (the app still works via the
+// order page's focus-refresh + manual Refresh fallback).
+if (config.dataSource === 'salesforce') {
+  import('./sf/orderStream.js')
+    .then((m) => m.start())
+    .catch((err) => console.warn(`[orderStream] failed to start: ${err?.message || err}`))
+}

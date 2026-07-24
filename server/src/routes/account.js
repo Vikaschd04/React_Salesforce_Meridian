@@ -6,6 +6,7 @@ import * as wishlist from '../store/wishlist.js'
 import * as addresses from '../store/addresses.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
 import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
+import { onOrderChange } from '../lib/orderEvents.js'
 
 const router = Router()
 
@@ -19,6 +20,35 @@ router.get(
     res.json(await listOrders(req.user))
   }),
 )
+
+// GET /api/account/orders/stream — Server-Sent Events: live order updates for
+// THIS shopper. A message is pushed whenever one of their orders changes Status
+// (in salesforce mode, driven by Order Change Data Capture via sf/orderStream;
+// in mock mode, by the dev-trigger). The browser (useOrderStream) re-fetches
+// the affected order so its timeline updates without a reload. Registered
+// before '/account/orders/:id' so "stream" isn't captured as an :id.
+router.get('/account/orders/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no', // don't let a proxy buffer the stream
+  })
+  res.write('retry: 3000\n\n') // browser reconnect hint
+  res.flushHeaders?.()
+
+  const contactId = req.user.id
+  const unsubscribe = onOrderChange((evt) => {
+    if (evt.contactId !== contactId) return // only this shopper's orders
+    res.write(`event: order-update\ndata: ${JSON.stringify({ orderId: evt.orderId, status: evt.status })}\n\n`)
+  })
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000)
+  req.on('close', () => {
+    clearInterval(heartbeat)
+    unsubscribe()
+    res.end()
+  })
+})
 
 // GET /api/account/orders/:id — one order: the shopper's own, or (view-only)
 // any teammate's order under the same company account. 404 if neither.

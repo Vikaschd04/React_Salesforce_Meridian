@@ -165,6 +165,23 @@ function stripInternal({ _ownerId, _companyId, _ownerName, ...rest }) {
   return rest
 }
 
+// Mock-only: advance an order one step along the fulfilment path so the
+// real-time dev-trigger (routes/dev.js, mock mode) can simulate a merchant
+// marking an order Shipped/Delivered without Salesforce. Returns the owner +
+// new status for the event bus, or null if there's nothing to advance.
+const MOCK_STATUS_NEXT = { paid: 'shipped', shipped: 'delivered' }
+export function advanceMockOrder(orderId) {
+  const order = orders.get(orderId)
+  if (!order) return null
+  const next = MOCK_STATUS_NEXT[order.status]
+  if (!next) return null
+  order.status = next
+  if (next === 'shipped' && !order.trackingNumber) {
+    order.trackingNumber = `1Z${randomBytes(6).toString('hex').toUpperCase()}`
+  }
+  return { orderId: order.orderId, status: next, contactId: order._ownerId || null }
+}
+
 // ---- Public API ----
 
 /**

@@ -163,6 +163,24 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
+  // 4j. Order Change Data Capture enabled (real-time order updates). Not a hard
+  // failure — the order page falls back to focus-refresh if this is off.
+  try {
+    const member = await withConn((conn) =>
+      conn.metadata.read('PlatformEventChannelMember', ['ChangeEvents_OrderChangeEvent']),
+    )
+    const present = Array.isArray(member) ? member[0]?.fullName : member?.fullName
+    if (present) {
+      ok('Order Change Data Capture enabled (live order updates on)')
+    } else {
+      bad('Order CDC not enabled — real-time order updates off (focus-refresh fallback still works)')
+      console.log('    → Run `npm run sf:setup` to enable it.')
+    }
+  } catch {
+    bad('Order CDC not enabled — real-time order updates off (focus-refresh fallback still works)')
+    console.log('    → Run `npm run sf:setup` to enable it.')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

@@ -2126,6 +2126,45 @@
 .order-card__reorder:active .order-card__reorder-icon {
   transform: rotate(300deg);
 }
+/* "Live" indicator — shown while the SSE stream is connected, so the shopper
+   knows the order updates on its own (the Refresh button is then a fallback). */
+.order-card__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--pine-bright);
+}
+.order-card__live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--pine-bright);
+  box-shadow: 0 0 0 0 rgba(85, 178, 142, 0.6);
+  animation: livePulse 2s var(--ease) infinite;
+}
+@keyframes livePulse {
+  0% { box-shadow: 0 0 0 0 rgba(85, 178, 142, 0.55); }
+  70% { box-shadow: 0 0 0 0.5rem rgba(85, 178, 142, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(85, 178, 142, 0); }
+}
+/* Brief highlight when a live status change lands on the timeline. */
+.order-detail__timeline {
+  border-radius: var(--radius);
+  transition: background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.order-detail__timeline--flash {
+  animation: timelineFlash 1.6s var(--ease);
+}
+@keyframes timelineFlash {
+  0% { background: rgba(85, 178, 142, 0.16); box-shadow: 0 0 0 1px rgba(85, 178, 142, 0.3); }
+  100% { background: transparent; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .order-card__live-dot { animation: none; }
+  .order-detail__timeline--flash { animation: none; }
+}
 .order-card__lines {
   display: flex;
   flex-direction: column;
