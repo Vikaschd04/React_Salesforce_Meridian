@@ -115,15 +115,6 @@ async function main() {
     bad(`Could not read Order Status picklist: ${err.message}`)
   }
 
-  // 4e. Company-account join field (B2B team buying), visible to Run-As
-  try {
-    await withConn((conn) => conn.query('SELECT Company_Domain__c FROM Account LIMIT 1'))
-    ok('Account.Company_Domain__c exists and is visible')
-  } catch (err) {
-    failures++
-    bad(`Account.Company_Domain__c missing/hidden: ${err.message}`)
-    console.log('    → Run `npm run sf:setup` to create it and grant field access.')
-  }
 
   // 4f. Meridian_Product_Review__c custom object (reviews/ratings), visible to Run-As
   try {

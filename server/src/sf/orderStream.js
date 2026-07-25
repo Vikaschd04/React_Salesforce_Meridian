@@ -86,7 +86,7 @@ async function handleEvent(message) {
       `SELECT Id, OrderNumber, Shopper__c, Status FROM Order WHERE Id IN (${idList})`,
     )
     for (const row of res.records) {
-      if (!row.Shopper__c) continue // guest/company orders with no shopper — skip
+      if (!row.Shopper__c) continue // guest orders with no shopper — skip
       emitOrderChange({ contactId: row.Shopper__c, orderId: row.OrderNumber, status: row.Status })
     }
   } catch (err) {

@@ -1940,15 +1940,6 @@
   border-radius: var(--radius);
   font-size: var(--step--1);
 }
-.auth-form__company {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
 .auth-form__checkbox {
   display: flex;
   align-items: center;
@@ -2341,14 +2332,6 @@
   margin-bottom: var(--sp-3);
 }
 
-/* Company tab (shared team order history) */
-.company-tab__head {
-  margin-bottom: var(--sp-4);
-}
-.company-tab__head .account-section-title {
-  margin-bottom: var(--sp-1);
-}
-
 /* Profile card */
 .profile-card {
   max-width: 34rem;
@@ -2628,15 +2611,6 @@
   color: var(--pine-bright);
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-.order-detail__placedby {
-  margin-top: var(--sp-2);
-  color: var(--mist);
-  font-size: var(--step--1);
-}
-.order-detail__placedby strong {
-  color: var(--ink);
-  font-weight: 500;
 }
 .order-detail__shipping {
   margin-top: var(--sp-4);

@@ -68,7 +68,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 /account/orders          AccountLayout.jsx → Orders.jsx
 /account/orders/:id      AccountLayout.jsx → OrderDetail.jsx
 /account/wishlist        AccountLayout.jsx → Wishlist.jsx
-/account/company         AccountLayout.jsx → Company.jsx        (only if user.company)
+/account/addresses       AccountLayout.jsx → Addresses.jsx
 /about                   About.jsx
 /contact                 Contact.jsx
 *                        NotFound.jsx
@@ -78,13 +78,13 @@ live-Stripe configuration — every store module mirrors the same business rules
 
 | File | Role |
 |---|---|
-| [`src/api/store.js`](../src/api/store.js) | **The only file allowed to call `fetch`.** One exported async function per backend operation (`getProducts`, `placeOrder`, `signup`, `getCompanyOrders`, …). Internally every call goes through a private `request()` helper: `fetch('/api'+path, { credentials: 'include', cache: 'no-store' })`, converting any failure into a typed `StoreError { code, status, message }`. `cache: 'no-store'` matters specifically for order/account data — a merchant can change an order's status in Salesforce at any time, so the browser must never serve a stale cached response. |
+| [`src/api/store.js`](../src/api/store.js) | **The only file allowed to call `fetch`.** One exported async function per backend operation (`getProducts`, `placeOrder`, `signup`, `getMyOrders`, …). Internally every call goes through a private `request()` helper: `fetch('/api'+path, { credentials: 'include', cache: 'no-store' })`, converting any failure into a typed `StoreError { code, status, message }`. `cache: 'no-store'` matters specifically for order/account data — a merchant can change an order's status in Salesforce at any time, so the browser must never serve a stale cached response. |
 
 ### 2.3 `src/context/` — app-wide state
 
 | File | Role |
 |---|---|
-| [`AuthContext.jsx`](../src/context/AuthContext.jsx) | Holds the logged-in shopper's profile (`{ id, email, firstName, lastName, company }`), fetched via `getMe()` on mount. Exposes `login`, `signup`, `logout`, `updateProfile`, `refresh`. `user.company` (set only for B2B shoppers) is what `AccountLayout` checks to decide whether to render the "Company" tab. |
+| [`AuthContext.jsx`](../src/context/AuthContext.jsx) | Holds the logged-in shopper's profile (`{ id, email, firstName, lastName }`), fetched via `getMe()` on mount. Exposes `login`, `signup`, `logout`, `updateProfile`, `refresh`. Every shopper is an individual (B2C). |
 | [`CartContext.jsx`](../src/context/CartContext.jsx) | Cart state (`{ id, qty }[]`) persisted to `localStorage`. Joins cart line items against live `getProducts()` data so prices/names/stock are always current, not stale from when the item was added. |
 | [`WishlistContext.jsx`](../src/context/WishlistContext.jsx) | A `Set` of the shopper's saved product ids, so the heart on any card reflects state via `has(id)` with no per-card fetch. Loaded on login, cleared on logout; `toggle` is optimistic. Server-persisted (keyed to the Contact), unlike the localStorage cart. See §4.7. |
 | [`ThemeContext.jsx`](../src/context/ThemeContext.jsx) | Light/dark theme. Reads the initial value the `index.html` script already set on `<html data-theme>` (so no re-render flash), then keeps the attribute, the `theme-color` meta tag, and `localStorage` in sync on every `toggleTheme()`/`setTheme()` call. |
@@ -99,14 +99,13 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `Cart.jsx` | Cart line items with `QtyStepper`, subtotal, link to checkout. Guards against navigating to checkout while the cart is still hydrating from `localStorage`. |
 | `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. For a logged-in shopper with saved addresses, shows a picker that auto-fills the default; a "save this address" checkbox persists a new one (§4.8). |
 | `Confirmation.jsx` | Post-checkout receipt; re-fetches the order by id so a refresh always shows current data. |
-| `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx`. `Signup.jsx` owns the "I'm buying for a company" checkbox state (§4.4 in DEVELOPER_GUIDE.md). |
+| `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx` — name/email/password only (individual B2C signup). |
 | `About.jsx` / `Contact.jsx` | Static content page / support form (`sendSupportRequest` → Salesforce `Case`). |
 | `NotFound.jsx` | 404 page. |
-| `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Company` — last tab conditional on `user.company`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
+| `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Wishlist` / `Addresses`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
 | `account/Profile.jsx` | Edit name; `updateProfile()`. |
-| `account/Orders.jsx` | The shopper's **own** order history (`getMyOrders()`). Updates **live** — `useOrderStream` re-fetches the list on any status change and in-flight status tags glow (§4.9). Exports `formatOrderDate` + `isLiveStatus` (reused by `OrderRow.jsx` / `Company.jsx`). |
-| `account/OrderDetail.jsx` | One order — own or (view-only) a teammate's. Shows `OrderTimeline`, a "Placed by … · view-only" banner and hides Cancel when `isOwner === false`. Updates **live** via `useOrderStream` — the status tag glows while streaming and the timeline flashes on a change (§4.9); there's no manual Refresh button, with `useRefreshOnFocus` as an invisible fallback. |
-| `account/Company.jsx` | Shared team order history (`getCompanyOrders()`) — only reachable/rendered when `user.company` is set. |
+| `account/Orders.jsx` | The shopper's order history (`getMyOrders()`). Updates **live** — `useOrderStream` re-fetches the list on any status change and in-flight status tags glow (§4.9). Exports `formatOrderDate` + `isLiveStatus` (reused by `OrderRow.jsx`). |
+| `account/OrderDetail.jsx` | One of the shopper's own orders. Shows `OrderTimeline`; Cancel is offered while the order is still cancellable. Updates **live** via `useOrderStream` — the status tag glows while streaming and the timeline flashes on a change (§4.9); there's no manual Refresh button, with `useRefreshOnFocus` as an invisible fallback. |
 | `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
 | `account/Addresses.jsx` | Manage saved shipping addresses (add/edit/delete/set-default). Uses `AddressForm`. See §4.8. |
 
@@ -124,7 +123,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav) over the loaded catalog — suggests matching coffees and tasting notes. |
 | `RelatedProducts.jsx` | "You might also like" strip on `ProductDetail`, calls `getProducts()` and picks by shared roast/origin. |
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
-| `OrderRow.jsx` | One row in an order list — shared by `Orders.jsx` (own history) and `Company.jsx` (B2B shared history), whose rows used to be duplicated inline markup. Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
+| `OrderRow.jsx` | One row in the shopper's order history (`Orders.jsx`). Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
 | `PromoInput.jsx` | Promo code entry on Checkout — calls `applyPromo()`, shows the discount inline. |
 | `PaymentFields.jsx` | Card number/expiry/CVC inputs for checkout (mock or Stripe-ready — see §4.3). |
 | `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
@@ -132,7 +131,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `WishlistButton.jsx` | Heart toggle (♥/♡) for saving a product. `icon` variant sits in the product-card corner (a sibling of the card `<Link>`, not nested); `labeled` variant is a "Save"/"Saved" button on the detail page. Routes logged-out shoppers to `/login`. See §4.7. |
 | `AddressForm.jsx` | Shared add/edit form for a saved address — label, recipient, street/city/postal + the same country/dependent-state dropdowns as Checkout (`src/data/regions.js`), and a "default" checkbox. Controlled; parent owns persistence. See §4.8. |
 | `OrderTimeline.jsx` | Visual Paid → Shipped → Delivered (or Cancelled) progress, driven by the order's `status`. |
-| `AuthForm.jsx` / `AuthLayout.jsx` | Shared login/signup form + page chrome (includes the company-signup toggle). |
+| `AuthForm.jsx` / `AuthLayout.jsx` | Shared login/signup form + page chrome (name/email/password). |
 | `ThemeToggle.jsx` | Sun/moon button calling `useTheme().toggleTheme()`. |
 | `Spinner.jsx` / `ErrorState.jsx` | Shared loading and error UI used on every data-fetching screen. |
 | `JsonLd.jsx` | Injects a `<script type="application/ld+json">` structured-data block (see §4.5). |
@@ -146,7 +145,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `useSeo.js` | Sets `document.title` + meta description/OG tags per route (§4.5). |
 | `useRefreshOnFocus.js` | Re-runs a callback when the tab regains focus/visibility — used on account pages so a Salesforce-side order-status change appears without a manual reload. |
 | `useOrderStream.js` | Opens an `EventSource` to `/api/account/orders/stream` and calls back on live order-status changes (§4.9). The one sanctioned exception to "only `store.js` calls the network" — SSE is a different, long-lived transport, not `fetch`. |
-| `useReorder.js` | Re-adds a past order's line items to the cart (`OrderRow.jsx`, `OrderDetail.jsx`). Pure frontend — filters against `CartContext`'s already-loaded catalog to skip any item whose product is no longer active, reporting `{ added, skipped }` for the UI. Not ownership-gated: a teammate can reorder from a company order they didn't place, unlike cancelling. |
+| `useReorder.js` | Re-adds a past order's line items to the cart (`OrderRow.jsx`, `OrderDetail.jsx`). Pure frontend — filters against `CartContext`'s already-loaded catalog to skip any item whose product is no longer active, reporting `{ added, skipped }` for the UI. |
 | `useParallax.js` / `useTilt.js` / `useReveal.js` | Small scroll/hover motion hooks for the homepage's design flourishes; all respect `prefers-reduced-motion`. |
 
 ### 2.7 `src/data/` and `src/styles/`
@@ -178,7 +177,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET /api/account/company/orders`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `lib/orderEvents.js` (all require a session) |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `lib/orderEvents.js` (all require a session) |
 | `dev.js` | `POST /api/dev/orders/:id/advance` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); advances a mock order + publishes to the event bus to drive the live stream in dev/E2E | `store/orders.js`, `lib/orderEvents.js` |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
@@ -196,7 +195,6 @@ Each file exports the same function signatures regardless of data source; every 
 | `catalog.js` | Filters `server/src/data/products.js` | `sf/catalog.js` — cached behind a short TTL (`lib/cache.js`) |
 | `orders.js` | In-memory order Map, stock tracked in-memory | `sf/orders.js` |
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
-| `companies.js` | In-memory domain→company Map | `sf/companies.js` |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
 | `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
@@ -210,10 +208,9 @@ Each file exports the same function signatures regardless of data source; every 
 | `client.js` | `getConnection()`, `withConn(fn)`, `resetConnection()` | — (OAuth Client Credentials auth; see §5) |
 | `mappers.js` | Field-name lists + record⇄app-shape converters (`orderFromSf`, `productFromSf`, `orderStatus()`) | — (shared helper, no calls of its own) |
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
-| `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `listOrdersForCompany` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
+| `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
-| `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` |
-| `companies.js` | `findOrCreateCompanyAccount` | `Account` (keyed by `Company_Domain__c`) |
+| `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` (individual shoppers — no `AccountId`) |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
 | `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
@@ -232,11 +229,10 @@ standard vs. custom and why.
 | File | Role |
 |---|---|
 | `errors.js` | `ApiError` + typed constructors (`badRequest`, `notFoundError`, `paymentError`, …) and the central Express error handler — every error response is `{ error: <code>, message: <friendly text> }` with the right HTTP status. |
-| `session.js` | Signs/verifies the shopper session **JWT**, stored in an httpOnly cookie (`meridian_session`); carries `{ id, email, firstName, lastName, company }` — never the password hash. |
+| `session.js` | Signs/verifies the shopper session **JWT**, stored in an httpOnly cookie (`meridian_session`); carries `{ id, email, firstName, lastName }` — never the password hash. |
 | `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in integer cents. Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
 | `cache.js` | Tiny TTL wrap-cache (`cache.wrap(key, fn)`) used for product reads, to stay under Salesforce API limits. |
 | `orderEvents.js` | In-process `EventEmitter` bus for order-status changes (`{contactId, orderId, status}`) — the seam between the change *sources* (`sf/orderStream.js` / the mock dev-trigger) and the SSE route that fans out to browsers (§4.9). |
-| `companyDomain.js` | `domainFromEmail(email)`, `assertCompanyDomainAllowed(domain)` — free-email-provider blocklist for B2B signup (gmail.com, yahoo.com, outlook.com, …). |
 
 ### 3.6 `server/src/pay/`
 

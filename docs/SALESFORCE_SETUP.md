@@ -86,20 +86,17 @@ cd server
 npm run sf:setup     # adds Order.Status values Shipped, Cancelled;
                      # creates Shopper__c (Lookup→Contact), Guest_Email__c,
                      # Discount_Cents__c, Promo_Code__c, Shipping_Cents__c,
-                     # Payment_Intent__c, Tracking_Number__c, and
-                     # Account.Company_Domain__c + permission set + assignment
+                     # Payment_Intent__c, Tracking_Number__c; the review /
+                     # wishlist / address custom objects; enables Order CDC;
+                     # + permission set + assignment
 ```
 *(If your integration user can't modify metadata, add those Status picklist
 values and custom fields manually, then grant the Run-As user access.)*
 
-**B2B: company accounts (team buying).** A shopper can check "I'm buying for a
-company" at signup and give a company name. No admin setup needed — teammates
-are matched automatically by **work email domain** (`jane@acme.com` →
-`acme.com`): the first signer from a domain creates a real Account
-(`Company_Domain__c` = the domain), and later signups from the same domain join
-it, sharing that Account's order history. Free email providers (gmail.com,
-etc.) are rejected for company signup. See
-[DEVELOPER_GUIDE.md §9b](DEVELOPER_GUIDE.md) for the full flow.
+**Accounts are B2C.** Every shopper is an individual `Contact` (one login = one
+person); there's no company/team-account concept. Each web order lands on the
+single shared "Meridian Web Orders" Account and links to the shopper via
+`Order.Shopper__c`, so order history is per person.
 
 **Order lifecycle — the merchant runs fulfillment in Salesforce, on the standard
 `Status` field.** A paid order lands as `Status = Activated`. To advance it, open

@@ -16,7 +16,6 @@ export function toProfile(record) {
     email: record.Email,
     firstName: record.FirstName || '',
     lastName: record.LastName || '',
-    company: record.AccountId ? { id: record.AccountId, name: record.Account?.Name || '' } : null,
   }
 }
 
@@ -24,7 +23,7 @@ export function toProfile(record) {
 export async function findByEmail(email) {
   const res = await withConn((conn) =>
     conn.query(
-      `SELECT Id, FirstName, LastName, Email, Password_Hash__c, AccountId, Account.Name
+      `SELECT Id, FirstName, LastName, Email, Password_Hash__c
        FROM Contact WHERE Email = '${esc(email)}' LIMIT 1`,
     ),
   )
@@ -33,10 +32,10 @@ export async function findByEmail(email) {
 
 /**
  * Create a shopper Contact with a hashed password. Throws 409 if email exists.
- * `company` (optional) is a resolved { id, name } from store/companies.js —
- * when present, the Contact is linked to that company Account.
+ * Every shopper is an individual (B2C) — the Contact has no Account link; their
+ * orders attach to the shared web-orders Account via Order.Shopper__c.
  */
-export async function createShopper({ firstName, lastName, email, password, company = null }) {
+export async function createShopper({ firstName, lastName, email, password }) {
   const existing = await findByEmail(email)
   if (existing) {
     throw conflict('An account with that email already exists.', 'email_taken')
@@ -48,13 +47,12 @@ export async function createShopper({ firstName, lastName, email, password, comp
       LastName: lastName,
       Email: email,
       Password_Hash__c: hash,
-      ...(company ? { AccountId: company.id } : {}),
     }),
   )
   if (!result.success) {
     throw new Error('Failed to create Contact in Salesforce.')
   }
-  return { id: result.id, email, firstName, lastName, company }
+  return { id: result.id, email, firstName, lastName }
 }
 
 /** Verify a plaintext password against a Contact record's stored hash. */
@@ -71,7 +69,7 @@ export async function updateShopper(contactId, { firstName, lastName }) {
   )
   const res = await withConn((conn) =>
     conn.query(
-      `SELECT Id, FirstName, LastName, Email, AccountId, Account.Name
+      `SELECT Id, FirstName, LastName, Email
        FROM Contact WHERE Id = '${esc(contactId)}' LIMIT 1`,
     ),
   )

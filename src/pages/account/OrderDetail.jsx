@@ -79,8 +79,7 @@ export default function OrderDetail() {
   }
   if (!order) return <Spinner label="Loading order…" />
 
-  // A teammate's order under the same company account is view-only.
-  const cancellable = (order.status === 'paid' || order.status === 'pending') && order.isOwner !== false
+  const cancellable = order.status === 'paid' || order.status === 'pending'
 
   return (
     <section className="order-detail" aria-labelledby="order-detail-heading">
@@ -132,12 +131,6 @@ export default function OrderDetail() {
               ? ` ${reorderResult.skipped} item${reorderResult.skipped === 1 ? ' is' : 's are'} no longer available.`
               : ''}{' '}
             {reorderResult.added > 0 && <Link to="/cart">View cart →</Link>}
-          </p>
-        )}
-
-        {order.isOwner === false && order.placedByName && (
-          <p className="order-detail__placedby">
-            Placed by <strong>{order.placedByName}</strong> · view-only
           </p>
         )}
 

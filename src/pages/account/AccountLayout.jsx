@@ -5,12 +5,13 @@ import Spinner from '../../components/Spinner.jsx'
 
 /**
  * Shared shell for the account area: auth guard, header, and the
- * Profile / Orders / Company tab bar. Child routes render into the Outlet:
+ * Profile / Orders / Wishlist / Addresses tab bar. Child routes render into the
+ * Outlet:
  *   /account            → Profile
  *   /account/orders     → Orders (history)
  *   /account/orders/:id → OrderDetail
- *   /account/company    → Company (shared team order history; only shown when
- *                         the shopper belongs to a company account)
+ *   /account/wishlist   → Wishlist
+ *   /account/addresses  → Addresses
  */
 export default function AccountLayout() {
   const { user, loading, logout } = useAuth()
@@ -45,11 +46,6 @@ export default function AccountLayout() {
         <NavLink to="/account/addresses" className="account-tab">
           Addresses
         </NavLink>
-        {user.company && (
-          <NavLink to="/account/company" className="account-tab">
-            Company
-          </NavLink>
-        )}
       </nav>
 
       <div className="account-body">

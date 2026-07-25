@@ -4,14 +4,12 @@ import { formatOrderDate, isLiveStatus } from '../pages/account/Orders.jsx'
 import useReorder from '../lib/useReorder.js'
 
 /**
- * One row in an order list — used by both the shopper's own order history
- * (Orders.jsx) and the shared B2B company history (Company.jsx), whose rows
- * were previously byte-identical inline markup in each file.
+ * One row in the shopper's order history (Orders.jsx).
  *
  * The card and the link are deliberately separate elements (not one giant
- * <Link> wrapping everything, as before): a <button> nested inside an <a>
- * is invalid HTML and breaks keyboard/screen-reader navigation. The Reorder
- * button is a sibling of the Link, both inside the styled card wrapper.
+ * <Link> wrapping everything): a <button> nested inside an <a> is invalid HTML
+ * and breaks keyboard/screen-reader navigation. The Reorder button is a sibling
+ * of the Link, both inside the styled card wrapper.
  */
 export default function OrderRow({ order, live = false }) {
   const { reorder, result } = useReorder()
@@ -24,7 +22,6 @@ export default function OrderRow({ order, live = false }) {
         <div className="order-row__main">
           <span className="order-card__id">{order.orderId}</span>
           <span className="order-row__summary">
-            {order.placedByName ? `Placed by ${order.placedByName} · ` : ''}
             {qty} bag{qty === 1 ? '' : 's'} ·{' '}
             {order.items
               .map((it) => it.name)

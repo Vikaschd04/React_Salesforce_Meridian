@@ -7,9 +7,8 @@
  * Both paths enforce the same rules:
  *  - totals recomputed server-side from trusted prices (never client prices)
  *  - live stock: reject over-stock orders, decrement on create, restore on cancel
- *  - ownership: a shopper's own orders are fully theirs (cancel included); a
- *    company-linked shopper can also VIEW (not cancel) any teammate's order
- *    under the same company Account — see getOrder()'s `scope` param.
+ *  - ownership: a shopper's own orders are theirs (view + cancel); reading an
+ *    order scoped to a contact 404s unless they placed it (see getOrder()).
  */
 import { randomBytes } from 'node:crypto'
 import { config } from '../config.js'
@@ -82,8 +81,6 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
     trackingNumber: null,
     paymentId: paid.paymentId,
     items: lines,
-    _ownerName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || null : null,
-    _companyId: user?.company?.id || null,
     subtotalCents,
     discountCents: promo.discountCents,
     shippingCents,
@@ -108,20 +105,15 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
   return stripInternal(order)
 }
 
-// `scope` mirrors sf/orders.js getOrder: { contactId, companyAccountId } or null
-// (unscoped — used internally and by the public confirmation-page lookup).
-async function mockGetOrder(id, scope = null) {
+// `contactId` (optional) scopes the read to the shopper who placed it — a 404
+// otherwise. null is unscoped (used internally + by the confirmation page).
+async function mockGetOrder(id, contactId = null) {
   const order = orders.get(id)
   if (!order) throw notFoundError(`Order "${id}" was not found.`)
-  let isOwner
-  if (scope) {
-    const owns = Boolean(scope.contactId) && order._ownerId === scope.contactId
-    const sameCompany = Boolean(scope.companyAccountId) && order._companyId === scope.companyAccountId
-    if (!owns && !sameCompany) throw notFoundError(`Order "${id}" was not found.`)
-    isOwner = owns
+  if (contactId && order._ownerId !== contactId) {
+    throw notFoundError(`Order "${id}" was not found.`)
   }
-  const clean = stripInternal(order)
-  return scope ? { ...clean, isOwner, placedByName: order._ownerName || null } : clean
+  return stripInternal(order)
 }
 
 async function mockCancelOrder(id, contactId) {
@@ -152,16 +144,8 @@ async function mockListOrders(user) {
     .map(stripInternal)
 }
 
-/** Company-wide shared order history (mirrors sf/orders.js listOrdersForCompany). */
-async function mockListOrdersForCompany(companyId) {
-  return [...orders.values()]
-    .filter((o) => companyId && o._companyId === companyId)
-    .sort((a, b) => b.placedAt.localeCompare(a.placedAt))
-    .map((o) => ({ ...stripInternal(o), placedByName: o._ownerName || null }))
-}
-
 // Drop server-only fields before returning to the client.
-function stripInternal({ _ownerId, _companyId, _ownerName, ...rest }) {
+function stripInternal({ _ownerId, ...rest }) {
   return rest
 }
 
@@ -196,7 +180,7 @@ export async function createOrder(items, shipping, user = null, promoCode = null
     const order = await sfOrders.createOrder(
       items,
       shipping,
-      user ? { contactId: user.id, companyAccountId: user.company?.id || null } : null,
+      user ? { contactId: user.id } : null,
       promoCode,
       payment,
     )
@@ -207,13 +191,12 @@ export async function createOrder(items, shipping, user = null, promoCode = null
 }
 
 /**
- * Fetch an order by id. `scope` (optional) is { contactId, companyAccountId } —
- * visible if it's the caller's own order or belongs to their company (teammates
- * get view-only access, signalled by `isOwner: false`). Unscoped (omitted) is
- * used internally and by the public confirmation-page lookup.
+ * Fetch an order by id. `contactId` (optional) scopes the read to the shopper
+ * who placed it — 404 otherwise. Unscoped (null) is used internally and by the
+ * public confirmation-page lookup.
  */
-export async function getOrder(id, scope = null) {
-  return useSalesforce ? sfOrders.getOrder(id, scope) : mockGetOrder(id, scope)
+export async function getOrder(id, contactId = null) {
+  return useSalesforce ? sfOrders.getOrder(id, contactId) : mockGetOrder(id, contactId)
 }
 
 /** Cancel the shopper's own order; restores stock. */
@@ -230,10 +213,4 @@ export async function cancelOrder(id, user) {
 export async function listOrders(user) {
   if (!user) return []
   return useSalesforce ? sfOrders.listOrdersForContact(user.id) : mockListOrders(user)
-}
-
-/** Shared order history for a company account (most recent first, any teammate). */
-export async function listOrdersForCompany(companyId) {
-  if (!companyId) return []
-  return useSalesforce ? sfOrders.listOrdersForCompany(companyId) : mockListOrdersForCompany(companyId)
 }

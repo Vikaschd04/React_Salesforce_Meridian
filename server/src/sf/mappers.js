@@ -79,7 +79,7 @@ export const PRODUCT_FIELDS = [
  */
 export const ORDER_FIELDS =
   'Id, OrderNumber, Status, EffectiveDate, CreatedDate, ActivatedDate, TotalAmount, AccountId, ' +
-  'Guest_Email__c, Shopper__c, Shopper__r.FirstName, Shopper__r.LastName, ' +
+  'Guest_Email__c, Shopper__c, ' +
   'Discount_Cents__c, Promo_Code__c, ' +
   'Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
@@ -126,17 +126,11 @@ export function orderFromSf(order, items = []) {
   const paid = status === 'paid' || status === 'shipped' || status === 'delivered'
 
   const hasShipping = order.ShippingStreet || order.ShippingCity
-  // Present only when the query selected Shopper__r (company order listings and
-  // single-order fetches) — used for the "Placed by ___" teammate display.
-  const placedByName = order.Shopper__r
-    ? `${order.Shopper__r.FirstName || ''} ${order.Shopper__r.LastName || ''}`.trim() || null
-    : null
   return {
     orderId: order.OrderNumber || order.Id,
     status,
     paymentStatus: paid ? 'paid' : status === 'cancelled' ? 'refunded' : 'unpaid',
     trackingNumber: order.Tracking_Number__c || null,
-    placedByName,
     items: lines,
     subtotalCents,
     discountCents,

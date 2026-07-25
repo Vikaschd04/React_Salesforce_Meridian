@@ -21,7 +21,6 @@ export function setSessionCookie(res, user) {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      company: user.company || null,
     },
     secret,
     { expiresIn: `${ttlDays}d` },
@@ -51,7 +50,6 @@ export function readSession(req) {
       email: claims.email,
       firstName: claims.firstName,
       lastName: claims.lastName,
-      company: claims.company || null,
     }
   } catch {
     return null

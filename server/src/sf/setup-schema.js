@@ -1,24 +1,22 @@
 /**
  * One-time schema setup for the parts the app creates via API rather than by
- * hand: web-order fields on Order, the one company-account field on Account,
- * the Meridian_Product_Review__c custom object, and the permission set that makes all
+ * hand: web-order fields on Order, the custom objects (reviews, wishlist,
+ * addresses), Order Change Data Capture, and the permission set that makes all
  * of it visible to the integration user.
  *
  * Run:  DATA_SOURCE=salesforce node src/sf/setup-schema.js   (or: npm run sf:setup)
  *
  * Standard-first (see docs/SALESFORCE_CONVENTIONS.md): the order lifecycle uses
  * the STANDARD Order `Status` field — this step just adds the "Shipped" and
- * "Cancelled" values to it. Company buying uses the STANDARD `Account` object
- * and `Contact.AccountId`/`Order.AccountId` — the only new field is
- * `Account.Company_Domain__c`, the join key with no standard equivalent. Only
- * concepts with no standard equivalent on this org stay custom.
+ * "Cancelled" values to it. Shoppers are standard `Contact`s; every web order
+ * lands on the shared "Meridian Web Orders" `Account` and links to the shopper
+ * via `Order.Shopper__c`. Only concepts with no standard equivalent stay custom.
  *
  * Idempotent. Ensures:
  *   - Standard Order Status picklist has Shipped + Cancelled values
  *   - Custom Order fields with no standard equivalent: Shopper__c (Lookup→
  *     Contact), Guest_Email__c, Discount_Cents__c, Promo_Code__c,
  *     Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c
- *   - Custom Account field: Company_Domain__c (join key for team buying)
  *   - Permission Set "Meridian_Web_Integration" with FLS on those custom fields,
  *     assigned to the integration (Run-As) user.
  *
@@ -107,17 +105,6 @@ const FIELDS = [
       label: 'Tracking Number',
       type: 'Text',
       length: 64,
-    },
-  },
-  // ---- B2B: company accounts (no standard field for a domain join key) ----
-  {
-    sobject: 'Account',
-    probe: 'Company_Domain__c',
-    def: {
-      fullName: 'Account.Company_Domain__c',
-      label: 'Company Domain',
-      type: 'Text',
-      length: 120,
     },
   },
 ]
