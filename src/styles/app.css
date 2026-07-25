@@ -2439,6 +2439,131 @@
   gap: 0.35rem;
   flex-shrink: 0;
 }
+
+/* ============ Support tickets ============ */
+.ticket-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.ticket-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.ticket-row:hover {
+  border-color: var(--gold-soft);
+  box-shadow: var(--glow-gold);
+}
+.ticket-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+.ticket-row__subject {
+  font-weight: 600;
+  color: var(--ink);
+}
+.ticket-row__meta {
+  font-size: var(--step--1);
+  color: var(--mist);
+}
+/* Ticket status badge — greys for open states, pine for resolved. */
+.ticket-status {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  text-transform: capitalize;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--chip-media-bg);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-70);
+}
+.ticket-status--new {
+  background: rgba(201, 162, 39, 0.14);
+  border-color: rgba(201, 162, 39, 0.4);
+  color: var(--gold);
+}
+.ticket-status--escalated {
+  background: rgba(224, 106, 80, 0.14);
+  border-color: rgba(224, 106, 80, 0.4);
+  color: var(--danger);
+}
+.ticket-status--closed {
+  background: rgba(85, 178, 142, 0.14);
+  border-color: rgba(85, 178, 142, 0.35);
+  color: var(--pine-bright);
+}
+.ticket-detail__subject {
+  font-size: var(--step-1);
+  margin: var(--sp-3) 0 0.3rem;
+}
+.ticket-detail__message {
+  color: var(--ink-70);
+  line-height: 1.6;
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  white-space: pre-wrap;
+}
+.ticket-thread {
+  margin-top: var(--sp-4);
+}
+.ticket-thread__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.ticket-reply {
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--pine);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.ticket-reply__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 0.3rem;
+}
+.ticket-reply__author {
+  font-weight: 600;
+  font-size: var(--step--1);
+  color: var(--pine-bright);
+}
+.ticket-reply__date {
+  font-size: var(--step--1);
+  color: var(--mist);
+}
+.ticket-reply__body {
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.ticket-detail__foot {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+
+/* ============ Guest order tracking ============ */
+.track-form {
+  max-width: 34rem;
+  margin-bottom: var(--sp-5);
+}
+.track-result {
+  max-width: 40rem;
+}
+
 .order-row__reorder {
   display: inline-flex;
   align-items: center;

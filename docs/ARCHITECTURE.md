@@ -62,6 +62,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 /cart                    Cart.jsx
 /checkout                Checkout.jsx
 /confirmation/:orderId   Confirmation.jsx
+/track                   Track.jsx           (public guest order tracking)
 /login                   Login.jsx
 /signup                  Signup.jsx
 /account                 AccountLayout.jsx → Profile.jsx        (index)
@@ -69,6 +70,8 @@ live-Stripe configuration — every store module mirrors the same business rules
 /account/orders/:id      AccountLayout.jsx → OrderDetail.jsx
 /account/wishlist        AccountLayout.jsx → Wishlist.jsx
 /account/addresses       AccountLayout.jsx → Addresses.jsx
+/account/tickets         AccountLayout.jsx → Tickets.jsx
+/account/tickets/:n      AccountLayout.jsx → TicketDetail.jsx
 /about                   About.jsx
 /contact                 Contact.jsx
 *                        NotFound.jsx
@@ -98,16 +101,19 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `ProductDetail.jsx` | One coffee's full detail (origin, tasting notes, process, altitude/lat-long) + `RelatedProducts`. |
 | `Cart.jsx` | Cart line items with `QtyStepper`, subtotal, link to checkout. Guards against navigating to checkout while the cart is still hydrating from `localStorage`. |
 | `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. For a logged-in shopper with saved addresses, shows a picker that auto-fills the default; a "save this address" checkbox persists a new one (§4.8). |
-| `Confirmation.jsx` | Post-checkout receipt; re-fetches the order by id so a refresh always shows current data. |
-| `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx` — name/email/password only (individual B2C signup). |
-| `About.jsx` / `Contact.jsx` | Static content page / support form (`sendSupportRequest` → Salesforce `Case`). |
+| `Confirmation.jsx` | Post-checkout receipt; re-fetches the order by id so a refresh always shows current data. Links to `/track`. |
+| `Track.jsx` | **Public** guest order tracking (`/track`): order number + email → read-only status/timeline (reuses `OrderTimeline`). Email is verified server-side (§4.10). |
+| `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx` — name/email/password only (individual B2C signup). Login links to `/track` for guests. |
+| `About.jsx` / `Contact.jsx` | Static content page / support form (`sendSupportRequest` → Salesforce `Case`). On success, `Contact.jsx` links logged-in shoppers to their Support tab (§4.10). |
 | `NotFound.jsx` | 404 page. |
-| `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Wishlist` / `Addresses`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
+| `account/AccountLayout.jsx` | Tab shell (`Profile` / `Order history` / `Wishlist` / `Addresses` / `Support`) shared by the nested account routes; requires auth (redirects to `/login` if `user` is null). |
 | `account/Profile.jsx` | Edit name; `updateProfile()`. |
 | `account/Orders.jsx` | The shopper's order history (`getMyOrders()`). Updates **live** — `useOrderStream` re-fetches the list on any status change and in-flight status tags glow (§4.9). Exports `formatOrderDate` + `isLiveStatus` (reused by `OrderRow.jsx`). |
 | `account/OrderDetail.jsx` | One of the shopper's own orders. Shows `OrderTimeline`; Cancel is offered while the order is still cancellable. Updates **live** via `useOrderStream` — the status tag glows while streaming and the timeline flashes on a change (§4.9); there's no manual Refresh button, with `useRefreshOnFocus` as an invisible fallback. |
 | `account/Wishlist.jsx` | The shopper's saved coffees — reads `WishlistContext.ids` and joins to the catalog, rendering `ProductCard`s. See §4.7. |
 | `account/Addresses.jsx` | Manage saved shipping addresses (add/edit/delete/set-default). Uses `AddressForm`. See §4.8. |
+| `account/Tickets.jsx` | The shopper's support tickets (`getTickets()`), each linking to its detail. Exports `ticketStatusSlug`. See §4.10. |
+| `account/TicketDetail.jsx` | One ticket: status, original message, and the public reply thread (`getTicket()`); 404 if not theirs. See §4.10. |
 
 ### 2.5 `src/components/` — reusable UI
 
@@ -176,13 +182,13 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 |---|---|---|
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
-| `orders.js` | `POST /api/orders`, `GET /api/orders/:id` | `store/orders.js` |
-| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `lib/orderEvents.js` (all require a session) |
-| `dev.js` | `POST /api/dev/orders/:id/advance` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); advances a mock order + publishes to the event bus to drive the live stream in dev/E2E | `store/orders.js`, `lib/orderEvents.js` |
+| `orders.js` | `POST /api/orders`, `POST /api/orders/track` (public guest tracking), `GET /api/orders/:id` | `store/orders.js` |
+| `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses`, `GET /api/account/tickets[/:caseNumber]` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `store/support.js`, `lib/orderEvents.js` (all require a session) |
+| `dev.js` | `POST /api/dev/orders/:id/advance` + `POST /api/dev/cases/:caseNumber/reply` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); simulate merchant-side updates (order status / ticket reply) to drive the live stream + ticket thread in dev/E2E | `store/orders.js`, `store/support.js`, `lib/orderEvents.js` |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
 | `promo.js` | `POST /api/promo/validate` | `store/promos.js` |
 | `payment.js` | `GET /api/payment-config` | `pay/index.js` |
-| `support.js` | `POST /api/support` | `store/support.js` |
+| `support.js` | `POST /api/support` (optionalAuth → links `ContactId`) | `store/support.js` |
 | `seo.js` | `GET /sitemap.xml` | `store/catalog.js` (builds the sitemap from the live/mock catalog) |
 | `health.js` | `GET /health` | — (liveness probe for the deploy platform) |
 
@@ -199,7 +205,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
 | `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
 | `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
-| `support.js` | Mock: logs + returns a fake case number | `sf/cases.js` |
+| `support.js` | Mock: persists tickets in-memory (list/get/reply) | `sf/cases.js` |
 
 ### 3.4 `server/src/sf/` — the only files that speak Salesforce
 
@@ -208,13 +214,13 @@ Each file exports the same function signatures regardless of data source; every 
 | `client.js` | `getConnection()`, `withConn(fn)`, `resetConnection()` | — (OAuth Client Credentials auth; see §5) |
 | `mappers.js` | Field-name lists + record⇄app-shape converters (`orderFromSf`, `productFromSf`, `orderStatus()`) | — (shared helper, no calls of its own) |
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
-| `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact` | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
+| `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
 | `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` (individual shoppers — no `AccountId`) |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
 | `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
-| `cases.js` | `createCase` | `Case` |
+| `cases.js` | `createCase` (links `ContactId`), `listCasesForContact`, `getCaseForContact` (+ public `CaseComment` thread) | `Case`, `CaseComment` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
 | `setup-schema.js` | *(script)* — `npm run sf:setup` | creates custom fields, extends `OrderStatus` picklist, creates/updates the `Meridian_Web_Integration` permission set |
 | `check.js` | *(script)* — `npm run sf:check` | read-only org readiness report |
@@ -351,7 +357,29 @@ E2E-tested (`e2e/realtime.spec.js`) with no Salesforce. `useOrderStream` is the
 one sanctioned place the client opens the network outside `store.js` (SSE, not
 `fetch`). See [DEVELOPER_GUIDE.md §9f](DEVELOPER_GUIDE.md).
 
-### 4.10 Testing & CI
+### 4.10 Customer tracking (support tickets + guest order tracking)
+
+Two self-service visibility features, both on **standard** Salesforce (no custom
+schema):
+
+- **Support tickets** (`Tickets.jsx` + `TicketDetail.jsx` → `routes/account.js`
+  → `store/support.js` → `sf/cases.js`): the contact form's `Case` is linked to
+  the shopper's `Contact` (`optionalAuth` on `POST /api/support`), and the
+  **Support** account tab lists their Cases + shows each one's `Status` and its
+  **public** reply thread (`CaseComment` where `IsPublished = true` — internal
+  notes never surface). A merchant works the Case in Salesforce Service; the
+  customer sees the updates. Mock parity via a dev-trigger
+  (`POST /api/dev/cases/:n/reply`).
+- **Guest order tracking** (`Track.jsx` → `POST /api/orders/track` →
+  `store/orders.js`/`sf/orders.js` `trackOrder`): the public `/track` page takes
+  an order number + email and returns the order **only if** the email matches
+  the order's `Guest_Email__c` (generic not-found otherwise — no enumeration).
+  Read-only, reuses `OrderTimeline`. Linked from the footer, login, and the
+  confirmation receipt.
+
+See [DEVELOPER_GUIDE.md §9g–§9h](DEVELOPER_GUIDE.md).
+
+### 4.11 Testing & CI
 
 | File | Role |
 |---|---|

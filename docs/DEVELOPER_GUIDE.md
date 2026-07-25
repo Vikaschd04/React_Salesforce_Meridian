@@ -365,6 +365,39 @@ page updates **live** — no reload, no manual Refresh.
 
 ---
 
+### 9g. Support-ticket tracking
+
+The contact form opens a Salesforce `Case`; shoppers can then **track** it.
+
+- **Linkage**: `POST /api/support` runs under `optionalAuth`, so a logged-in
+  shopper's Case is created with `ContactId` set (plus `SuppliedName`/
+  `SuppliedEmail` always). `sf/cases.js`.
+- **List/detail** (`requireAuth`): `GET /api/account/tickets` lists the
+  shopper's Cases (matched by `ContactId` **or** `SuppliedEmail`);
+  `GET /api/account/tickets/:caseNumber` returns one Case (scoped — 404 unless
+  it's theirs) with its **public reply thread**: `CaseComment` rows where
+  `IsPublished = true`, oldest-first. **Internal comments (`IsPublished = false`)
+  are never returned** — verified live.
+- **Status** comes straight from the standard `Case.Status` (New / On Hold /
+  Escalated / Closed). The merchant works the Case in Salesforce Service; the
+  customer sees the status + public replies under **Account → Support**.
+- **Mock parity**: mock persists created cases; a mock-only dev-trigger
+  `POST /api/dev/cases/:caseNumber/reply` `{ body, status? }` appends a public
+  reply / bumps status, standing in for a merchant Salesforce update
+  (`e2e/support.spec.js`).
+
+### 9h. Guest order tracking
+
+A public page (`/track`) lets anyone check an order **without an account**.
+
+- `POST /api/orders/track` `{ orderId, email }` returns the order **only if**
+  `email` case-insensitively matches the order's `Guest_Email__c` (the checkout
+  email, set on every order). Any mismatch → a **generic** not-found, so an
+  order number alone can't be probed (`store/orders.js` / `sf/orders.js`
+  `trackOrder`). The read-only page reuses `OrderTimeline`.
+
+---
+
 ## 10. Everything created in Salesforce (inventory)
 
 This is the full list of what Meridian added to the org
@@ -510,6 +543,14 @@ non-fatal; `sf:check` reports whether it's on.
   are attached to (the app is B2C; the shopper is linked per-order via
   `Order.Shopper__c`). Created during setup (or by `npm run seed`).
 
+### 10.6b Support (standard, no custom schema)
+- **`Case`** — created by the contact form (`Origin = Web`); linked to the
+  shopper's `Contact` when logged in. Customers track it (status + replies) via
+  §9g. Nothing to create — standard object.
+- **`CaseComment`** — the customer-visible reply thread; only `IsPublished =
+  true` comments are shown. The integration user needs Read on both (confirmed
+  by `sf:check`).
+
 ### 10.7 Connected App
 - **`Meridian BFF`** — OAuth enabled, scopes `api` + `refresh_token`, with the
   **Client Credentials flow enabled** and a **Run-As** integration user. Its
@@ -580,8 +621,12 @@ non-fatal; `sf:check` reports whether it's on.
 | `PATCH /api/account/addresses/:id`   | required  | Edit or set-default (enforces one default); returns the list |
 | `DELETE /api/account/addresses/:id`  | required  | Remove an address; returns the list         |
 | `GET /api/account/orders/stream`     | required  | SSE — live order-status updates for the shopper (§9f) |
+| `GET /api/account/tickets`           | required  | The shopper's support tickets (Cases), most recent first (§9g) |
+| `GET /api/account/tickets/:caseNumber` | required | One ticket + its public reply thread; 404 if not theirs |
+| `POST /api/support`                  | optional  | Create a Salesforce Case (links `ContactId` when logged in); returns `{ caseNumber }` |
+| `POST /api/orders/track`             | –         | Public guest order tracking by `{ orderId, email }` (§9h); generic 404 on mismatch |
 | `POST /api/dev/orders/:id/advance`   | required  | **Mock mode only** — advance an order one step (simulates a merchant); drives the live stream in dev/E2E |
-| `POST /api/support`                  | –         | Create a Salesforce Case; returns `{ caseNumber }` |
+| `POST /api/dev/cases/:caseNumber/reply` | –      | **Mock mode only** — append a public reply / set status on a ticket (simulates a merchant Case update) |
 
 **Inventory** is enforced server-side on `POST /api/orders`: a line exceeding
 `Product2.Stock__c` → `409 insufficient_stock`; on success stock is decremented,

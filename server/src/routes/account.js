@@ -4,8 +4,9 @@ import { listOrders, getOrder, cancelOrder } from '../store/orders.js'
 import { updateProfile } from '../store/auth.js'
 import * as wishlist from '../store/wishlist.js'
 import * as addresses from '../store/addresses.js'
+import { listTickets, getTicket } from '../store/support.js'
 import { requireAuth, optionalAuth, setSessionCookie } from '../lib/session.js'
-import { asyncHandler, badRequest } from '../lib/errors.js'
+import { asyncHandler, badRequest, notFoundError } from '../lib/errors.js'
 import { onOrderChange } from '../lib/orderEvents.js'
 
 const router = Router()
@@ -149,6 +150,26 @@ router.delete(
   '/account/addresses/:id',
   asyncHandler(async (req, res) => {
     res.json(await addresses.remove(req.user.id, req.params.id))
+  }),
+)
+
+// ---- Support tickets (track a Case + its public replies) ----
+
+// GET /api/account/tickets — the shopper's support tickets (most recent first).
+router.get(
+  '/account/tickets',
+  asyncHandler(async (req, res) => {
+    res.json(await listTickets(req.user))
+  }),
+)
+
+// GET /api/account/tickets/:caseNumber — one ticket + its public update thread.
+router.get(
+  '/account/tickets/:caseNumber',
+  asyncHandler(async (req, res) => {
+    const ticket = await getTicket(req.user, req.params.caseNumber)
+    if (!ticket) throw notFoundError('We couldn’t find that ticket.')
+    res.json(ticket)
   }),
 )
 

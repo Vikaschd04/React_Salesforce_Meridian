@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { createOrder, getOrder } from '../store/orders.js'
+import { createOrder, getOrder, trackOrder } from '../store/orders.js'
 import { optionalAuth } from '../lib/session.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 
@@ -71,6 +71,28 @@ router.post(
       parsed.data.payment,
     )
     res.status(201).json(order)
+  }),
+)
+
+// POST /api/orders/track — public guest tracking by order number + email.
+// Registered before '/orders/:id' so "track" isn't captured as an :id (GET vs
+// POST wouldn't collide, but keep it explicit).
+const trackSchema = z
+  .object({
+    orderId: z.string().trim().min(1, 'Order number is required.').max(40),
+    email: z.string().trim().email('A valid email is required.').max(120),
+  })
+  .strict()
+
+router.post(
+  '/orders/track',
+  asyncHandler(async (req, res) => {
+    const parsed = trackSchema.safeParse(req.body)
+    if (!parsed.success) {
+      const first = parsed.error.issues[0]
+      throw badRequest(first?.message || 'Invalid request.', 'invalid_track')
+    }
+    res.json(await trackOrder(parsed.data.orderId, parsed.data.email))
   }),
 )
 

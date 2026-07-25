@@ -72,6 +72,17 @@ export default function Contact() {
           <p className="contact-success__case">
             Case <strong>#{caseNumber}</strong>
           </p>
+          {user ? (
+            <p className="contact-success__text">
+              Track its status and our replies anytime under{' '}
+              <Link to="/account/tickets">Support</Link> in your account.
+            </p>
+          ) : (
+            <p className="contact-success__text">
+              <Link to="/signup">Create an account</Link> with this email to track
+              your tickets and see our replies.
+            </p>
+          )}
           <Link to="/shop" className="btn">
             Back to the coffees
           </Link>

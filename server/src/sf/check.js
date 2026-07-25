@@ -172,6 +172,19 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to enable it.')
   }
 
+  // 4k. Case + CaseComment readable (support-ticket tracking). Standard objects;
+  // the app creates Cases already, so this just confirms the Run-As user can
+  // read them + their public comments for the customer's track-ticket view.
+  try {
+    await withConn((conn) => conn.query('SELECT Id, Status FROM Case LIMIT 1'))
+    await withConn((conn) => conn.query('SELECT Id, IsPublished FROM CaseComment LIMIT 1'))
+    ok('Case + CaseComment readable (support-ticket tracking)')
+  } catch (err) {
+    failures++
+    bad(`Case/CaseComment not readable: ${err.message}`)
+    console.log('    → Grant the integration user Read on Case + CaseComment.')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>

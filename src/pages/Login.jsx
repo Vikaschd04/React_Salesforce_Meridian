@@ -43,12 +43,17 @@ export default function Login() {
         subtitle="Sign in to see your order history and check out faster."
         benefits={BENEFITS}
         footer={
-          <p className="auth-card__alt">
-            New to Meridian?{' '}
-            <Link to="/signup" state={{ from: redirectTo }}>
-              Create an account
-            </Link>
-          </p>
+          <>
+            <p className="auth-card__alt">
+              New to Meridian?{' '}
+              <Link to="/signup" state={{ from: redirectTo }}>
+                Create an account
+              </Link>
+            </p>
+            <p className="auth-card__alt">
+              Checked out as a guest? <Link to="/track">Track your order</Link>
+            </p>
+          </>
         }
       >
         <AuthForm

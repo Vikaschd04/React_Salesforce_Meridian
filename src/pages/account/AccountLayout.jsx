@@ -5,13 +5,14 @@ import Spinner from '../../components/Spinner.jsx'
 
 /**
  * Shared shell for the account area: auth guard, header, and the
- * Profile / Orders / Wishlist / Addresses tab bar. Child routes render into the
- * Outlet:
- *   /account            → Profile
- *   /account/orders     → Orders (history)
- *   /account/orders/:id → OrderDetail
- *   /account/wishlist   → Wishlist
- *   /account/addresses  → Addresses
+ * Profile / Orders / Wishlist / Addresses / Support tab bar. Child routes render
+ * into the Outlet:
+ *   /account               → Profile
+ *   /account/orders        → Orders (history)
+ *   /account/orders/:id    → OrderDetail
+ *   /account/wishlist      → Wishlist
+ *   /account/addresses     → Addresses
+ *   /account/tickets[/:n]  → Tickets / TicketDetail (support)
  */
 export default function AccountLayout() {
   const { user, loading, logout } = useAuth()
@@ -45,6 +46,9 @@ export default function AccountLayout() {
         </NavLink>
         <NavLink to="/account/addresses" className="account-tab">
           Addresses
+        </NavLink>
+        <NavLink to="/account/tickets" className="account-tab">
+          Support
         </NavLink>
       </nav>
 

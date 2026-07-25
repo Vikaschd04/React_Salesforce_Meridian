@@ -17,6 +17,9 @@ import Orders from './pages/account/Orders.jsx'
 import OrderDetail from './pages/account/OrderDetail.jsx'
 import Wishlist from './pages/account/Wishlist.jsx'
 import Addresses from './pages/account/Addresses.jsx'
+import Tickets from './pages/account/Tickets.jsx'
+import TicketDetail from './pages/account/TicketDetail.jsx'
+import Track from './pages/Track.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
@@ -40,6 +43,7 @@ export default function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/confirmation/:orderId" element={<Confirmation />} />
+          <Route path="/track" element={<Track />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/account" element={<AccountLayout />}>
@@ -48,6 +52,8 @@ export default function App() {
             <Route path="orders/:id" element={<OrderDetail />} />
             <Route path="wishlist" element={<Wishlist />} />
             <Route path="addresses" element={<Addresses />} />
+            <Route path="tickets" element={<Tickets />} />
+            <Route path="tickets/:caseNumber" element={<TicketDetail />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -116,6 +116,18 @@ async function mockGetOrder(id, contactId = null) {
   return stripInternal(order)
 }
 
+// Public guest tracking: return the order only if the email matches the one on
+// the order (case-insensitive). A generic not-found on any mismatch so an order
+// number alone can't be probed.
+async function mockTrackOrder(id, email) {
+  const order = orders.get(id)
+  const wanted = (email || '').trim().toLowerCase()
+  if (!order || (order.email || '').toLowerCase() !== wanted) {
+    throw notFoundError('No order matches that number and email.')
+  }
+  return stripInternal(order)
+}
+
 async function mockCancelOrder(id, contactId) {
   const order = orders.get(id)
   if (!order || order._ownerId !== contactId) {
@@ -197,6 +209,14 @@ export async function createOrder(items, shipping, user = null, promoCode = null
  */
 export async function getOrder(id, contactId = null) {
   return useSalesforce ? sfOrders.getOrder(id, contactId) : mockGetOrder(id, contactId)
+}
+
+/**
+ * Public guest tracking: fetch an order by number **only if** the email matches
+ * the one on the order. Generic not-found on mismatch (no enumeration).
+ */
+export async function trackOrder(id, email) {
+  return useSalesforce ? sfOrders.trackOrder(id, email) : mockTrackOrder(id, email)
 }
 
 /** Cancel the shopper's own order; restores stock. */

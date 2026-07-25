@@ -251,3 +251,21 @@ export async function sendSupportRequest({ name, email, subject, message }) {
     body: JSON.stringify({ name, email, subject, message }),
   })
 }
+
+/** The shopper's support tickets (most recent first). Requires login. */
+export async function getTickets() {
+  return request('/account/tickets')
+}
+
+/** One ticket + its public update thread; 404 if not the shopper's. */
+export async function getTicket(caseNumber) {
+  return request(`/account/tickets/${encodeURIComponent(caseNumber)}`)
+}
+
+/**
+ * Public guest order tracking by order number + email. Returns the order (same
+ * shape as order history) or a generic not-found StoreError.
+ */
+export async function trackOrder({ orderId, email }) {
+  return request('/orders/track', { method: 'POST', body: JSON.stringify({ orderId, email }) })
+}

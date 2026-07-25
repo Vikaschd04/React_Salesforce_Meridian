@@ -30,7 +30,7 @@ the data portable to other Salesforce tooling (reports, flows, list views).
 | Shipping address | standard **`Order.Shipping*`** fields (+ `ShippingStateCode` / `ShippingCountryCode` because State & Country picklists are enabled) |
 | Order account | standard **`Account`** ("Meridian Web Orders") via `Order.AccountId` — every web order lands on this one shared catch-all Account; the order links to the shopper via `Order.Shopper__c` (order history is by person, B2C) |
 | Shoppers (login/signup) | standard **`Contact`** (an individual — no `AccountId`; one login = one person) |
-| Support requests | standard **`Case`** (`Origin`, `Subject`, `Description`, `Supplied*`) |
+| Support requests + tracking | standard **`Case`** (`Origin`, `Subject`, `Description`, `Supplied*`, `Status`, `ContactId` for logged-in shoppers) + standard **`CaseComment`** for the customer-visible reply thread (only `IsPublished = true` comments are shown — internal notes never leak). No custom schema. |
 
 The order display status the UI shows is derived **only** from standard
 `Order.Status` in [`server/src/sf/mappers.js`](../server/src/sf/mappers.js)

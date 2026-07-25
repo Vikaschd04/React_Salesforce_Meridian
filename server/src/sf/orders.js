@@ -180,6 +180,21 @@ export async function getOrder(idOrNumber, contactId = null) {
   return orderFromSf(raw.head, raw.items)
 }
 
+/**
+ * Public guest tracking: fetch an order by number, returned **only if** the
+ * given email matches the order's `Guest_Email__c` (the checkout email, set on
+ * every order). Generic not-found on any mismatch — an order number alone can't
+ * be probed.
+ */
+export async function trackOrder(idOrNumber, email) {
+  const raw = await readRawOrder(idOrNumber)
+  const wanted = (email || '').trim().toLowerCase()
+  if (!raw || (raw.head.Guest_Email__c || '').toLowerCase() !== wanted) {
+    throw notFoundError('No order matches that number and email.')
+  }
+  return orderFromSf(raw.head, raw.items)
+}
+
 async function readRawOrder(idOrNumber) {
   const safe = esc(idOrNumber)
   const isSfId = /^[a-zA-Z0-9]{15,18}$/.test(idOrNumber) && !/^\d+$/.test(idOrNumber)

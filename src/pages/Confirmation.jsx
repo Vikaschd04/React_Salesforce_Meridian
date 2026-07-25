@@ -45,7 +45,8 @@ export default function Confirmation() {
       <h1 className="confirm__title">Thank you — your coffee is on its way.</h1>
       <p className="confirm__text">
         We’ve received your order and will roast it to order. A confirmation email would
-        follow in a later phase; for now, here’s your reference.
+        follow in a later phase; for now, here’s your reference. You can{' '}
+        <Link to="/track">track this order</Link> anytime with your order number and email.
       </p>
 
       <div className="confirm__receipt">

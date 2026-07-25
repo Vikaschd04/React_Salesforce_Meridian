@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { createSupportRequest } from '../store/support.js'
+import { optionalAuth } from '../lib/session.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 
 const router = Router()
@@ -14,16 +15,18 @@ const supportSchema = z
   })
   .strict()
 
-// POST /api/support — create a support request (Salesforce Case)
+// POST /api/support — create a support request (Salesforce Case). optionalAuth
+// so a logged-in shopper's Case is linked to their Contact (trackable later).
 router.post(
   '/support',
+  optionalAuth,
   asyncHandler(async (req, res) => {
     const parsed = supportSchema.safeParse(req.body)
     if (!parsed.success) {
       const first = parsed.error.issues[0]
       throw badRequest(first?.message || 'Invalid request.', 'invalid_support')
     }
-    const result = await createSupportRequest(parsed.data)
+    const result = await createSupportRequest({ ...parsed.data, contactId: req.user?.id || null })
     res.status(201).json(result)
   }),
 )

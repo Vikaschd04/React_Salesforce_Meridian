@@ -9,6 +9,7 @@
  */
 import { Router } from 'express'
 import { advanceMockOrder } from '../store/orders.js'
+import { mockReplyToCase } from '../store/support.js'
 import { emitOrderChange } from '../lib/orderEvents.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 
@@ -24,6 +25,19 @@ router.post(
     if (!change) throw badRequest('Nothing to advance (unknown order or already delivered).', 'not_advanceable')
     emitOrderChange(change)
     res.json({ ok: true, orderId: change.orderId, status: change.status })
+  }),
+)
+
+// POST /api/dev/cases/:caseNumber/reply — append a public reply (and optionally
+// set status) to a mock ticket, standing in for a merchant updating the Case in
+// Salesforce so the customer's "track ticket" thread can be demoed/tested.
+router.post(
+  '/dev/cases/:caseNumber/reply',
+  asyncHandler(async (req, res) => {
+    const { body, status } = req.body || {}
+    const result = mockReplyToCase(req.params.caseNumber, { body, status })
+    if (!result) throw badRequest('Unknown ticket.', 'not_found')
+    res.json({ ok: true, ...result })
   }),
 )
 
