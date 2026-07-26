@@ -9,7 +9,7 @@ import { useWishlist } from '../context/WishlistContext.jsx'
  * product-card corner) or 'labeled' (heart + "Save"/"Saved", for detail pages).
  */
 export default function WishlistButton({ productId, productName, variant = 'icon' }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const { has, toggle } = useWishlist()
   const navigate = useNavigate()
   const saved = has(productId)
@@ -18,6 +18,9 @@ export default function WishlistButton({ productId, productName, variant = 'icon
     // On a product card the heart sits over a link area — never navigate.
     e.preventDefault()
     e.stopPropagation()
+    // Don't bounce to /login while the session is still resolving (a fresh
+    // window): a logged-in shopper would be wrongly treated as a guest.
+    if (loading) return
     if (!user) {
       navigate('/login', { state: { from: '/shop' } })
       return

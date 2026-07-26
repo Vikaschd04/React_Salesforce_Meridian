@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { createOrder, getOrder, trackOrder } from '../store/orders.js'
-import { optionalAuth } from '../lib/session.js'
+import { optionalAuth, signOrderTrackToken, readOrderTrackToken } from '../lib/session.js'
+import { onOrderChange } from '../lib/orderEvents.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 
 const router = Router()
@@ -92,9 +93,43 @@ router.post(
       const first = parsed.error.issues[0]
       throw badRequest(first?.message || 'Invalid request.', 'invalid_track')
     }
-    res.json(await trackOrder(parsed.data.orderId, parsed.data.email))
+    const order = await trackOrder(parsed.data.orderId, parsed.data.email)
+    // A short-lived, order-scoped token so the guest can open the live stream
+    // (below) without a session — they've just proven order#+email here.
+    res.json({ ...order, streamToken: signOrderTrackToken(order.orderId) })
   }),
 )
+
+// GET /api/orders/track/stream?token=… — PUBLIC live order-status stream for a
+// guest, scoped to the one order the token was minted for (POST /orders/track).
+// No session; the token is the authorization. Mirrors the account SSE but
+// filters the shared order-events bus by orderId instead of contactId.
+router.get('/orders/track/stream', (req, res) => {
+  const orderId = readOrderTrackToken(req.query.token)
+  if (!orderId) {
+    res.status(401).json({ error: 'unauthorized', message: 'Invalid or expired tracking token.' })
+    return
+  }
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write('retry: 3000\n\n')
+  res.flushHeaders?.()
+
+  const unsubscribe = onOrderChange((evt) => {
+    if (evt.orderId !== orderId) return // only this order
+    res.write(`event: order-update\ndata: ${JSON.stringify({ orderId: evt.orderId, status: evt.status })}\n\n`)
+  })
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000)
+  req.on('close', () => {
+    clearInterval(heartbeat)
+    unsubscribe()
+    res.end()
+  })
+})
 
 // GET /api/orders/:id — order status (unscoped; used by the confirmation page)
 router.get(

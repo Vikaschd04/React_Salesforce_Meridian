@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { getOrder } from '../api/store.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import { formatCents } from '../lib/money.js'
 
 export default function Confirmation() {
+  const { user } = useAuth()
   const { orderId } = useParams()
   const { state } = useLocation()
   // Present when arriving straight from checkout; absent on a refresh / shared link.
@@ -45,8 +47,12 @@ export default function Confirmation() {
       <h1 className="confirm__title">Thank you — your coffee is on its way.</h1>
       <p className="confirm__text">
         We’ve received your order and will roast it to order. A confirmation email would
-        follow in a later phase; for now, here’s your reference. You can{' '}
-        <Link to="/track">track this order</Link> anytime with your order number and email.
+        follow in a later phase; for now, here’s your reference.{' '}
+        {user ? (
+          <>Track it anytime in your <Link to="/account/orders">order history</Link>.</>
+        ) : (
+          <>You can <Link to="/track">track this order</Link> anytime with your order number and email.</>
+        )}
       </p>
 
       <div className="confirm__receipt">

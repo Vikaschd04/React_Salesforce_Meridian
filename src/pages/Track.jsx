@@ -1,41 +1,81 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useRef, useState } from 'react'
+import { Link, Navigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 import { trackOrder } from '../api/store.js'
 import { formatCents } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import OrderTimeline from '../components/OrderTimeline.jsx'
+import Spinner from '../components/Spinner.jsx'
+import useOrderStream from '../lib/useOrderStream.js'
+import { isLiveStatus } from './account/Orders.jsx'
 import useSeo from '../lib/useSeo.js'
 
 /**
- * Public order tracking — no login. Enter an order number + the email used at
- * checkout and see the order's status/timeline (read-only). The email must match
- * the order (verified server-side), so an order number alone reveals nothing.
+ * Public order tracking — for guests only (logged-in shoppers track from their
+ * order history, so they're redirected there). Enter an order number + the email
+ * used at checkout to see the order's status/timeline (read-only, email verified
+ * server-side). Once found, the status updates live via a token-scoped SSE, the
+ * same event stream the order history uses.
  */
 export default function Track() {
   useSeo({
     title: 'Track your order',
     description: 'Check the status of a Meridian order with your order number and email — no account needed.',
   })
+  const { user, loading } = useAuth()
   const [values, setValues] = useState({ orderId: '', email: '' })
   const [order, setOrder] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [streamToken, setStreamToken] = useState(null)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [flash, setFlash] = useState(false)
+  // The looked-up email is reused to silently re-fetch on a live update.
+  const lookedUp = useRef({ orderId: '', email: '' })
 
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))
 
+  const fetchOrder = useCallback(async (orderId, email, { silent = false } = {}) => {
+    if (!silent) setBusy(true)
+    try {
+      const res = await trackOrder({ orderId, email })
+      const { streamToken: token, ...ord } = res
+      setOrder(ord)
+      if (token) setStreamToken(token)
+      lookedUp.current = { orderId: ord.orderId, email }
+      setError(null)
+    } catch (err) {
+      if (!silent) {
+        setOrder(null)
+        setStreamToken(null)
+        setError(err.message || 'No order matches that number and email.')
+      }
+    } finally {
+      if (!silent) setBusy(false)
+    }
+  }, [])
+
+  // Live updates: when this order's status changes server-side, silently
+  // re-fetch (reusing the verified email) and flash the timeline.
+  const { connected } = useOrderStream(
+    ({ orderId }) => {
+      if (!order || orderId !== order.orderId) return
+      fetchOrder(lookedUp.current.orderId, lookedUp.current.email, { silent: true })
+      setFlash(true)
+      setTimeout(() => setFlash(false), 1600)
+    },
+    streamToken ? `/api/orders/track/stream?token=${encodeURIComponent(streamToken)}` : null,
+  )
+
+  // Logged-in shoppers track from their order history — never bounce to login.
+  if (loading) return <Spinner label="Loading…" />
+  if (user) return <Navigate to="/account/orders" replace />
+
   async function onSubmit(e) {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-    try {
-      setOrder(await trackOrder({ orderId: values.orderId.trim(), email: values.email.trim() }))
-    } catch (err) {
-      setOrder(null)
-      setError(err.message || 'No order matches that number and email.')
-    } finally {
-      setLoading(false)
-    }
+    await fetchOrder(values.orderId.trim(), values.email.trim())
   }
+
+  const live = connected && order && isLiveStatus(order.status)
 
   return (
     <div className="container track">
@@ -76,8 +116,8 @@ export default function Track() {
             />
           </label>
         </div>
-        <button type="submit" className="btn btn--block" disabled={loading}>
-          {loading ? 'Looking…' : 'Track order'}
+        <button type="submit" className="btn btn--block" disabled={busy}>
+          {busy ? 'Looking…' : 'Track order'}
         </button>
         <p className="field__hint">
           Have an account? <Link to="/login">Log in</Link> to see all your orders.
@@ -91,10 +131,17 @@ export default function Track() {
               <span className="order-card__label">Order</span>
               <h2 className="order-card__id order-detail__id">{order.orderId}</h2>
             </div>
-            <span className={`order-card__status status--${order.status}`}>{order.status}</span>
+            <span
+              className={`order-card__status status--${order.status}${live ? ' order-card__status--live' : ''}`}
+              title={live ? 'Live — this order updates automatically' : undefined}
+            >
+              {order.status}
+            </span>
           </div>
 
-          <OrderTimeline order={order} />
+          <div className={`order-detail__timeline${flash ? ' order-detail__timeline--flash' : ''}`}>
+            <OrderTimeline order={order} />
+          </div>
 
           <ul className="order-card__lines">
             {order.items.map((item) => (

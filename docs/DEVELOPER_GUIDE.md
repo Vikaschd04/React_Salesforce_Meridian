@@ -388,13 +388,24 @@ The contact form opens a Salesforce `Case`; shoppers can then **track** it.
 
 ### 9h. Guest order tracking
 
-A public page (`/track`) lets anyone check an order **without an account**.
+A public page (`/track`) lets a **guest** check an order **without an account**.
+It's guest-only: a logged-in shopper hitting `/track` is redirected to their
+`/account/orders` (they track there) — never to the login page.
 
 - `POST /api/orders/track` `{ orderId, email }` returns the order **only if**
   `email` case-insensitively matches the order's `Guest_Email__c` (the checkout
   email, set on every order). Any mismatch → a **generic** not-found, so an
   order number alone can't be probed (`store/orders.js` / `sf/orders.js`
   `trackOrder`). The read-only page reuses `OrderTimeline`.
+- **Live updates** (same event stream as order history): the track response also
+  includes a short-lived, order-scoped **`streamToken`** (a JWT carrying only the
+  order number, `lib/session.js`). The page opens the **public**
+  `GET /api/orders/track/stream?token=…` SSE — no session; the token is the
+  authorization — which forwards the shared order-events bus filtered by
+  **orderId** (vs the account stream's contactId filter). On a status change the
+  page silently re-fetches (reusing the verified email) and the status tag glows,
+  exactly like order history. `useOrderStream(onUpdate, url)` is reused with the
+  token URL.
 
 ---
 
@@ -624,7 +635,8 @@ non-fatal; `sf:check` reports whether it's on.
 | `GET /api/account/tickets`           | required  | The shopper's support tickets (Cases), most recent first (§9g) |
 | `GET /api/account/tickets/:caseNumber` | required | One ticket + its public reply thread; 404 if not theirs |
 | `POST /api/support`                  | optional  | Create a Salesforce Case (links `ContactId` when logged in); returns `{ caseNumber }` |
-| `POST /api/orders/track`             | –         | Public guest order tracking by `{ orderId, email }` (§9h); generic 404 on mismatch |
+| `POST /api/orders/track`             | –         | Public guest order tracking by `{ orderId, email }` (§9h); returns the order + a `streamToken`; generic 404 on mismatch |
+| `GET /api/orders/track/stream`       | token     | Public SSE — live status for one order, authorized by the `?token=` from `/orders/track` (§9h) |
 | `POST /api/dev/orders/:id/advance`   | required  | **Mock mode only** — advance an order one step (simulates a merchant); drives the live stream in dev/E2E |
 | `POST /api/dev/cases/:caseNumber/reply` | –      | **Mock mode only** — append a public reply / set status on a ticket (simulates a merchant Case update) |
 

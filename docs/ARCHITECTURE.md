@@ -102,7 +102,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `Cart.jsx` | Cart line items with `QtyStepper`, subtotal, link to checkout. Guards against navigating to checkout while the cart is still hydrating from `localStorage`. |
 | `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. For a logged-in shopper with saved addresses, shows a picker that auto-fills the default; a "save this address" checkbox persists a new one (§4.8). |
 | `Confirmation.jsx` | Post-checkout receipt; re-fetches the order by id so a refresh always shows current data. Links to `/track`. |
-| `Track.jsx` | **Public** guest order tracking (`/track`): order number + email → read-only status/timeline (reuses `OrderTimeline`). Email is verified server-side (§4.10). |
+| `Track.jsx` | **Guest** order tracking (`/track`): order number + email → read-only status/timeline (reuses `OrderTimeline`), email verified server-side. Logged-in shoppers are redirected to `/account/orders`. Updates **live** via a token-scoped SSE (§4.10). |
 | `Login.jsx` / `Signup.jsx` | Thin wrappers around `AuthForm.jsx` / `AuthLayout.jsx` — name/email/password only (individual B2C signup). Login links to `/track` for guests. |
 | `About.jsx` / `Contact.jsx` | Static content page / support form (`sendSupportRequest` → Salesforce `Case`). On success, `Contact.jsx` links logged-in shoppers to their Support tab (§4.10). |
 | `NotFound.jsx` | 404 page. |
@@ -150,7 +150,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `geo.js` | Formats `{lat, long}` into the coordinate-label strings used by `CoordTag`. |
 | `useSeo.js` | Sets `document.title` + meta description/OG tags per route (§4.5). |
 | `useRefreshOnFocus.js` | Re-runs a callback when the tab regains focus/visibility — used on account pages so a Salesforce-side order-status change appears without a manual reload. |
-| `useOrderStream.js` | Opens an `EventSource` to `/api/account/orders/stream` and calls back on live order-status changes (§4.9). The one sanctioned exception to "only `store.js` calls the network" — SSE is a different, long-lived transport, not `fetch`. |
+| `useOrderStream.js` | Opens an `EventSource` and calls back on live order-status changes (§4.9). `url` selects the stream — the shopper's account stream (default) or the guest tracker's token-scoped stream (§4.10); a falsy `url` stays disconnected. The one sanctioned exception to "only `store.js` calls the network" — SSE is a different, long-lived transport, not `fetch`. |
 | `useReorder.js` | Re-adds a past order's line items to the cart (`OrderRow.jsx`, `OrderDetail.jsx`). Pure frontend — filters against `CartContext`'s already-loaded catalog to skip any item whose product is no longer active, reporting `{ added, skipped }` for the UI. |
 | `useParallax.js` / `useTilt.js` / `useReveal.js` | Small scroll/hover motion hooks for the homepage's design flourishes; all respect `prefers-reduced-motion`. |
 
@@ -182,7 +182,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 |---|---|---|
 | `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
-| `orders.js` | `POST /api/orders`, `POST /api/orders/track` (public guest tracking), `GET /api/orders/:id` | `store/orders.js` |
+| `orders.js` | `POST /api/orders`, `POST /api/orders/track` + `GET /api/orders/track/stream` (public guest tracking + live SSE, token-authorized), `GET /api/orders/:id` | `store/orders.js`, `lib/orderEvents.js` |
 | `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses`, `GET /api/account/tickets[/:caseNumber]` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `store/support.js`, `lib/orderEvents.js` (all require a session) |
 | `dev.js` | `POST /api/dev/orders/:id/advance` + `POST /api/dev/cases/:caseNumber/reply` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); simulate merchant-side updates (order status / ticket reply) to drive the live stream + ticket thread in dev/E2E | `store/orders.js`, `store/support.js`, `lib/orderEvents.js` |
 | `auth.js` | `POST /api/auth/signup\|login\|logout`, `GET /api/auth/me` | `store/auth.js` |
@@ -235,7 +235,7 @@ standard vs. custom and why.
 | File | Role |
 |---|---|
 | `errors.js` | `ApiError` + typed constructors (`badRequest`, `notFoundError`, `paymentError`, …) and the central Express error handler — every error response is `{ error: <code>, message: <friendly text> }` with the right HTTP status. |
-| `session.js` | Signs/verifies the shopper session **JWT**, stored in an httpOnly cookie (`meridian_session`); carries `{ id, email, firstName, lastName }` — never the password hash. |
+| `session.js` | Signs/verifies the shopper session **JWT** (httpOnly cookie `meridian_session`; carries `{ id, email, firstName, lastName }` — never the hash). Also mints/reads the short-lived order-scoped **track token** for the public guest-tracking SSE (§4.10). |
 | `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in integer cents. Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
 | `cache.js` | Tiny TTL wrap-cache (`cache.wrap(key, fn)`) used for product reads, to stay under Salesforce API limits. |
 | `orderEvents.js` | In-process `EventEmitter` bus for order-status changes (`{contactId, orderId, status}`) — the seam between the change *sources* (`sf/orderStream.js` / the mock dev-trigger) and the SSE route that fans out to browsers (§4.9). |
@@ -371,11 +371,16 @@ schema):
   customer sees the updates. Mock parity via a dev-trigger
   (`POST /api/dev/cases/:n/reply`).
 - **Guest order tracking** (`Track.jsx` → `POST /api/orders/track` →
-  `store/orders.js`/`sf/orders.js` `trackOrder`): the public `/track` page takes
-  an order number + email and returns the order **only if** the email matches
-  the order's `Guest_Email__c` (generic not-found otherwise — no enumeration).
-  Read-only, reuses `OrderTimeline`. Linked from the footer, login, and the
-  confirmation receipt.
+  `store/orders.js`/`sf/orders.js` `trackOrder`): the **guest-only** `/track`
+  page (logged-in shoppers are redirected to `/account/orders`, never login)
+  takes an order number + email and returns the order **only if** the email
+  matches the order's `Guest_Email__c` (generic not-found otherwise — no
+  enumeration). Read-only, reuses `OrderTimeline`. It also **updates live**: the
+  track response carries a short-lived order-scoped `streamToken`, and the page
+  opens the public token-authorized SSE `GET /api/orders/track/stream` (the
+  order-events bus filtered by orderId) — the status tag glows and the page
+  re-fetches on a change, same as order history. Linked from the footer (guests
+  only), login, and the confirmation receipt.
 
 See [DEVELOPER_GUIDE.md §9g–§9h](DEVELOPER_GUIDE.md).
 

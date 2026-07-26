@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 
 export default function Footer() {
   const year = new Date().getFullYear()
+  const { user } = useAuth()
   return (
     <footer className="footer">
       <div className="container footer__inner">
@@ -25,7 +27,12 @@ export default function Footer() {
             <ul>
               <li><Link to="/about">Our sourcing</Link></li>
               <li><Link to="/contact">Contact</Link></li>
-              <li><Link to="/track">Track your order</Link></li>
+              {/* Guests track here; logged-in shoppers use their order history. */}
+              {user ? (
+                <li><Link to="/account/orders">Order history</Link></li>
+              ) : (
+                <li><Link to="/track">Track your order</Link></li>
+              )}
               <li><Link to="/account">Your account</Link></li>
             </ul>
           </div>

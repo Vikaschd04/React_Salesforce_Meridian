@@ -34,4 +34,23 @@ test('guest tracks an order by number + email', async ({ page }) => {
   await page.getByRole('button', { name: /track order/i }).click()
   await expect(page.locator('.track-result .order-card__id')).toHaveText(orderId)
   await expect(page.locator('.track-result .order-card__status')).toHaveText(/paid/i)
+
+  // A server-side status change streams to the guest page live (no resubmit).
+  await page.request.post(`/api/dev/orders/${orderId}/advance`)
+  await expect(page.locator('.track-result .order-card__status')).toHaveText(/shipped/i)
+})
+
+// A logged-in shopper is sent to their order history, never the login page.
+test('logged-in user is redirected from /track to order history', async ({ page }) => {
+  const email = `e2e-track-auth-${Date.now()}@example.com`
+  await page.goto('/signup')
+  await page.getByLabel('First name').fill('Auth')
+  await page.getByLabel('Last name').fill('User')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('testpass123')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/account/)
+
+  await page.goto('/track')
+  await expect(page).toHaveURL(/\/account\/orders/)
 })

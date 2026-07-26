@@ -39,6 +39,28 @@ export function clearSessionCookie(res) {
   res.clearCookie(cookieName, { httpOnly: true, sameSite: 'lax', secure, path: '/' })
 }
 
+/**
+ * Short-lived, order-scoped token for the PUBLIC guest order-tracking stream.
+ * A guest has no session, so after they prove order#+email (POST /orders/track)
+ * we hand back a signed token carrying only the order number. The SSE endpoint
+ * accepts it (via query param, since EventSource can't set headers) and streams
+ * status changes for just that order. Low-sensitivity (status only) + expiring.
+ */
+export function signOrderTrackToken(orderId) {
+  return jwt.sign({ track: orderId }, secret, { expiresIn: '2h' })
+}
+
+/** Verify an order-track token → the order number, or null. */
+export function readOrderTrackToken(token) {
+  if (!token) return null
+  try {
+    const claims = jwt.verify(token, secret)
+    return claims.track || null
+  } catch {
+    return null
+  }
+}
+
 /** Decode the session from the request cookie, or null. */
 export function readSession(req) {
   const token = req.cookies?.[cookieName]
