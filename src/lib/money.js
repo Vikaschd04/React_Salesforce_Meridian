@@ -13,3 +13,12 @@ export function formatCents(cents) {
   const value = Number.isFinite(cents) ? cents : 0
   return formatter.format(value / 100)
 }
+
+/**
+ * The amount actually charged for an order — merchandise, less discount, plus
+ * shipping. Prefers the server's `paidCents`; falls back to computing it so the
+ * *same* total shows on the order list, detail, confirmation, and guest track.
+ */
+export function orderPaidCents(order) {
+  return order.paidCents ?? (order.totalCents || 0) + (order.shippingCents || 0)
+}

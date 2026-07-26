@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { getOrder } from '../api/store.js'
 import { useAuth } from '../context/AuthContext.jsx'
-import { formatCents } from '../lib/money.js'
+import { formatCents, orderPaidCents } from '../lib/money.js'
 
 export default function Confirmation() {
   const { user } = useAuth()
@@ -89,7 +89,7 @@ export default function Confirmation() {
             </div>
             <div className="confirm__total">
               <span>Total paid</span>
-              <span>{formatCents(order.paidCents ?? order.totalCents + (order.shippingCents || 0))}</span>
+              <span>{formatCents(orderPaidCents(order))}</span>
             </div>
             {order.shipping && (
               <p className="confirm__ship">

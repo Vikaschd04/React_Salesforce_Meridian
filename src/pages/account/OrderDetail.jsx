@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyOrder, cancelOrder } from '../../api/store.js'
-import { formatCents } from '../../lib/money.js'
+import { formatCents, orderPaidCents } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
@@ -166,7 +166,7 @@ export default function OrderDetail() {
 
         <div className="order-card__total">
           <span>Total paid</span>
-          <span>{formatCents(order.paidCents ?? order.totalCents + (order.shippingCents || 0))}</span>
+          <span>{formatCents(orderPaidCents(order))}</span>
         </div>
 
         {(order.shipping || order.email) && (
