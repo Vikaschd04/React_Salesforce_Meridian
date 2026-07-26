@@ -1,13 +1,32 @@
 /**
- * Salesforce Contact operations for shopper auth. Shoppers are stored as
- * Contacts; the bcrypt password hash lives in the custom field
- * Contact.Password_Hash__c and never leaves the server.
+ * Salesforce shopper auth (B2C via Person Accounts).
+ *
+ * Registering a shopper creates a **Person Account** — one record that is both
+ * the Account (Name + PersonEmail) and its backing Contact — Salesforce's native
+ * B2C model. The app's identity stays the backing Contact (PersonContactId): the
+ * bcrypt password hash lives in Contact.Password_Hash__c (never leaves the
+ * server), login finds the Contact by Email, and a shopper's orders attach to
+ * their own person account (see sf/orders.js). Guests remain account-less.
  */
 import bcrypt from 'bcryptjs'
 import { withConn } from './client.js'
 import { conflict } from '../lib/errors.js'
 
 const esc = (s) => String(s).replace(/'/g, "\\'")
+
+// The PersonAccount record type id, resolved once and cached (org-specific).
+let personAccountRtId = null
+async function getPersonAccountRecordTypeId(conn) {
+  if (personAccountRtId) return personAccountRtId
+  const res = await conn.query(
+    "SELECT Id FROM RecordType WHERE SobjectType = 'Account' AND DeveloperName = 'PersonAccount' AND IsActive = true LIMIT 1",
+  )
+  if (!res.records[0]) {
+    throw new Error('PersonAccount record type not found — is Person Accounts enabled?')
+  }
+  personAccountRtId = res.records[0].Id
+  return personAccountRtId
+}
 
 /** Public profile shape (no hash). */
 export function toProfile(record) {
@@ -23,7 +42,7 @@ export function toProfile(record) {
 export async function findByEmail(email) {
   const res = await withConn((conn) =>
     conn.query(
-      `SELECT Id, FirstName, LastName, Email, Password_Hash__c
+      `SELECT Id, FirstName, LastName, Email, Password_Hash__c, AccountId
        FROM Contact WHERE Email = '${esc(email)}' LIMIT 1`,
     ),
   )
@@ -31,9 +50,9 @@ export async function findByEmail(email) {
 }
 
 /**
- * Create a shopper Contact with a hashed password. Throws 409 if email exists.
- * Every shopper is an individual (B2C) — the Contact has no Account link; their
- * orders attach to the shared web-orders Account via Order.Shopper__c.
+ * Register a shopper as a Person Account with a hashed password. Throws 409 if
+ * the email already exists. Returns the profile keyed on the backing Contact id
+ * (the app's shopper identity), so login/orders/history are unchanged.
  */
 export async function createShopper({ firstName, lastName, email, password }) {
   const existing = await findByEmail(email)
@@ -41,18 +60,27 @@ export async function createShopper({ firstName, lastName, email, password }) {
     throw conflict('An account with that email already exists.', 'email_taken')
   }
   const hash = await bcrypt.hash(password, 10)
-  const result = await withConn((conn) =>
-    conn.sobject('Contact').create({
+  return withConn(async (conn) => {
+    const rtId = await getPersonAccountRecordTypeId(conn)
+    // Insert the Person Account (auto-creates the backing Contact).
+    const acct = await conn.sobject('Account').create({
+      RecordTypeId: rtId,
       FirstName: firstName,
       LastName: lastName,
-      Email: email,
-      Password_Hash__c: hash,
-    }),
-  )
-  if (!result.success) {
-    throw new Error('Failed to create Contact in Salesforce.')
-  }
-  return { id: result.id, email, firstName, lastName }
+      PersonEmail: email,
+    })
+    if (!acct.success) {
+      throw new Error('Failed to create Person Account in Salesforce.')
+    }
+    // Read back the backing Contact and stash the password hash on it.
+    const res = await conn.query(
+      `SELECT PersonContactId FROM Account WHERE Id = '${esc(acct.id)}' LIMIT 1`,
+    )
+    const contactId = res.records[0]?.PersonContactId
+    if (!contactId) throw new Error('Person Account created without a backing Contact.')
+    await conn.sobject('Contact').update({ Id: contactId, Password_Hash__c: hash })
+    return { id: contactId, email, firstName, lastName }
+  })
 }
 
 /** Verify a plaintext password against a Contact record's stored hash. */

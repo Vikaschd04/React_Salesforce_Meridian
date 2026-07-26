@@ -214,9 +214,9 @@ Each file exports the same function signatures regardless of data source; every 
 | `client.js` | `getConnection()`, `withConn(fn)`, `resetConnection()` | — (OAuth Client Credentials auth; see §5) |
 | `mappers.js` | Field-name lists + record⇄app-shape converters (`orderFromSf`, `productFromSf`, `orderStatus()`) | — (shared helper, no calls of its own) |
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
-| `orders.js` | `createOrder`, `getOrder`, `cancelOrder`, `listOrdersForContact`, `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
+| `orders.js` | `createOrder` (attaches to the shopper's own person account, else the shared account for guests), `getOrder`, `cancelOrder`, `listOrdersForContact`, `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
-| `contacts.js` | `findByEmail`, `createShopper`, `verifyPassword`, `updateShopper`, `toProfile` | `Contact` (individual shoppers — no `AccountId`) |
+| `contacts.js` | `findByEmail`, `createShopper` (creates a **Person Account** — Account + backing Contact), `verifyPassword`, `updateShopper`, `toProfile` | `Account` (PersonAccount RT) + `Contact` (the backing person contact holds `Password_Hash__c`; the app is keyed on it) |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
 | `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |

@@ -58,6 +58,16 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   const byCode = await getProductsByCodes(items.map((it) => it.id))
   const { accountId, pricebookId } = await getRefs()
 
+  // A registered shopper's order lands on THEIR person account; guests (and any
+  // shopper without one) fall back to the shared "Meridian Web Orders" account.
+  let orderAccountId = accountId
+  if (auth?.contactId) {
+    const owner = await withConn((conn) =>
+      conn.query(`SELECT AccountId FROM Contact WHERE Id = '${esc(auth.contactId)}' LIMIT 1`),
+    )
+    if (owner.records[0]?.AccountId) orderAccountId = owner.records[0].AccountId
+  }
+
   const lines = items.map((it) => {
     const product = byCode.get(it.id)
     if (!product || !product._pricebookEntryId) {
@@ -100,9 +110,9 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // it. Only no-standard concepts (discount/promo/shipping cents, payment ref,
   // shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
   const orderBody = {
-    // All web orders land on the shared "Meridian Web Orders" Account; the
-    // shopper is linked to the order via Shopper__c (order history is by person).
-    AccountId: accountId,
+    // A registered shopper's own person account, else the shared web-orders
+    // account (guests). The shopper is also linked via Shopper__c.
+    AccountId: orderAccountId,
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
     Status: 'Draft', // Salesforce requires new orders to start Draft

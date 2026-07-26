@@ -196,9 +196,12 @@ Shoppers are **Salesforce Contacts**. Sessions are a **signed JWT in an httpOnly
 cookie** (`meridian_session`), so the token is unreachable from page JavaScript.
 
 - **Signup** (`POST /api/auth/signup`): validate → `sf/contacts.createShopper`
-  bcrypt-hashes the password and creates an individual `Contact` (`FirstName`,
-  `LastName`, `Email`, `Password_Hash__c` — no `AccountId`) → issue session
-  cookie. Duplicate email → `409`.
+  bcrypt-hashes the password and creates a **Person Account** — an `Account`
+  insert with the `PersonAccount` record type (`FirstName`, `LastName`,
+  `PersonEmail`), which auto-creates the backing `Contact`; the hash is then set
+  on that Contact (`Password_Hash__c`). The app's identity is the backing Contact
+  id → issue session cookie. Duplicate email → `409`. (See §9 for why the app
+  stays Contact-keyed.)
 - **Login** (`POST /api/auth/login`): find the Contact by email → `bcrypt.compare`
   against `Password_Hash__c` → issue cookie. Bad credentials → `400`.
 - **Me** (`GET /api/auth/me`): decode the cookie → profile, or `401`.
@@ -215,7 +218,9 @@ the same bcrypt + cookie logic applies.
 ## 9. How orders are linked to a user
 
 - **Logged-in checkout** sets **`Order.Shopper__c`** (a custom Lookup → Contact)
-  to the shopper's Contact Id.
+  to the shopper's Contact Id, and **`Order.AccountId` to the shopper's own
+  person account** (resolved from `Contact.AccountId`) — so the order shows up
+  on that customer's account in Salesforce.
 - **Order history** (`GET /api/account/orders`, requires a session) runs
   `sf/orders.listOrdersForContact(contactId)`:
   ```sql
@@ -223,12 +228,13 @@ the same bcrypt + cookie logic applies.
   ```
   then loads the OrderItems for those orders in one query.
 - **Guest checkout** still works: the order is created with **no** `Shopper__c`,
-  attached only to the `Meridian Web Orders` account, and simply won't appear in
-  anyone's history.
+  attached to the shared `Meridian Web Orders` account, and simply won't appear
+  in anyone's history.
 
-> Why a custom `Shopper__c` and not standard `BillToContactId`? This org's
-> standard `Order` object does **not** expose `BillToContactId`, so a custom
-> lookup is the reliable way to relate an Order to a Contact.
+> Why keep a custom `Shopper__c` (not just `AccountId`)? It keeps the app
+> Contact-keyed — identity, login, and history are all by the backing Contact —
+> so the Person Account model is a Salesforce-side detail. And standard
+> `BillToContactId` isn't exposed on this org's `Order`.
 
 **B2C only:** every shopper is an individual (one login = one person). There's
 no company/team-account concept — a shopper sees only their own orders, and an
@@ -445,9 +451,9 @@ on this org are custom.
 `AccountId`, and the `Shipping*` address fields. New orders insert as `Draft`,
 the app activates them to `Activated` after payment, and **the merchant advances
 the rest by changing `Status` in Salesforce** — the storefront reads it back.
-`AccountId` is always the shared `Meridian Web Orders` Account (every web order,
-guest or logged-in). The shopper is linked to the order via the custom
-`Shopper__c` lookup, so order history is by person (`WHERE Shopper__c`).
+`AccountId` is the **registered shopper's own person account** (or the shared
+`Meridian Web Orders` Account for guests). The shopper is also linked via the
+custom `Shopper__c` lookup, so order history is by person (`WHERE Shopper__c`).
 
 The display status is derived **only** from `Status` in
 [server/src/sf/mappers.js](../server/src/sf/mappers.js) `orderStatus()`:
@@ -549,10 +555,15 @@ non-fatal; `sf:check` reports whether it's on.
   field or object created via the API has no access by default, so the
   integration user otherwise can't see it.
 
-### 10.6 Account
-- **`Meridian Web Orders`** — the single shared Account that **all** web orders
-  are attached to (the app is B2C; the shopper is linked per-order via
-  `Order.Shopper__c`). Created during setup (or by `npm run seed`).
+### 10.6 Accounts
+- **Registered shoppers** are **Person Accounts** (B2C) — created at signup via
+  an `Account` insert with the `PersonAccount` record type (auto-creates the
+  backing Contact). Their orders attach to their own person account. Requires
+  Person Accounts enabled + the `PersonAccount` record type available to the
+  integration user (verified by `sf:check`; grant the record type via the
+  permission set if a create is ever blocked). Nothing custom to create.
+- **`Meridian Web Orders`** — the shared catch-all Account that **guest** orders
+  attach to. Created during setup (or by `npm run seed`).
 
 ### 10.6b Support (standard, no custom schema)
 - **`Case`** — created by the contact form (`Origin = Web`); linked to the

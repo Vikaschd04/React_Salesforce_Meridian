@@ -172,6 +172,26 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to enable it.')
   }
 
+  // 4k2. Person Accounts enabled + the PersonAccount record type resolves —
+  // registered shoppers are created as Person Accounts (B2C customer records).
+  try {
+    const rt = await withConn((conn) =>
+      conn.query(
+        "SELECT Id FROM RecordType WHERE SobjectType='Account' AND DeveloperName='PersonAccount' AND IsActive=true LIMIT 1",
+      ),
+    )
+    if (rt.records[0]) {
+      ok('Person Account record type present (registered shoppers → person accounts)')
+    } else {
+      failures++
+      bad('PersonAccount record type not found — shopper registration will fail')
+      console.log('    → Enable Person Accounts + activate the PersonAccount record type.')
+    }
+  } catch (err) {
+    failures++
+    bad(`Person Account check failed: ${err.message}`)
+  }
+
   // 4k. Case + CaseComment readable (support-ticket tracking). Standard objects;
   // the app creates Cases already, so this just confirms the Run-As user can
   // read them + their public comments for the customer's track-ticket view.
