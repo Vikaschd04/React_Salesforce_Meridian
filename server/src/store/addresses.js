@@ -1,8 +1,8 @@
 /**
  * Saved addresses — the seam between the routes and the data source, mirroring
  * store/wishlist.js. DATA_SOURCE=mock keeps addresses in an in-memory
- * Map<contactId, Address[]>; DATA_SOURCE=salesforce reads/writes real
- * Meridian_Address__c rows (see sf/addresses.js). Both enforce one default
+ * Map<contactId, Address[]>; DATA_SOURCE=salesforce reads/writes real standard
+ * ContactPointAddress rows (see sf/addresses.js). Both enforce one default
  * address per shopper and return the same address shape.
  */
 import { config } from '../config.js'

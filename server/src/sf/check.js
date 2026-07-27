@@ -140,18 +140,18 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
-  // 4i. Meridian_Address__c custom object (saved addresses), visible to Run-As
+  // 4i. Saved addresses — standard ContactPointAddress, writable by Run-As.
   try {
     await withConn((conn) =>
       conn.query(
-        'SELECT Id, Contact__c, Label__c, Street__c, City__c, State_Code__c, Postal_Code__c, Country_Code__c, Is_Default__c FROM Meridian_Address__c LIMIT 1',
+        'SELECT Id, Name, ParentId, AddressFirstName, AddressLastName, Street, City, StateCode, PostalCode, CountryCode, IsDefault FROM ContactPointAddress LIMIT 1',
       ),
     )
-    ok('Meridian_Address__c exists and is visible')
+    ok('ContactPointAddress readable (saved addresses)')
   } catch (err) {
     failures++
-    bad(`Meridian_Address__c missing/hidden: ${err.message}`)
-    console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
+    bad(`ContactPointAddress not readable: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to grant the integration user access.')
   }
 
   // 4j. Order Change Data Capture enabled (real-time order updates). Not a hard
