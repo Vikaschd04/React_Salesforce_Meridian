@@ -432,6 +432,28 @@ async function ensurePermissions(conn) {
       viewAllRecords: true,
       modifyAllRecords: false,
     },
+    // Promotions/coupons (standard Commerce objects) — the app READS the promo
+    // definition (a merchant creates/edits it in Salesforce). viewAllRecords so
+    // coupons created by any user are visible to the integration user.
+    ...['Promotion', 'Coupon', 'PromotionTarget', 'PromotionQualifier'].map((object) => ({
+      object,
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: true,
+      allowDelete: false,
+      viewAllRecords: true,
+      modifyAllRecords: false,
+    })),
+    // Redemptions are written on each promo order + counted for usage limits.
+    {
+      object: 'CouponCodeRedemption',
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: false,
+      allowDelete: false,
+      viewAllRecords: true,
+      modifyAllRecords: false,
+    },
   ]
   const permSetBody = {
     fullName: PERM_SET,
@@ -510,6 +532,79 @@ async function ensureOrderCdc(conn) {
   }
 }
 
+// Seed the demo promo codes into the STANDARD Commerce objects
+// (Promotion → Coupon → PromotionTarget [+ PromotionQualifier]). Idempotent:
+// probes each Coupon by code first. A merchant can add/edit more in Salesforce
+// (code, discount, validity/expiry, active flag, redemption limits); the app
+// reads them (see sf/promos.js). Non-fatal.
+const DEMO_PROMOS = [
+  {
+    code: 'WELCOME10',
+    name: 'Welcome 10% Off',
+    display: '10% off your order',
+    target: { TargetType: 'Transaction', AdjustmentType: 'PercentageDiscount', AdjustmentPercent: 10 },
+  },
+  {
+    code: 'MERIDIAN5',
+    name: 'Meridian $5 Off Over $25',
+    display: '$5 off orders over $25',
+    target: { TargetType: 'Transaction', AdjustmentType: 'FixedAmountOffTransaction', AdjustmentAmount: 5 },
+    minAmount: 25,
+  },
+  {
+    code: 'FREESHIP',
+    name: 'Free Shipping',
+    display: 'Free shipping',
+    target: { TargetType: 'Shipping', AdjustmentType: 'PercentageDiscount', AdjustmentPercent: 100 },
+  },
+]
+
+async function ensurePromotions(conn) {
+  const today = new Date().toISOString().slice(0, 10)
+  for (const p of DEMO_PROMOS) {
+    const existing = await conn.query(
+      `SELECT Id FROM Coupon WHERE CouponCode = '${p.code}' LIMIT 1`,
+    )
+    if (existing.records[0]) {
+      console.log(`  • Coupon ${p.code} already present`)
+      continue
+    }
+    try {
+      const promo = await conn.sobject('Promotion').create({
+        Name: p.name,
+        DisplayName: p.display,
+        Description: p.display,
+        IsActive: true,
+        StartDate: today,
+      })
+      if (!promo.success) throw new Error(JSON.stringify(promo.errors))
+      await conn.sobject('Coupon').create({
+        PromotionId: promo.id,
+        CouponCode: p.code,
+        Status: 'Active',
+      })
+      await conn.sobject('PromotionTarget').create({
+        PromotionId: promo.id,
+        ...p.target,
+        TargetRuleCriteriaType: 'All',
+        TargetOperator: 'NONE',
+      })
+      if (p.minAmount) {
+        await conn.sobject('PromotionQualifier').create({
+          PromotionId: promo.id,
+          QualifierType: 'TransactionTotal',
+          MinimumAmount: p.minAmount,
+          QualifierRuleCriteriaType: 'All',
+          QualifierOperator: 'NONE',
+        })
+      }
+      console.log(`  • Seeded coupon ${p.code}`)
+    } catch (err) {
+      console.warn(`  ! Could not seed coupon ${p.code}: ${err.message}`)
+    }
+  }
+}
+
 async function main() {
   if (config.dataSource !== 'salesforce') {
     console.error('Set DATA_SOURCE=salesforce (and SF_* creds) before running setup.')
@@ -527,6 +622,7 @@ async function main() {
     await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
     await ensureOrderCdc(conn)
+    await ensurePromotions(conn)
   })
   console.log('Schema setup complete.')
 }

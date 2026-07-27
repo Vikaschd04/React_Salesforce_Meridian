@@ -172,6 +172,29 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to enable it.')
   }
 
+  // 4k1. Promotions/coupons readable (standard Commerce objects) + demo coupons.
+  try {
+    await withConn((conn) =>
+      Promise.all([
+        conn.query('SELECT Id FROM Promotion LIMIT 1'),
+        conn.query('SELECT Id FROM CouponCodeRedemption LIMIT 1'),
+      ]),
+    )
+    const demo = await withConn((conn) =>
+      conn.query("SELECT CouponCode FROM Coupon WHERE CouponCode IN ('WELCOME10','MERIDIAN5','FREESHIP')"),
+    )
+    const found = demo.records.map((r) => r.CouponCode)
+    if (found.length === 3) {
+      ok('Promotion/Coupon readable; demo coupons present (WELCOME10, MERIDIAN5, FREESHIP)')
+    } else {
+      ok(`Promotion/Coupon readable; demo coupons present: ${found.join(', ') || 'none'} (run sf:setup to seed)`)
+    }
+  } catch (err) {
+    failures++
+    bad(`Promotion/Coupon not readable: ${err.message}`)
+    console.log('    → Grant the integration user Read on Promotion/Coupon + Create on CouponCodeRedemption.')
+  }
+
   // 4k2. Person Accounts enabled + the PersonAccount record type resolves —
   // registered shoppers are created as Person Accounts (B2C customer records).
   try {

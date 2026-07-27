@@ -12,7 +12,7 @@ import { config } from '../config.js'
 import { withConn } from './client.js'
 import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
-import { applyPromo } from '../store/promos.js'
+import { applyPromo, recordPromoRedemption } from '../store/promos.js'
 import { charge } from '../pay/index.js'
 import { computeShippingCents } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
@@ -91,7 +91,9 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
     0,
   )
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
-  const promo = applyPromo(promoCode, subtotalCents)
+  const promo = await applyPromo(promoCode, subtotalCents, {
+    buyer: auth?.contactId || shipping?.email || null,
+  })
   const totalCents = subtotalCents - promo.discountCents
   const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
 
@@ -172,6 +174,18 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // freeShipping isn't persisted (it only waives the display shipping fee), so
   // carry it on the fresh response for the confirmation page.
   const order = await getOrder(orderResult.body.id)
+
+  // Record the coupon redemption in Salesforce (usage tracking / limits).
+  // Best-effort — the order is already created + paid, so never fail it here.
+  if (promo.code && promo.couponId) {
+    recordPromoRedemption({
+      code: promo.code,
+      couponId: promo.couponId,
+      orderNumber: order.orderId,
+      buyer: auth?.contactId || shipping?.email || null,
+    }).catch((err) => console.error('[promo] redemption record failed:', err.message))
+  }
+
   return { ...order, freeShipping: promo.freeShipping }
 }
 

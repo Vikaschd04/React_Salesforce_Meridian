@@ -207,7 +207,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
 | `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
-| `promos.js` | *(no branch — promo codes are a static in-repo table, same in both modes)* | |
+| `promos.js` | Static in-repo table (with the same validity/limit shape) + in-memory redemption counts | `sf/promos.js` — reads standard Coupon/Promotion objects; shared `evaluate()` so both modes behave identically |
 | `support.js` | Mock: persists tickets in-memory (list/get/reply) | `sf/cases.js` |
 
 ### 3.4 `server/src/sf/` — the only files that speak Salesforce
@@ -220,6 +220,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `orders.js` | `createOrder` (attaches to the shopper's own person account, else the shared account for guests), `getOrder`, `cancelOrder`, `listOrdersForContact`, `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
 | `contacts.js` | `findByEmail`, `createShopper` (creates a **Person Account** — Account + backing Contact), `verifyPassword`, `updateShopper`, `toProfile` | `Account` (PersonAccount RT) + `Contact` (the backing person contact holds `Password_Hash__c`; the app is keyed on it) |
+| `promos.js` | `getCouponRule`, `countRedemptions`, `recordRedemption` — reads the coupon/promotion definition + writes redemptions (§4.2) | `Coupon`, `Promotion`, `PromotionTarget`, `PromotionQualifier`, `CouponCodeRedemption` |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
 | `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
@@ -268,14 +269,20 @@ refresh or the browser back button. `SearchSuggest` layers a typeahead on top,
 implementing the ARIA combobox pattern (arrow keys, Enter, Escape) against the
 already-loaded product list — no separate search endpoint.
 
-### 4.2 Promo codes (`PromoInput.jsx` → `POST /api/promo/validate` → `store/promos.js`)
+### 4.2 Promo codes (`PromoInput.jsx` → `POST /api/promo/validate` → `store/promos.js` → `sf/promos.js`)
 
-A small static table (`WELCOME10`, `MERIDIAN5`, `FREESHIP`) — no per-user
-limits or expiry (explicitly out of scope). `validatePromo()` is the single
-source of truth and is called **twice**: once when the shopper applies the
-code (to show the discount), and again inside `sf/orders.js createOrder`
-during checkout — so a forged/stale client-side discount can never change
-what's actually charged.
+Promo codes are governed in **Salesforce** (standard Commerce objects — see
+[DEVELOPER_GUIDE.md §9i](DEVELOPER_GUIDE.md)): a merchant creates a `Coupon`
+(code, validity/expiry, usage limits) tied to a `Promotion` + `PromotionTarget`
+(the discount) + optional `PromotionQualifier` (min-subtotal). `sf/promos.js`
+reads the definition; `store/promos.js` runs one shared `evaluate()` (date /
+active / min / limit checks + the discount math) — **server-side, against the
+trusted subtotal** — and is called **twice**: when the shopper applies the code,
+and again in `createOrder` at checkout, so a forged/stale client discount can
+never change what's charged. After a promo order, a `CouponCodeRedemption` is
+written (best-effort) for usage tracking. Mock mode keeps a static table with the
+same shape (incl. test `EXPIRED10` / `ONCE5` codes) so the app runs offline and
+E2E covers the expiry/limit paths. `sf:setup` seeds the demo codes.
 
 ### 4.3 Payments (`PaymentFields.jsx` → `placeOrder()` → `server/src/pay/index.js`)
 

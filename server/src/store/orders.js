@@ -14,7 +14,7 @@ import { randomBytes } from 'node:crypto'
 import { config } from '../config.js'
 import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
-import { applyPromo } from './promos.js'
+import { applyPromo, recordPromoRedemption } from './promos.js'
 import { charge } from '../pay/index.js'
 import { computeShippingCents } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
@@ -61,7 +61,9 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
 
   const subtotalCents = lines.reduce((sum, line) => sum + line.lineCents, 0)
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
-  const promo = applyPromo(promoCode, subtotalCents)
+  const promo = await applyPromo(promoCode, subtotalCents, {
+    buyer: user?.id || shipping?.email || null,
+  })
   const totalCents = subtotalCents - promo.discountCents
   const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
 
@@ -102,6 +104,17 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
     _ownerId: user?.id || null,
   }
   orders.set(order.orderId, order)
+
+  // Record the coupon redemption (usage tracking) — best-effort, never fails the order.
+  if (promo.code && promo.couponId) {
+    recordPromoRedemption({
+      code: promo.code,
+      couponId: promo.couponId,
+      orderNumber: order.orderId,
+      buyer: user?.id || shipping?.email || null,
+    }).catch(() => {})
+  }
+
   return stripInternal(order)
 }
 

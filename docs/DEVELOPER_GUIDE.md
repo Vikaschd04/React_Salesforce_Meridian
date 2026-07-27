@@ -415,6 +415,39 @@ It's guest-only: a logged-in shopper hitting `/track` is redirected to their
   exactly like order history. `useOrderStream(onUpdate, url)` is reused with the
   token URL.
 
+### 9i. Promotions / coupons (standard Commerce objects)
+
+Promo codes live in **Salesforce**, not a code table — a merchant creates and
+governs them there, the storefront reads + applies them.
+
+- **The model** (all standard, no custom schema): **`Coupon`** (the code —
+  `Status`, `StartDateTime`/`EndDateTime` for validity/expiry,
+  `RedemptionLimitAllBuyers`/`RedemptionLimitPerBuyer`) → **`Promotion`**
+  (`IsActive`, `StartDate`/`EndDate`) → **`PromotionTarget`** (the discount:
+  `AdjustmentType` `PercentageDiscount` / `FixedAmountOff…`, or
+  `TargetType=Shipping` for free shipping) + **`PromotionQualifier`**
+  (`QualifierType=TransactionTotal`, `MinimumAmount` = min-subtotal). Usage is
+  tracked in **`CouponCodeRedemption`**.
+- **Read path** ([`sf/promos.js`](../server/src/sf/promos.js) — the only file that
+  reads these): `getCouponRule(code)` resolves a code to a normalized
+  `{ kind, value, minSubtotalCents, validity, limits, label }` (cached briefly).
+  [`store/promos.js`](../server/src/store/promos.js) then runs one shared
+  `evaluate()` for the date/active/min/limit checks and computes the discount —
+  **server-side, against the trusted subtotal**, exactly as before. Mock mode
+  keeps a static table with the same shape (so the app runs offline and E2E can
+  test expiry/limit via the `EXPIRED10` / `ONCE5` codes).
+- **Validation** (`POST /api/promo/validate`, `optionalAuth`) surfaces friendly
+  errors: `promo_invalid` / `promo_inactive` / `promo_expired` / `promo_min` /
+  `promo_limit`. The same check re-runs at order creation (a code can go
+  invalid between cart and checkout).
+- **Redemption tracking**: after a promo order is created, the app writes a
+  `CouponCodeRedemption` (`CouponId`, `Transaction`=order #, `Buyer`=contact/
+  email) — best-effort, never fails the paid order. Limits are enforced by
+  counting these (a small race window under simultaneous checkouts is accepted).
+- **Seeding**: `npm run sf:setup` seeds the demo codes idempotently
+  (`WELCOME10` 10% off, `MERIDIAN5` $5 off over $25, `FREESHIP` free shipping);
+  add more in Salesforce.
+
 ---
 
 ## 10. Everything created in Salesforce (inventory)
@@ -575,6 +608,15 @@ non-fatal; `sf:check` reports whether it's on.
   true` comments are shown. The integration user needs Read on both (confirmed
   by `sf:check`).
 
+### 10.6c Promotions / coupons (standard, no custom schema)
+- **`Promotion` / `Coupon` / `PromotionTarget` / `PromotionQualifier`** — the
+  promo definition (§9i). `sf:setup` seeds the demo codes (WELCOME10, MERIDIAN5,
+  FREESHIP) idempotently; merchants add more in Salesforce.
+- **`CouponCodeRedemption`** — one row per redeemed promo order (usage tracking).
+- The permission set grants the integration user Read on the promo objects (with
+  `viewAllRecords` so merchant-created coupons are visible) and Read+Create on
+  `CouponCodeRedemption`.
+
 ### 10.7 Connected App
 - **`Meridian BFF`** — OAuth enabled, scopes `api` + `refresh_token`, with the
   **Client Credentials flow enabled** and a **Run-As** integration user. Its
@@ -627,7 +669,7 @@ non-fatal; `sf:check` reports whether it's on.
 | `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |
 | `POST /api/orders`                   | optional  | **Charge payment** then create the order (items + shipping + promo + payment); enforces stock, re-validates the promo. A decline → 402, no order |
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
-| `POST /api/promo/validate`           | –         | Validate a promo code against a subtotal → `{ code, discountCents, freeShipping, label }` |
+| `POST /api/promo/validate`           | optional  | Validate a promo code (read from Salesforce Coupon/Promotion) against a subtotal → `{ code, couponId, discountCents, freeShipping, label }`; friendly `promo_*` errors (§9i) |
 | `GET /api/payment-config`            | –         | `{ provider, publishableKey }` — which card UI to render |
 | `POST /api/auth/signup`              | –         | Create an individual shopper + session      |
 | `POST /api/auth/login`               | –         | Log in + session                            |
