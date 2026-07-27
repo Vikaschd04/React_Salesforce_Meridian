@@ -2,8 +2,8 @@
  * Wishlist — the seam between the routes and the data source, mirroring
  * store/companies.js. DATA_SOURCE=mock keeps wishlists in an in-memory
  * Map<contactId, Set<productId>>; DATA_SOURCE=salesforce reads/writes real
- * Meridian_Wishlist_Item__c rows (see sf/wishlist.js). Both paths enforce the
- * same rules, including the 404-on-missing-product check.
+ * standard Wishlist/WishlistItem rows (see sf/wishlist.js). Both paths enforce
+ * the same rules, including the 404-on-missing-product check.
  */
 import { config } from '../config.js'
 import { getProduct } from './catalog.js'

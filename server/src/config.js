@@ -47,6 +47,9 @@ export const config = {
     apiVersion: process.env.SF_API_VERSION || '61.0',
     // Guest orders are attached to this Account; the standard pricebook is used.
     accountName: process.env.SF_ACCOUNT_NAME || 'Meridian Web Orders',
+    // Standard Wishlist requires a WebStore. Any store works to group a
+    // shopper's saved items; falls back to the first WebStore on the org.
+    webStoreName: process.env.SF_WEBSTORE_NAME || 'Deloitte Custom Store',
   },
 }
 

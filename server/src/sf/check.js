@@ -128,16 +128,19 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
-  // 4h. Meridian_Wishlist_Item__c custom object (saved products), visible to Run-As
+  // 4h. Wishlist — standard Wishlist + WishlistItem, readable by Run-As.
   try {
     await withConn((conn) =>
-      conn.query('SELECT Id, Contact__c, Product__c FROM Meridian_Wishlist_Item__c LIMIT 1'),
+      Promise.all([
+        conn.query('SELECT Id, AccountId, WebStoreId FROM Wishlist LIMIT 1'),
+        conn.query('SELECT Id, WishlistId, Product2Id FROM WishlistItem LIMIT 1'),
+      ]),
     )
-    ok('Meridian_Wishlist_Item__c exists and is visible')
+    ok('Wishlist + WishlistItem readable (saved products)')
   } catch (err) {
     failures++
-    bad(`Meridian_Wishlist_Item__c missing/hidden: ${err.message}`)
-    console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
+    bad(`Wishlist/WishlistItem not readable: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to grant the integration user access.')
   }
 
   // 4i. Saved addresses — standard ContactPointAddress, writable by Run-As.

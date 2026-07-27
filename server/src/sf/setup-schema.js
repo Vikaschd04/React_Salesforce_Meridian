@@ -185,36 +185,10 @@ const PRODUCT_REVIEW_FIELDS = [
   },
 ]
 
-// ---- Wishlist (new junction custom object — no standard "wishlist" object
-// on Sales Cloud; one row per saved (Contact, Product) pair). Same
-// shell-then-fields pattern as reviews above. ----
-const WISHLIST_OBJECT = 'Meridian_Wishlist_Item__c'
-const WISHLIST_FIELDS = [
-  {
-    sobject: WISHLIST_OBJECT,
-    probe: 'Contact__c',
-    def: {
-      fullName: `${WISHLIST_OBJECT}.Contact__c`,
-      label: 'Shopper',
-      type: 'Lookup',
-      referenceTo: 'Contact',
-      relationshipLabel: 'Wishlist Items',
-      relationshipName: 'Meridian_Wishlist_Items',
-    },
-  },
-  {
-    sobject: WISHLIST_OBJECT,
-    probe: 'Product__c',
-    def: {
-      fullName: `${WISHLIST_OBJECT}.Product__c`,
-      label: 'Product',
-      type: 'Lookup',
-      referenceTo: 'Product2',
-      relationshipLabel: 'Wishlist Items',
-      relationshipName: 'Meridian_Wishlist_Items',
-    },
-  },
-]
+// ---- Wishlist now uses the STANDARD `Wishlist` + `WishlistItem` objects (no
+// custom schema). A shopper's Wishlist is parented to their Person Account + a
+// WebStore (which the standard object requires); saved products are WishlistItem
+// rows. We only grant object CRUD in ensurePermissions(). See sf/wishlist.js. ----
 
 // ---- Saved addresses now use the STANDARD `ContactPointAddress` object (no
 // custom schema). It parents to the shopper's Person Account (registered
@@ -265,15 +239,6 @@ async function ensureProductReviewObject(conn) {
     label: 'Meridian Product Review',
     pluralLabel: 'Meridian Product Reviews',
     displayFormat: 'MPR-{0000}',
-  })
-}
-
-async function ensureWishlistObject(conn) {
-  await ensureCustomObject(conn, {
-    apiName: WISHLIST_OBJECT,
-    label: 'Meridian Wishlist Item',
-    pluralLabel: 'Meridian Wishlist Items',
-    displayFormat: 'MWL-{0000}',
   })
 }
 
@@ -333,7 +298,7 @@ async function ensureOrderStatusValues(conn) {
 }
 
 async function ensurePermissions(conn) {
-  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...WISHLIST_FIELDS]
+  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS]
     .map(({ def }) => ({ field: def.fullName, readable: true, editable: true }))
     .concat(CPA_FIELD_PERMISSIONS)
 
@@ -374,18 +339,17 @@ async function ensurePermissions(conn) {
       viewAllRecords: true,
       modifyAllRecords: false,
     },
-    // Wishlist items get removed, so allowDelete: true here (unlike reviews).
-    // Salesforce requires allowEdit whenever allowDelete is granted (a
-    // FIELD_INTEGRITY dependency), even though the app never edits a row.
-    {
-      object: WISHLIST_OBJECT,
+    // Wishlist — standard Wishlist + WishlistItem. Items are added/removed, so
+    // allowDelete: true (Salesforce requires allowEdit alongside allowDelete).
+    ...['Wishlist', 'WishlistItem'].map((object) => ({
+      object,
       allowRead: true,
       allowCreate: true,
       allowEdit: true,
       allowDelete: true,
       viewAllRecords: true,
       modifyAllRecords: false,
-    },
+    })),
     // Saved addresses — standard ContactPointAddress, fully CRUD
     // (add / edit / delete / set-default). Scoped to the shopper's own account
     // by the app; viewAllRecords lets the integration user read them back.
@@ -581,10 +545,9 @@ async function main() {
     for (const field of FIELDS) await ensureField(conn, field)
     await ensureProductReviewObject(conn)
     for (const field of PRODUCT_REVIEW_FIELDS) await ensureField(conn, field)
-    await ensureWishlistObject(conn)
-    for (const field of WISHLIST_FIELDS) await ensureField(conn, field)
-    // Saved addresses use the standard ContactPointAddress object — no custom
-    // object to create; access is granted in ensurePermissions().
+    // Wishlist + saved addresses use standard objects (Wishlist/WishlistItem and
+    // ContactPointAddress) — no custom object to create; access is granted in
+    // ensurePermissions().
     await ensureOrderStatusValues(conn)
     await ensurePermissions(conn)
     await ensureOrderCdc(conn)
