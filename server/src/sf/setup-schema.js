@@ -29,6 +29,11 @@ import { config } from '../config.js'
 import { withConn } from './client.js'
 
 const PERM_SET = 'Meridian_Web_Integration'
+// OMS: the app builds an OrderSummary per order (sf/orderSummary.js). The
+// standard "Delivery Charge" line references a shipping Product2; an
+// OrderDeliveryMethod points at it. Names/codes are stable + resolved at runtime.
+export const SHIPPING_PRODUCT_CODE = 'meridian-shipping'
+export const DELIVERY_METHOD_NAME = 'Meridian Standard Shipping'
 
 // Field definitions in Metadata API shape. `probe` is the SOQL column used to
 // detect existence/visibility; `sobject` is the object it lives on (Order
@@ -225,6 +230,61 @@ async function ensureCustomObject(conn, { apiName, label, pluralLabel, displayFo
   console.log(`  • Created ${apiName}`)
 }
 
+// OMS catalog + stock the org's B2B stock field so activation never blocks.
+async function ensureOmsCatalog(conn) {
+  const pb = await conn.query('SELECT Id FROM Pricebook2 WHERE IsStandard = true LIMIT 1')
+  const pricebookId = pb.records[0]?.Id
+  if (!pricebookId) {
+    console.log('  ! No standard pricebook — skipping OMS shipping catalog')
+    return
+  }
+  // Shipping Product2 (referenced by the OMS 'Delivery Charge' line).
+  let prod = await conn.query(
+    `SELECT Id FROM Product2 WHERE ProductCode = '${SHIPPING_PRODUCT_CODE}' LIMIT 1`,
+  )
+  let prodId = prod.records[0]?.Id
+  if (!prodId) {
+    prodId = (
+      await conn.sobject('Product2').create({
+        Name: 'Meridian Shipping',
+        ProductCode: SHIPPING_PRODUCT_CODE,
+        IsActive: true,
+      })
+    ).id
+    console.log('  • Created shipping Product2')
+  } else console.log('  • Shipping Product2 already present')
+  // A $0 standard PricebookEntry so the line is a valid OrderItem (the real
+  // shipping amount is set on the line's UnitPrice at order time).
+  const pbe = await conn.query(
+    `SELECT Id FROM PricebookEntry WHERE Pricebook2Id='${pricebookId}' AND Product2Id='${prodId}' LIMIT 1`,
+  )
+  if (!pbe.records[0]) {
+    await conn.sobject('PricebookEntry').create({
+      Pricebook2Id: pricebookId, Product2Id: prodId, UnitPrice: 0, IsActive: true,
+    })
+    console.log('  • Created shipping PricebookEntry')
+  } else console.log('  • Shipping PricebookEntry already present')
+  // OrderDeliveryMethod for the delivery group.
+  const dm = await conn.query(
+    `SELECT Id FROM OrderDeliveryMethod WHERE Name = '${DELIVERY_METHOD_NAME.replace(/'/g, "\\'")}' LIMIT 1`,
+  )
+  if (!dm.records[0]) {
+    await conn.sobject('OrderDeliveryMethod').create({ Name: DELIVERY_METHOD_NAME, ProductId: prodId })
+    console.log('  • Created OrderDeliveryMethod')
+  } else console.log('  • OrderDeliveryMethod already present')
+  // The org's B2B_UpdateStockOnOrder trigger decrements Product2.Available_Qty__c
+  // on activation for Type='Order Product' items and throws if short — which our
+  // OMS orders use. Keep Meridian products well-stocked on that field so a paid
+  // order always activates (our real stock lives in Stock__c, unaffected).
+  const low = await conn.query(
+    'SELECT Id FROM Product2 WHERE Origin__c != null AND (Available_Qty__c = null OR Available_Qty__c < 1000)',
+  )
+  if (low.records.length) {
+    await conn.sobject('Product2').update(low.records.map((r) => ({ Id: r.Id, Available_Qty__c: 100000 })))
+    console.log(`  • Stocked Available_Qty__c on ${low.records.length} Meridian product(s)`)
+  } else console.log('  • Meridian products already stocked (Available_Qty__c)')
+}
+
 async function ensureProductReviewObject(conn) {
   await ensureCustomObject(conn, {
     apiName: PRODUCT_REVIEW_OBJECT,
@@ -293,6 +353,11 @@ async function ensurePermissions(conn) {
   const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS]
     .map(({ def }) => ({ field: def.fullName, readable: true, editable: true }))
     .concat(CPA_FIELD_PERMISSIONS)
+    // OMS: the app builds an OrderSummary per order (sf/orderSummary.js), which
+    // needs each source OrderItem assigned to an OrderDeliveryGroup. That standard
+    // field is FLS-hidden from the integration user by default — grant it. (The
+    // OMS objects themselves are already reachable via the user's profile.)
+    .concat([{ field: 'OrderItem.OrderDeliveryGroupId', readable: true, editable: true }])
 
   // Salesforce LOCKS activated orders: once Status maps to the 'Activated'
   // StatusCode, the record can't be edited without this permission. Cancelling
@@ -559,6 +624,7 @@ async function main() {
     // ContactPointAddress) — no custom object to create; access is granted in
     // ensurePermissions().
     await ensureOrderStatusValues(conn)
+    await ensureOmsCatalog(conn)
     await ensurePermissions(conn)
     await ensureOrderCdc(conn)
     await ensurePromotions(conn)

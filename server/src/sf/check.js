@@ -231,6 +231,35 @@ async function main() {
     console.log('    → Grant the integration user Read on Case + CaseComment.')
   }
 
+  // 4m. Order Management: the app builds an OrderSummary per order. Confirm the
+  // summary objects are readable, the OrderItem→delivery-group FLS field is
+  // visible, and the shipping catalog + delivery method exist.
+  try {
+    await withConn((conn) =>
+      Promise.all([
+        conn.query('SELECT Id FROM OrderSummary LIMIT 1'),
+        conn.query('SELECT Id, OrderDeliveryGroupId FROM OrderItem LIMIT 1'),
+      ]),
+    )
+    const [ship, method] = await withConn((conn) =>
+      Promise.all([
+        conn.query("SELECT Id FROM Product2 WHERE ProductCode = 'meridian-shipping' LIMIT 1"),
+        conn.query("SELECT Id FROM OrderDeliveryMethod WHERE Name = 'Meridian Standard Shipping' LIMIT 1"),
+      ]),
+    )
+    if (ship.records[0] && method.records[0]) {
+      ok('Order Management ready (OrderSummary readable, delivery-group FLS + shipping catalog present)')
+    } else {
+      failures++
+      bad('OMS shipping catalog missing (shipping product / delivery method)')
+      console.log('    → Run `npm run sf:setup` to create them.')
+    }
+  } catch (err) {
+    failures++
+    bad(`Order Management not ready: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` (grants OrderItem.OrderDeliveryGroupId FLS + OMS catalog).')
+  }
+
   // 5. Active products with a standard price
   try {
     const res = await withConn((conn) =>
