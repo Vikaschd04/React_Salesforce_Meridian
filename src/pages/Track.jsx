@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { trackOrder } from '../api/store.js'
-import { formatCents, orderPaidCents } from '../lib/money.js'
+import { formatUsd, orderPaidUsd } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import OrderTimeline from '../components/OrderTimeline.jsx'
 import Spinner from '../components/Spinner.jsx'
@@ -149,14 +149,14 @@ export default function Track() {
                 <span>
                   {item.qty} × {item.name}
                 </span>
-                <span>{formatCents(item.lineCents)}</span>
+                <span>{formatUsd(item.lineTotal)}</span>
               </li>
             ))}
           </ul>
 
           <div className="order-card__total">
             <span>Total paid</span>
-            <span>{formatCents(orderPaidCents(order))}</span>
+            <span>{formatUsd(orderPaidUsd(order))}</span>
           </div>
 
           {order.shipping && (

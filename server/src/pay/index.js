@@ -27,22 +27,22 @@ function looksLikeCard(number) {
 }
 
 /**
- * Take a payment for `amountCents`.
+ * Take a payment for `amount` (USD dollars).
  * @param {object} args
- * @param {number} args.amountCents  Server-computed, trusted total.
- * @param {object} args.payment      Client-supplied payment details.
+ * @param {number} args.amount   Server-computed, trusted total in USD dollars.
+ * @param {object} args.payment  Client-supplied payment details.
  *   mock:   { card: { number, exp, cvc, name } }
  *   stripe: { paymentMethodId }
  * @param {object} [args.metadata]   Attached to the charge (e.g. { email }).
  * @returns {Promise<{ paymentId: string, status: 'paid' }>}
  */
-export async function charge({ amountCents, payment, metadata = {} }) {
-  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+export async function charge({ amount, payment, metadata = {} }) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     throw paymentError('Nothing to charge.', 'invalid_amount')
   }
   return useStripe
-    ? chargeStripe({ amountCents, payment, metadata })
-    : chargeMock({ amountCents, payment })
+    ? chargeStripe({ amount, payment, metadata })
+    : chargeMock({ amount, payment })
 }
 
 // ---- Mock provider (offline) ----
@@ -78,7 +78,7 @@ async function getStripe() {
   return stripeClient
 }
 
-async function chargeStripe({ amountCents, payment, metadata }) {
+async function chargeStripe({ amount, payment, metadata }) {
   if (!payment?.paymentMethodId) {
     throw paymentError('Missing payment method.', 'card_invalid')
   }
@@ -87,7 +87,8 @@ async function chargeStripe({ amountCents, payment, metadata }) {
     // Confirm immediately server-side. Production/SCA flows move confirmation to
     // the client with Stripe Elements; test cards confirm fine this way.
     const intent = await stripe.paymentIntents.create({
-      amount: amountCents,
+      // Stripe amounts are in the currency's minor unit — convert USD → cents here.
+      amount: Math.round(amount * 100),
       currency: config.payment.currency,
       payment_method: payment.paymentMethodId,
       confirm: true,

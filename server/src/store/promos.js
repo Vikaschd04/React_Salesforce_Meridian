@@ -9,12 +9,13 @@
  * offline with identical behaviour.
  *
  * Either way the discount is computed here, server-side, against a trusted
- * subtotal (in cents) — a forged client amount can never change what's charged.
- * `validatePromo`/`applyPromo` share one `evaluate()`, so both modes and both
- * call paths (apply-a-code, and re-check at order creation) behave the same.
+ * subtotal (in USD dollars) — a forged client amount can never change what's
+ * charged. `validatePromo`/`applyPromo` share one `evaluate()`, so both modes and
+ * both call paths (apply-a-code, and re-check at order creation) behave the same.
  */
 import { config } from '../config.js'
 import { badRequest } from '../lib/errors.js'
+import { round2 } from '../lib/totals.js'
 import * as sfPromos from '../sf/promos.js'
 
 const useSalesforce = config.dataSource === 'salesforce'
@@ -24,11 +25,11 @@ const useSalesforce = config.dataSource === 'salesforce'
 const mockRedemptions = new Map() // code -> count
 const MOCK_PROMOS = {
   WELCOME10: { kind: 'percent', value: 10, label: '10% off your order' },
-  MERIDIAN5: { kind: 'fixed', value: 500, minSubtotalCents: 2500, label: '$5 off orders over $25' },
+  MERIDIAN5: { kind: 'fixed', value: 5, minSubtotal: 25, label: '$5 off orders over $25' },
   FREESHIP: { kind: 'shipping', label: 'Free shipping' },
   // Test-only codes so mock mode / E2E can exercise the expiry + limit paths.
   EXPIRED10: { kind: 'percent', value: 10, validTo: '2000-01-01T00:00:00Z', label: 'Expired 10% off' },
-  ONCE5: { kind: 'fixed', value: 500, limit: 1, label: '$5 off — one use total' },
+  ONCE5: { kind: 'fixed', value: 5, limit: 1, label: '$5 off — one use total' },
 }
 
 function mockRule(code) {
@@ -44,7 +45,7 @@ function mockRule(code) {
     promoEnd: null,
     kind: p.kind,
     value: p.value || 0,
-    minSubtotalCents: p.minSubtotalCents || 0,
+    minSubtotal: p.minSubtotal || 0,
     limitAll: p.limit ?? null,
     limitPerBuyer: null,
     label: p.label,
@@ -64,7 +65,7 @@ function withinWindow(now, start, end) {
  * 400. Pure (no I/O) so mock and Salesforce share it exactly. `redeemed` is the
  * current redemption count (for limit checks); pass 0 when not enforcing.
  */
-function evaluate(code, rule, subtotalCents, redeemed = 0) {
+function evaluate(code, rule, subtotalUsd, redeemed = 0) {
   if (!rule) throw badRequest(`“${code}” isn’t a valid code.`, 'promo_invalid')
 
   const now = Date.now()
@@ -77,9 +78,9 @@ function evaluate(code, rule, subtotalCents, redeemed = 0) {
     throw badRequest(`“${code}” has expired or isn’t active yet.`, 'promo_expired')
   }
 
-  const subtotal = Math.max(0, Math.floor(Number(subtotalCents) || 0))
-  if (rule.minSubtotalCents && subtotal < rule.minSubtotalCents) {
-    const shortBy = ((rule.minSubtotalCents - subtotal) / 100).toFixed(2)
+  const subtotal = Math.max(0, round2(subtotalUsd))
+  if (rule.minSubtotal && subtotal < rule.minSubtotal) {
+    const shortBy = (rule.minSubtotal - subtotal).toFixed(2)
     throw badRequest(`Add $${shortBy} more to use ${code}.`, 'promo_min')
   }
 
@@ -87,29 +88,29 @@ function evaluate(code, rule, subtotalCents, redeemed = 0) {
     throw badRequest(`“${code}” has reached its redemption limit.`, 'promo_limit')
   }
 
-  let discountCents = 0
+  let discount = 0
   let freeShipping = false
-  if (rule.kind === 'percent') discountCents = Math.round(subtotal * (rule.value / 100))
-  else if (rule.kind === 'fixed') discountCents = Math.min(rule.value, subtotal)
+  if (rule.kind === 'percent') discount = round2(subtotal * (rule.value / 100))
+  else if (rule.kind === 'fixed') discount = Math.min(rule.value, subtotal)
   else if (rule.kind === 'shipping') freeShipping = true
 
-  return { code, couponId: rule.couponId, discountCents, freeShipping, label: rule.label }
+  return { code, couponId: rule.couponId, discount, freeShipping, label: rule.label }
 }
 
 // ---- Public API (async — reads Salesforce in salesforce mode) ----
 
 /**
- * Validate a code against a trusted subtotal (cents). Throws a friendly 400 for
- * missing/invalid/inactive/expired/below-min/over-limit codes. `buyer` (optional)
- * enables the per-buyer limit pre-check for a logged-in shopper.
+ * Validate a code against a trusted subtotal (USD dollars). Throws a friendly 400
+ * for missing/invalid/inactive/expired/below-min/over-limit codes. `buyer`
+ * (optional) enables the per-buyer limit pre-check for a logged-in shopper.
  */
-export async function validatePromo(rawCode, subtotalCents, { buyer } = {}) {
+export async function validatePromo(rawCode, subtotalUsd, { buyer } = {}) {
   const code = String(rawCode || '').trim().toUpperCase()
   if (!code) throw badRequest('Enter a promo code.', 'promo_missing')
 
   if (!useSalesforce) {
     const rule = mockRule(code)
-    return evaluate(code, rule, subtotalCents, mockRedemptions.get(code) || 0)
+    return evaluate(code, rule, subtotalUsd, mockRedemptions.get(code) || 0)
   }
 
   const rule = await sfPromos.getCouponRule(code)
@@ -117,7 +118,7 @@ export async function validatePromo(rawCode, subtotalCents, { buyer } = {}) {
   // Count redemptions only when a limit is set (avoids an extra query otherwise).
   let redeemed = 0
   if (rule.limitAll != null) redeemed = await sfPromos.countRedemptions(rule.couponId)
-  const result = evaluate(code, rule, subtotalCents, redeemed)
+  const result = evaluate(code, rule, subtotalUsd, redeemed)
   // Per-buyer limit, when we know who's asking.
   if (rule.limitPerBuyer != null && buyer) {
     const mine = await sfPromos.countRedemptions(rule.couponId, buyer)
@@ -134,9 +135,9 @@ export async function validatePromo(rawCode, subtotalCents, { buyer } = {}) {
  * between cart and checkout). Does NOT record the redemption — call
  * `recordPromoRedemption` after the order exists.
  */
-export async function applyPromo(rawCode, subtotalCents, { buyer } = {}) {
-  if (!rawCode) return { code: null, couponId: null, discountCents: 0, freeShipping: false, label: null }
-  return validatePromo(rawCode, subtotalCents, { buyer })
+export async function applyPromo(rawCode, subtotalUsd, { buyer } = {}) {
+  if (!rawCode) return { code: null, couponId: null, discount: 0, freeShipping: false, label: null }
+  return validatePromo(rawCode, subtotalUsd, { buyer })
 }
 
 /**

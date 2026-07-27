@@ -1,21 +1,21 @@
 import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { formatCents } from '../lib/money.js'
+import { formatUsd, round2 } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 import PromoInput from '../components/PromoInput.jsx'
 
-const SHIP_FREE_THRESHOLD = 4500
-const SHIP_FLAT_CENTS = 600
+const SHIP_FREE_THRESHOLD = 45
+const SHIP_FLAT_USD = 6
 
 export default function Cart() {
-  const { lines, items, totalCents, promo, discountCents, setQty, removeItem } = useCart()
+  const { lines, items, subtotal, promo, discount, setQty, removeItem } = useCart()
   const { isAuthed, user } = useAuth()
 
-  const freeShipping = promo?.freeShipping || totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD
-  const shippingCents = freeShipping ? 0 : SHIP_FLAT_CENTS
-  const grandTotalCents = totalCents - discountCents + shippingCents
+  const freeShipping = promo?.freeShipping || subtotal === 0 || subtotal >= SHIP_FREE_THRESHOLD
+  const shippingCost = freeShipping ? 0 : SHIP_FLAT_USD
+  const grandTotal = round2(subtotal - discount + shippingCost)
   // Block checkout if any line exceeds available stock.
   const overStock = lines.some(({ qty, product }) => qty > product.stock)
 
@@ -43,7 +43,7 @@ export default function Cart() {
 
       <div className="cart__grid">
         <ul className="cart__lines">
-          {lines.map(({ id, qty, product, lineCents }) => {
+          {lines.map(({ id, qty, product, lineTotal }) => {
             const over = qty > product.stock
             return (
               <li key={id} className="line">
@@ -71,7 +71,7 @@ export default function Cart() {
                     max={Math.max(1, product.stock)}
                     idLabel={`Quantity for ${product.name}`}
                   />
-                  <span className="line__price">{formatCents(lineCents)}</span>
+                  <span className="line__price">{formatUsd(lineTotal)}</span>
                 </div>
               </li>
             )
@@ -82,27 +82,27 @@ export default function Cart() {
           <h2 className="summary__title">Summary</h2>
           <div className="summary__row">
             <span>Subtotal</span>
-            <span>{formatCents(totalCents)}</span>
+            <span>{formatUsd(subtotal)}</span>
           </div>
-          {discountCents > 0 && (
+          {discount > 0 && (
             <div className="summary__row summary__row--discount">
               <span>Discount{promo?.code ? ` · ${promo.code}` : ''}</span>
-              <span>−{formatCents(discountCents)}</span>
+              <span>−{formatUsd(discount)}</span>
             </div>
           )}
           <div className="summary__row">
             <span>Shipping</span>
-            <span>{shippingCents === 0 ? 'Free' : formatCents(shippingCents)}</span>
+            <span>{shippingCost === 0 ? 'Free' : formatUsd(shippingCost)}</span>
           </div>
-          {shippingCents > 0 && (
+          {shippingCost > 0 && (
             <p className="summary__hint">
-              Add {formatCents(SHIP_FREE_THRESHOLD - totalCents)} more for free shipping.
+              Add {formatUsd(SHIP_FREE_THRESHOLD - subtotal)} more for free shipping.
             </p>
           )}
           <PromoInput />
           <div className="summary__row summary__row--total">
             <span>Total</span>
-            <span>{formatCents(grandTotalCents)}</span>
+            <span>{formatUsd(grandTotal)}</span>
           </div>
 
           <div className="summary__auth">

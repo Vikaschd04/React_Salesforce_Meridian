@@ -14,7 +14,7 @@ import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
 import { applyPromo, recordPromoRedemption } from '../store/promos.js'
 import { charge } from '../pay/index.js'
-import { computeShippingCents } from '../lib/totals.js'
+import { computeShipping, round2 } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 
 // Account + standard pricebook ids are stable per org; resolve once and cache.
@@ -86,21 +86,20 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
     return { product, qty }
   })
 
-  const subtotalCents = lines.reduce(
-    (sum, { product, qty }) => sum + product.priceCents * qty,
-    0,
+  const subtotal = round2(
+    lines.reduce((sum, { product, qty }) => sum + product.price * qty, 0),
   )
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
-  const promo = await applyPromo(promoCode, subtotalCents, {
+  const promo = await applyPromo(promoCode, subtotal, {
     buyer: auth?.contactId || shipping?.email || null,
   })
-  const totalCents = subtotalCents - promo.discountCents
-  const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
+  const total = round2(subtotal - promo.discount)
+  const shippingCost = computeShipping(subtotal, promo.freeShipping)
 
   // Take payment against the trusted amount BEFORE writing anything — a decline
   // throws (402) and no order is created.
   const paid = await charge({
-    amountCents: totalCents + shippingCents,
+    amount: round2(total + shippingCost),
     payment,
     metadata: { email: shipping?.email || '' },
   })
@@ -109,8 +108,8 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // Shared, always-valid part of the Order record. Standard-first: the lifecycle
   // rides the standard `Status` field (inserted Draft, activated below after
   // payment). Merchandise total is the standard TotalAmount rollup — we don't set
-  // it. Only no-standard concepts (discount/promo/shipping cents, payment ref,
-  // shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
+  // it. Only no-standard concepts (discount/promo/shipping amount in USD, payment
+  // ref, shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
   const orderBody = {
     // A registered shopper's own person account, else the shared web-orders
     // account (guests). The shopper is also linked via Shopper__c.
@@ -118,9 +117,9 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
     Status: 'Draft', // Salesforce requires new orders to start Draft
-    Discount_Cents__c: promo.discountCents,
+    Discount__c: promo.discount,
     Promo_Code__c: promo.code,
-    Shipping_Cents__c: shippingCents,
+    Shipping_Amount__c: shippingCost,
     Payment_Intent__c: paid.paymentId,
     Guest_Email__c: shipping?.email || null,
     ShippingStreet: shipping?.street || null,

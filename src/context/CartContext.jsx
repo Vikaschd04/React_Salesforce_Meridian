@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { getProducts, applyPromo } from '../api/store.js'
+import { round2 } from '../lib/money.js'
 
 /**
  * Cart state for the whole app.
@@ -95,12 +96,12 @@ export function CartProvider({ children }) {
   }
 
   // ---- Promo code ----
-  // The applied promo { code, discountCents, freeShipping, label } or null.
+  // The applied promo { code, discount, freeShipping, label } or null.
   const [promo, setPromo] = useState(null)
 
   /** Apply a code; validated server-side against the current subtotal. Throws on failure. */
   async function applyPromoCode(code) {
-    const res = await applyPromo(code, totalCents)
+    const res = await applyPromo(code, subtotal)
     setPromo(res)
     return res
   }
@@ -118,15 +119,15 @@ export function CartProvider({ children }) {
           id: it.id,
           qty: it.qty,
           product,
-          lineCents: product.priceCents * it.qty,
+          lineTotal: round2(product.price * it.qty),
         }
       })
       .filter(Boolean)
   }, [items, catalog])
 
   const count = useMemo(() => items.reduce((sum, it) => sum + it.qty, 0), [items])
-  const totalCents = useMemo(
-    () => lines.reduce((sum, line) => sum + line.lineCents, 0),
+  const subtotal = useMemo(
+    () => round2(lines.reduce((sum, line) => sum + line.lineTotal, 0)),
     [lines],
   )
 
@@ -135,7 +136,7 @@ export function CartProvider({ children }) {
   useEffect(() => {
     if (!promo) return undefined
     let alive = true
-    applyPromo(promo.code, totalCents)
+    applyPromo(promo.code, subtotal)
       .then((res) => alive && setPromo(res))
       .catch(() => alive && setPromo(null))
     return () => {
@@ -143,18 +144,18 @@ export function CartProvider({ children }) {
     }
     // Only re-run when the subtotal changes; promo.code is stable while applied.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalCents])
+  }, [subtotal])
 
-  const discountCents = promo?.discountCents || 0
+  const discount = promo?.discount || 0
 
   const value = useMemo(
     () => ({
       items,
       lines,
       count,
-      totalCents,
+      subtotal,
       promo,
-      discountCents,
+      discount,
       catalog,
       applyPromoCode,
       clearPromo,
@@ -165,7 +166,7 @@ export function CartProvider({ children }) {
       clear,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, lines, count, totalCents, promo, discountCents, catalog],
+    [items, lines, count, subtotal, promo, discount, catalog],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

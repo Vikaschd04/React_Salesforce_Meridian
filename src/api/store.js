@@ -100,7 +100,7 @@ export async function submitProductReview(id, { rating, title, body }) {
  * Place an order from cart items + shipping details.
  * `shipping` = { name, email, street, city, state, postalCode, country }.
  * The BFF recomputes the total from trusted prices and returns
- * { orderId, totalCents, items, placedAt, status, shipping, email }.
+ * { orderId, total, items, placedAt, status, shipping, email } (USD dollars).
  */
 export async function placeOrder(items, shipping, promoCode = null, payment = null) {
   const payload = {
@@ -121,14 +121,14 @@ export async function getPaymentConfig() {
 }
 
 /**
- * Validate a promo code against a subtotal (cents). Returns
- * { code, discountCents, freeShipping, label }. Throws StoreError with a
+ * Validate a promo code against a subtotal (USD dollars). Returns
+ * { code, discount, freeShipping, label }. Throws StoreError with a
  * friendly message when the code is invalid or below its minimum.
  */
-export async function applyPromo(code, subtotalCents) {
+export async function applyPromo(code, subtotal) {
   return request('/promo/validate', {
     method: 'POST',
-    body: JSON.stringify({ code, subtotalCents }),
+    body: JSON.stringify({ code, subtotal }),
   })
 }
 

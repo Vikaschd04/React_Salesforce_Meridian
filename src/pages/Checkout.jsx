@@ -3,14 +3,14 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder, getPaymentConfig, getAddresses, addAddress } from '../api/store.js'
-import { formatCents } from '../lib/money.js'
+import { formatUsd, round2 } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
 import PaymentFields from '../components/PaymentFields.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
 
-const SHIP_FREE_THRESHOLD = 4500
-const SHIP_FLAT_CENTS = 600
+const SHIP_FREE_THRESHOLD = 45
+const SHIP_FLAT_USD = 6
 
 const FIELDS = [
   { key: 'name', label: 'Full name', autoComplete: 'name', span: 2 },
@@ -21,7 +21,7 @@ const FIELDS = [
 ]
 
 export default function Checkout() {
-  const { lines, items, totalCents, promo, discountCents, clear } = useCart()
+  const { lines, items, subtotal, promo, discount, clear } = useCart()
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -106,9 +106,9 @@ export default function Checkout() {
   const hydrating = lines.length === 0
 
   const freeShipping =
-    promo?.freeShipping || totalCents === 0 || totalCents >= SHIP_FREE_THRESHOLD
-  const shippingCents = freeShipping ? 0 : SHIP_FLAT_CENTS
-  const grandTotalCents = totalCents - discountCents + shippingCents
+    promo?.freeShipping || subtotal === 0 || subtotal >= SHIP_FREE_THRESHOLD
+  const shippingCost = freeShipping ? 0 : SHIP_FLAT_USD
+  const grandTotal = round2(subtotal - discount + shippingCost)
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))
   // Changing country clears any previously chosen state/province.
   const setCountry = (code) => setValues((prev) => ({ ...prev, countryCode: code, stateCode: '' }))
@@ -263,7 +263,7 @@ export default function Checkout() {
           <PaymentFields value={card} onChange={setCard} />
 
           <button type="submit" className="btn btn--block checkout__submit" disabled={placing}>
-            {placing ? 'Processing payment…' : `Pay ${formatCents(grandTotalCents)}`}
+            {placing ? 'Processing payment…' : `Pay ${formatUsd(grandTotal)}`}
           </button>
           <p className="field__hint">
             Test-mode checkout — no real charge. Your paid order is created in Salesforce.
@@ -273,33 +273,33 @@ export default function Checkout() {
         <aside className="summary checkout__summary" aria-label="Order summary">
           <h2 className="summary__title">Your order</h2>
           <ul className="checkout__items">
-            {lines.map(({ id, qty, product, lineCents }) => (
+            {lines.map(({ id, qty, product, lineTotal }) => (
               <li key={id} className="checkout__item">
                 <span>
                   {qty} × {product.name}
                 </span>
-                <span>{formatCents(lineCents)}</span>
+                <span>{formatUsd(lineTotal)}</span>
               </li>
             ))}
           </ul>
           <div className="summary__row">
             <span>Subtotal</span>
-            <span>{formatCents(totalCents)}</span>
+            <span>{formatUsd(subtotal)}</span>
           </div>
-          {discountCents > 0 && (
+          {discount > 0 && (
             <div className="summary__row summary__row--discount">
               <span>Discount{promo?.code ? ` · ${promo.code}` : ''}</span>
-              <span>−{formatCents(discountCents)}</span>
+              <span>−{formatUsd(discount)}</span>
             </div>
           )}
           <div className="summary__row">
             <span>Shipping</span>
-            <span>{shippingCents === 0 ? 'Free' : formatCents(shippingCents)}</span>
+            <span>{shippingCost === 0 ? 'Free' : formatUsd(shippingCost)}</span>
           </div>
           <PromoInput />
           <div className="summary__row summary__row--total">
             <span>Total</span>
-            <span>{formatCents(grandTotalCents)}</span>
+            <span>{formatUsd(grandTotal)}</span>
           </div>
           <Link to="/cart" className="checkout__edit">
             ← Edit cart

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getProduct } from '../api/store.js'
 import { useCart } from '../context/CartContext.jsx'
-import { formatCents } from '../lib/money.js'
+import { formatUsd } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import CoordTag from '../components/CoordTag.jsx'
 import RelatedProducts from '../components/RelatedProducts.jsx'
@@ -90,7 +90,7 @@ export default function ProductDetail() {
               category: 'Coffee',
               offers: {
                 '@type': 'Offer',
-                price: (product.priceCents / 100).toFixed(2),
+                price: product.price.toFixed(2),
                 priceCurrency: 'USD',
                 availability:
                   product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
@@ -146,7 +146,7 @@ export default function ProductDetail() {
             </dl>
 
             <div className="detail__buy">
-              <span className="detail__price">{formatCents(product.priceCents)}</span>
+              <span className="detail__price">{formatUsd(product.price)}</span>
               <QtyStepper
                 value={qty}
                 onChange={setQty}

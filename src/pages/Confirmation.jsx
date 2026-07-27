@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { getOrder } from '../api/store.js'
 import { useAuth } from '../context/AuthContext.jsx'
-import { formatCents, orderPaidCents } from '../lib/money.js'
+import { formatUsd, orderPaidUsd } from '../lib/money.js'
 
 export default function Confirmation() {
   const { user } = useAuth()
@@ -69,27 +69,27 @@ export default function Confirmation() {
                   <span>
                     {item.qty} × {item.name}
                   </span>
-                  <span>{formatCents(item.lineCents)}</span>
+                  <span>{formatUsd(item.lineTotal)}</span>
                 </li>
               ))}
             </ul>
             <div className="confirm__subtotal">
               <span>Subtotal</span>
-              <span>{formatCents(order.subtotalCents ?? order.totalCents + (order.discountCents || 0))}</span>
+              <span>{formatUsd(order.subtotal ?? order.total + (order.discount || 0))}</span>
             </div>
-            {order.discountCents > 0 && (
+            {order.discount > 0 && (
               <div className="confirm__subtotal confirm__subtotal--discount">
                 <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
-                <span>−{formatCents(order.discountCents)}</span>
+                <span>−{formatUsd(order.discount)}</span>
               </div>
             )}
             <div className="confirm__subtotal">
               <span>Shipping</span>
-              <span>{order.shippingCents ? formatCents(order.shippingCents) : 'Free'}</span>
+              <span>{order.shippingCost ? formatUsd(order.shippingCost) : 'Free'}</span>
             </div>
             <div className="confirm__total">
               <span>Total paid</span>
-              <span>{formatCents(orderPaidCents(order))}</span>
+              <span>{formatUsd(orderPaidUsd(order))}</span>
             </div>
             {order.shipping && (
               <p className="confirm__ship">

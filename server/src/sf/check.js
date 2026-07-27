@@ -85,8 +85,8 @@ async function main() {
   try {
     await withConn((conn) =>
       conn.query(
-        'SELECT Shopper__c, Guest_Email__c, Discount_Cents__c, Promo_Code__c, ' +
-          'Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c FROM Order LIMIT 1',
+        'SELECT Shopper__c, Guest_Email__c, Discount__c, Promo_Code__c, ' +
+          'Shipping_Amount__c, Payment_Intent__c, Tracking_Number__c FROM Order LIMIT 1',
       ),
     )
     ok('Order custom fields (shopper/guest_email/promo/discount/shipping/payment/tracking) visible')

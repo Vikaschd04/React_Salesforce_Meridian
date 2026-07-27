@@ -69,8 +69,8 @@ async function upsertProduct(conn, pricebookId, product) {
     productId = res.id
   }
 
-  // Ensure a standard PricebookEntry with the right price.
-  const unitPrice = product.priceCents / 100
+  // Ensure a standard PricebookEntry with the right price (USD dollars).
+  const unitPrice = product.price
   const pbe = await conn.query(
     `SELECT Id FROM PricebookEntry WHERE Pricebook2Id = '${pricebookId}' AND Product2Id = '${productId}' LIMIT 1`,
   )
@@ -103,7 +103,7 @@ async function main() {
     const pricebookId = await getStandardPricebookId(conn)
     for (const product of PRODUCTS) {
       await upsertProduct(conn, pricebookId, product)
-      console.log(`  • Upserted ${product.id} — $${(product.priceCents / 100).toFixed(2)}`)
+      console.log(`  • Upserted ${product.id} — $${product.price.toFixed(2)}`)
     }
   })
 

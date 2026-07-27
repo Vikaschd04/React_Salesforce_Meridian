@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyOrder, cancelOrder } from '../../api/store.js'
-import { formatCents, orderPaidCents } from '../../lib/money.js'
+import { formatUsd, orderPaidUsd } from '../../lib/money.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
@@ -144,29 +144,29 @@ export default function OrderDetail() {
               <span>
                 {item.qty} × <Link to={`/product/${item.id}`}>{item.name}</Link>
               </span>
-              <span>{formatCents(item.lineCents)}</span>
+              <span>{formatUsd(item.lineTotal)}</span>
             </li>
           ))}
         </ul>
 
         <div className="order-card__line order-card__line--sub">
           <span>Subtotal</span>
-          <span>{formatCents(order.subtotalCents ?? order.totalCents + (order.discountCents || 0))}</span>
+          <span>{formatUsd(order.subtotal ?? order.total + (order.discount || 0))}</span>
         </div>
-        {order.discountCents > 0 && (
+        {order.discount > 0 && (
           <div className="order-card__line order-card__line--discount">
             <span>Discount{order.promoCode ? ` · ${order.promoCode}` : ''}</span>
-            <span>−{formatCents(order.discountCents)}</span>
+            <span>−{formatUsd(order.discount)}</span>
           </div>
         )}
         <div className="order-card__line order-card__line--sub">
           <span>Shipping</span>
-          <span>{order.shippingCents ? formatCents(order.shippingCents) : 'Free'}</span>
+          <span>{order.shippingCost ? formatUsd(order.shippingCost) : 'Free'}</span>
         </div>
 
         <div className="order-card__total">
           <span>Total paid</span>
-          <span>{formatCents(orderPaidCents(order))}</span>
+          <span>{formatUsd(orderPaidUsd(order))}</span>
         </div>
 
         {(order.shipping || order.email) && (

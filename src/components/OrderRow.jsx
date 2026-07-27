@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { formatCents, orderPaidCents } from '../lib/money.js'
+import { formatUsd, orderPaidUsd } from '../lib/money.js'
 import { formatOrderDate, isLiveStatus } from '../pages/account/Orders.jsx'
 import useReorder from '../lib/useReorder.js'
 
@@ -35,7 +35,7 @@ export default function OrderRow({ order, live = false }) {
             {order.status}
           </span>
           <span className="order-card__date">{formatOrderDate(order.placedAt)}</span>
-          <span className="order-row__total">{formatCents(orderPaidCents(order))}</span>
+          <span className="order-row__total">{formatUsd(orderPaidUsd(order))}</span>
           <span className="order-row__chev" aria-hidden="true">
             →
           </span>

@@ -16,7 +16,7 @@ import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
 import { applyPromo, recordPromoRedemption } from './promos.js'
 import { charge } from '../pay/index.js'
-import { computeShippingCents } from '../lib/totals.js'
+import { computeShipping, round2 } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 import * as sfOrders from '../sf/orders.js'
 
@@ -48,8 +48,8 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
       id: product.id,
       name: product.name,
       qty,
-      unitPriceCents: product.priceCents,
-      lineCents: product.priceCents * qty,
+      unitPrice: product.price,
+      lineTotal: round2(product.price * qty),
     }
   })
   // Decrement mock stock (mutates the in-repo catalog for this server run).
@@ -59,17 +59,17 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
   }
   invalidateCatalogCache()
 
-  const subtotalCents = lines.reduce((sum, line) => sum + line.lineCents, 0)
+  const subtotal = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0))
   // Re-validate + apply the promo against the trusted subtotal (throws if bad).
-  const promo = await applyPromo(promoCode, subtotalCents, {
+  const promo = await applyPromo(promoCode, subtotal, {
     buyer: user?.id || shipping?.email || null,
   })
-  const totalCents = subtotalCents - promo.discountCents
-  const shippingCents = computeShippingCents(subtotalCents, promo.freeShipping)
+  const total = round2(subtotal - promo.discount)
+  const shippingCost = computeShipping(subtotal, promo.freeShipping)
 
   // Take payment before recording the order (a decline throws 402).
   const paid = await charge({
-    amountCents: totalCents + shippingCents,
+    amount: round2(total + shippingCost),
     payment,
     metadata: { email: shipping?.email || '' },
   })
@@ -83,13 +83,13 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
     trackingNumber: null,
     paymentId: paid.paymentId,
     items: lines,
-    subtotalCents,
-    discountCents: promo.discountCents,
-    shippingCents,
-    paidCents: totalCents + shippingCents,
+    subtotal,
+    discount: promo.discount,
+    shippingCost,
+    paid: round2(total + shippingCost),
     promoCode: promo.code,
     freeShipping: promo.freeShipping,
-    totalCents,
+    total,
     placedAt: new Date().toISOString(),
     email: shipping?.email || null,
     shipping: shipping

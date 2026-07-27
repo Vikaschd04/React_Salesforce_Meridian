@@ -27,7 +27,7 @@ export async function getProducts() {
   const records = await withConn((conn) =>
     conn.query(buildQuery(MERIDIAN_SCOPE)).then((r) => r.records),
   )
-  return records.map(productFromSf).filter((p) => p.priceCents > 0)
+  return records.map(productFromSf).filter((p) => p.price > 0)
 }
 
 /** One active product by ProductCode (our slug), or 404. */

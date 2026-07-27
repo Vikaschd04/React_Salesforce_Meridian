@@ -9,7 +9,7 @@ const router = Router()
 const schema = z
   .object({
     code: z.string().trim().min(1, 'Enter a promo code.').max(40),
-    subtotalCents: z.number().int().nonnegative(),
+    subtotal: z.number().nonnegative(),
   })
   .strict()
 
@@ -25,7 +25,7 @@ router.post(
       throw badRequest(first?.message || 'Invalid request.', 'invalid_request')
     }
     // validatePromo throws a friendly 400 for missing/invalid/expired/limit codes.
-    res.json(await validatePromo(parsed.data.code, parsed.data.subtotalCents, { buyer: req.user?.id }))
+    res.json(await validatePromo(parsed.data.code, parsed.data.subtotal, { buyer: req.user?.id }))
   }),
 )
 

@@ -11,6 +11,7 @@
  */
 import { withConn, getConnection } from './client.js'
 import { createCache } from '../lib/cache.js'
+import { round2 } from '../lib/totals.js'
 import { config } from '../config.js'
 
 const esc = (s) => String(s).replace(/'/g, "\\'")
@@ -30,8 +31,8 @@ async function getOwnerId() {
 /**
  * Resolve a coupon code to a normalized rule, or null if there's no such coupon.
  * `{ couponId, active, startDateTime, endDateTime, promoActive, promoStart,
- *    promoEnd, kind, value, minSubtotalCents, limitAll, limitPerBuyer, label }`.
- * `kind` is 'percent' | 'fixed' | 'shipping'; `value` is a percent or cents.
+ *    promoEnd, kind, value, minSubtotal, limitAll, limitPerBuyer, label }`.
+ * `kind` is 'percent' | 'fixed' | 'shipping'; `value` is a percent or USD dollars.
  */
 export async function getCouponRule(rawCode) {
   const code = String(rawCode || '').trim().toUpperCase()
@@ -75,7 +76,7 @@ export async function getCouponRule(rawCode) {
         value = Number(txnTarget.AdjustmentPercent || 0)
       } else if (String(txnTarget.AdjustmentType || '').startsWith('FixedAmountOff')) {
         kind = 'fixed'
-        value = Math.round(Number(txnTarget.AdjustmentAmount || 0) * 100)
+        value = round2(txnTarget.AdjustmentAmount) // USD dollars
       }
     }
 
@@ -93,7 +94,7 @@ export async function getCouponRule(rawCode) {
       promoEnd: c.Promotion?.EndDate || null,
       kind,
       value,
-      minSubtotalCents: minAmount != null ? Math.round(Number(minAmount) * 100) : 0,
+      minSubtotal: minAmount != null ? round2(minAmount) : 0, // USD dollars
       limitAll: c.RedemptionLimitAllBuyers != null ? Number(c.RedemptionLimitAllBuyers) : null,
       limitPerBuyer: c.RedemptionLimitPerBuyer != null ? Number(c.RedemptionLimitPerBuyer) : null,
       label,

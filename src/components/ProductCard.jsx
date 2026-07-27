@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ProductImage from './ProductImage.jsx'
 import CoordTag from './CoordTag.jsx'
-import { formatCents } from '../lib/money.js'
+import { formatUsd } from '../lib/money.js'
 import { useCart } from '../context/CartContext.jsx'
 import WishlistButton from './WishlistButton.jsx'
 import useTilt from '../lib/useTilt.js'
@@ -67,7 +67,7 @@ export default function ProductCard({ product }) {
           <p className="card__origin">{product.origin}</p>
           <p className="card__notes">{product.tastingNotes.join(' · ')}</p>
           <div className="card__foot">
-            <span className="card__price">{formatCents(product.priceCents)}</span>
+            <span className="card__price">{formatUsd(product.price)}</span>
             <span className="card__cta" aria-hidden="true">
               View →
             </span>

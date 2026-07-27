@@ -12,13 +12,13 @@ import useSeo from '../lib/useSeo.js'
 // Country is the last comma-separated part of the origin string.
 const countryOf = (origin) => origin.split(',').pop().trim()
 
-// Candidate price buckets (integer cents). Only non-empty ones are shown, so
+// Candidate price buckets (USD dollars). Only non-empty ones are shown, so
 // the facet scales with whatever catalog is loaded.
 const PRICE_BUCKETS = [
-  { id: 'under-20', label: 'Under $20', test: (c) => c < 2000 },
-  { id: '20-25', label: '$20–$25', test: (c) => c >= 2000 && c < 2500 },
-  { id: '25-30', label: '$25–$30', test: (c) => c >= 2500 && c < 3000 },
-  { id: 'over-30', label: '$30+', test: (c) => c >= 3000 },
+  { id: 'under-20', label: 'Under $20', test: (p) => p < 20 },
+  { id: '20-25', label: '$20–$25', test: (p) => p >= 20 && p < 25 },
+  { id: '25-30', label: '$25–$30', test: (p) => p >= 25 && p < 30 },
+  { id: 'over-30', label: '$30+', test: (p) => p >= 30 },
 ]
 const bucketById = (id) => PRICE_BUCKETS.find((b) => b.id === id)
 
@@ -95,7 +95,7 @@ export default function Shop() {
   // Only offer price buckets that actually contain products.
   const priceBuckets = useMemo(() => {
     if (!products) return []
-    return PRICE_BUCKETS.filter((b) => products.some((p) => b.test(p.priceCents))).map(
+    return PRICE_BUCKETS.filter((b) => products.some((p) => b.test(p.price))).map(
       ({ id, label }) => ({ id, label }),
     )
   }, [products])
@@ -107,7 +107,7 @@ export default function Shop() {
     let list = products.filter((p) => {
       if (roasts.size && !roasts.has(p.roast)) return false
       if (origin && countryOf(p.origin) !== origin) return false
-      if (bucket && !bucket.test(p.priceCents)) return false
+      if (bucket && !bucket.test(p.price)) return false
       if (q) {
         const hay = `${p.name} ${p.origin} ${p.tastingNotes.join(' ')}`.toLowerCase()
         if (!hay.includes(q)) return false
@@ -116,10 +116,10 @@ export default function Shop() {
     })
     switch (sort) {
       case 'price-asc':
-        list = [...list].sort((a, b) => a.priceCents - b.priceCents)
+        list = [...list].sort((a, b) => a.price - b.price)
         break
       case 'price-desc':
-        list = [...list].sort((a, b) => b.priceCents - a.priceCents)
+        list = [...list].sort((a, b) => b.price - a.price)
         break
       case 'name':
         list = [...list].sort((a, b) => a.name.localeCompare(b.name))

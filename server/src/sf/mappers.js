@@ -5,12 +5,11 @@
  * (identical to Phases 1–2) never leaks Salesforce specifics. If a field is
  * renamed in the org, it changes here and nowhere else.
  *
- * Money: Salesforce stores currency in dollars (Number). The app uses integer
- * cents everywhere, so we convert on the boundary.
+ * Money: Salesforce stores currency in dollars (Number) and so does the app —
+ * USD dollars end-to-end, no conversion. `round2` snaps to whole cents.
  */
 
-export const dollarsToCents = (dollars) => Math.round(Number(dollars || 0) * 100)
-export const centsToDollars = (cents) => Number(cents || 0) / 100
+import { round2 } from '../lib/totals.js'
 
 /** Split a semicolon-separated notes field into a trimmed array. */
 function parseNotes(value) {
@@ -32,7 +31,7 @@ export function productFromSf(record) {
     name: record.Name,
     origin: record.Origin__c || '',
     roast: record.Roast__c || '',
-    priceCents: dollarsToCents(entry?.UnitPrice),
+    price: Number(entry?.UnitPrice || 0),
     weightGrams: Number(record.Weight_Grams__c || 0),
     tastingNotes: parseNotes(record.Tasting_Notes__c),
     process: record.Process__c || '',
@@ -74,14 +73,14 @@ export const PRODUCT_FIELDS = [
  * Fields selected whenever we read an Order. Standard-first: the lifecycle is the
  * standard `Status` field, the merchandise total is the standard `TotalAmount`
  * rollup, and the order date is standard. Only genuinely-no-standard concepts
- * (shopper link, guest email, promo/discount/shipping cents, payment ref,
- * tracking) remain custom. See docs/SALESFORCE_CONVENTIONS.md.
+ * (shopper link, guest email, promo, discount/shipping amount in USD, payment
+ * ref, tracking) remain custom. See docs/SALESFORCE_CONVENTIONS.md.
  */
 export const ORDER_FIELDS =
   'Id, OrderNumber, Status, EffectiveDate, CreatedDate, ActivatedDate, TotalAmount, AccountId, ' +
   'Guest_Email__c, Shopper__c, ' +
-  'Discount_Cents__c, Promo_Code__c, ' +
-  'Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c, ' +
+  'Discount__c, Promo_Code__c, ' +
+  'Shipping_Amount__c, Payment_Intent__c, Tracking_Number__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
 
 /**
@@ -110,18 +109,19 @@ export function orderFromSf(order, items = []) {
     id: it.Product2?.ProductCode || it.Product2Id,
     name: it.Product2?.Name || '',
     qty: Number(it.Quantity || 0),
-    unitPriceCents: dollarsToCents(it.UnitPrice),
-    lineCents: dollarsToCents(it.TotalPrice ?? it.UnitPrice * it.Quantity),
+    unitPrice: Number(it.UnitPrice || 0),
+    lineTotal: round2(it.TotalPrice ?? it.UnitPrice * it.Quantity),
   }))
   // Merchandise subtotal comes from the standard TotalAmount rollup (fallback to
-  // the line items if it hasn't calculated yet). Discount + shipping are custom.
-  const subtotalCents =
+  // the line items if it hasn't calculated yet). Discount + shipping are custom
+  // USD-dollar currency fields.
+  const subtotal =
     order.TotalAmount != null
-      ? dollarsToCents(order.TotalAmount)
-      : lines.reduce((sum, l) => sum + l.lineCents, 0)
-  const discountCents = Number(order.Discount_Cents__c || 0)
-  const shippingCents = Number(order.Shipping_Cents__c || 0)
-  const totalCents = subtotalCents - discountCents // merchandise after discount
+      ? Number(order.TotalAmount)
+      : round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
+  const discount = Number(order.Discount__c || 0)
+  const shippingCost = Number(order.Shipping_Amount__c || 0)
+  const total = round2(subtotal - discount) // merchandise after discount
   const status = orderStatus(order)
   const paid = status === 'paid' || status === 'shipped' || status === 'delivered'
 
@@ -132,12 +132,12 @@ export function orderFromSf(order, items = []) {
     paymentStatus: paid ? 'paid' : status === 'cancelled' ? 'refunded' : 'unpaid',
     trackingNumber: order.Tracking_Number__c || null,
     items: lines,
-    subtotalCents,
-    discountCents,
-    shippingCents,
-    paidCents: totalCents + shippingCents,
+    subtotal,
+    discount,
+    shippingCost,
+    paid: round2(total + shippingCost),
     promoCode: order.Promo_Code__c || null,
-    totalCents,
+    total,
     placedAt: order.EffectiveDate || order.CreatedDate || new Date().toISOString(),
     email: order.Guest_Email__c || null,
     shipping: hasShipping

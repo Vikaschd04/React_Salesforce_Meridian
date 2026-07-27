@@ -15,8 +15,8 @@
  * Idempotent. Ensures:
  *   - Standard Order Status picklist has Shipped + Cancelled values
  *   - Custom Order fields with no standard equivalent: Shopper__c (Lookup→
- *     Contact), Guest_Email__c, Discount_Cents__c, Promo_Code__c,
- *     Shipping_Cents__c, Payment_Intent__c, Tracking_Number__c
+ *     Contact), Guest_Email__c, Discount__c, Promo_Code__c,
+ *     Shipping_Amount__c, Payment_Intent__c, Tracking_Number__c
  *   - Permission Set "Meridian_Web_Integration" with FLS on those custom fields,
  *     assigned to the integration (Run-As) user.
  *
@@ -56,13 +56,13 @@ const FIELDS = [
   },
   {
     sobject: 'Order',
-    probe: 'Discount_Cents__c',
+    probe: 'Discount__c',
     def: {
-      fullName: 'Order.Discount_Cents__c',
-      label: 'Discount Cents',
-      type: 'Number',
+      fullName: 'Order.Discount__c',
+      label: 'Discount',
+      type: 'Currency',
       precision: 12,
-      scale: 0,
+      scale: 2,
     },
   },
   {
@@ -88,13 +88,13 @@ const FIELDS = [
   },
   {
     sobject: 'Order',
-    probe: 'Shipping_Cents__c',
+    probe: 'Shipping_Amount__c',
     def: {
-      fullName: 'Order.Shipping_Cents__c',
-      label: 'Shipping Cents',
-      type: 'Number',
+      fullName: 'Order.Shipping_Amount__c',
+      label: 'Shipping Amount',
+      type: 'Currency',
       precision: 12,
-      scale: 0,
+      scale: 2,
     },
   },
   {
