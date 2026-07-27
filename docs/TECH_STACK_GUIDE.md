@@ -161,7 +161,7 @@ never have to make itself.
    checkout — the browser can send whatever cart it wants, the BFF is the
    only thing that decides the real price. (See `server/src/store/orders.js`.)
 3. **Translate between "what the UI needs" and "what Salesforce has."** The
-   React app never sees a Salesforce field name like `Shopper__c` or
+   React app never sees a Salesforce field name like `AccountId` or
    `PersonEmail` — it sees a clean shape like `{ orderId, status, items }`.
    That translation happens in `server/src/sf/mappers.js` and friends.
 4. **Be swappable underneath.** Every route calls a `store/*.js` function,
@@ -213,7 +213,7 @@ callers.
 
 **b. Query data (SOQL)** — the most common usage, e.g. in `orders.js`:
 ```js
-conn.query(`SELECT Id, OrderNumber, Status FROM Order WHERE Shopper__c = '${id}'`)
+conn.query(`SELECT Id, OrderNumber, Status FROM Order WHERE AccountId = '${personAccountId}'`)
 ```
 jsforce sends the SOQL over the REST API and parses the JSON response into
 plain JS objects/arrays.
@@ -440,7 +440,7 @@ logged-in shopper's browser loads their order history, in Salesforce mode:
    via the authenticated `conn`, using the cached OAuth token from
    `sf/client.js` (re-authenticating once, transparently, if it had expired).
 7. **Mapping** — `sf/mappers.js` turns raw Salesforce field names
-   (`OrderNumber`, `Status`, `Shopper__c`, …) into the clean shape the
+   (`OrderNumber`, `Status`, `AccountId`, …) into the clean shape the
    frontend expects (`{ orderId, status, items, … }`) — this is the BFF
    boundary from §4 in action.
 8. **Response** — the route handler `res.json(...)`s that shape back through

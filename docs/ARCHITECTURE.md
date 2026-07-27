@@ -149,7 +149,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 
 | File | Role |
 |---|---|
-| `money.js` | `formatCents(cents)` — the only place currency is formatted. Money is stored as **integer cents** everywhere in the app. |
+| `money.js` | `formatUsd(dollars)` — the only place currency is formatted — plus `round2()` and `orderPaidUsd()`. Money is **USD dollars** (a decimal Number) everywhere in the app. |
 | `geo.js` | Formats `{lat, long}` into the coordinate-label strings used by `CoordTag`. |
 | `useSeo.js` | Sets `document.title` + meta description/OG tags per route (§4.5). |
 | `useRefreshOnFocus.js` | Re-runs a callback when the tab regains focus/visibility — used on account pages so a Salesforce-side order-status change appears without a manual reload. |
@@ -217,12 +217,12 @@ Each file exports the same function signatures regardless of data source; every 
 | `client.js` | `getConnection()`, `withConn(fn)`, `resetConnection()` | — (OAuth Client Credentials auth; see §5) |
 | `mappers.js` | Field-name lists + record⇄app-shape converters (`orderFromSf`, `productFromSf`, `orderStatus()`) | — (shared helper, no calls of its own) |
 | `catalog.js` | `getProducts`, `getProduct`, `getProductsByCodes` | `Product2`, `PricebookEntry` |
-| `orders.js` | `createOrder` (attaches to the shopper's own person account, else the shared account for guests), `getOrder`, `cancelOrder`, `listOrdersForContact`, `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
+| `orders.js` | `createOrder` (attaches to the shopper's own person account — the standard shopper↔order link — else the shared account for guests), `getOrder`, `cancelOrder`, `listOrdersForContact` (queries `WHERE AccountId = personAccount`), `trackOrder` (guest, email-verified) | `Order`, `OrderItem`, `Account`, `Pricebook2`, `Product2` |
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
 | `contacts.js` | `findByEmail`, `createShopper` (creates a **Person Account** — Account + backing Contact), `verifyPassword`, `updateShopper`, `toProfile` | `Account` (PersonAccount RT) + `Contact` (the backing person contact holds `Password_Hash__c`; the app is keyed on it) |
 | `promos.js` | `getCouponRule`, `countRedemptions`, `recordRedemption` — reads the coupon/promotion definition + writes redemptions (§4.2) | `Coupon`, `Promotion`, `PromotionTarget`, `PromotionQualifier`, `CouponCodeRedemption` |
-| `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | `Meridian_Wishlist_Item__c` (junction Contact↔Product2) |
-| `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | `Meridian_Address__c` (keyed to Contact — standard `ContactPointAddress` can't parent to a Contact; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
+| `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | standard `Wishlist` + `WishlistItem` (one Wishlist per shopper's Person Account + WebStore) |
+| `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | standard `ContactPointAddress` (parented to the shopper's Person Account; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
 | `cases.js` | `createCase` (links `ContactId`), `listCasesForContact`, `getCaseForContact` (+ public `CaseComment` thread) | `Case`, `CaseComment` |
 | `seed.js` | *(script, not imported at request time)* — `npm run seed` | `Product2` + `PricebookEntry` |
@@ -240,7 +240,7 @@ standard vs. custom and why.
 |---|---|
 | `errors.js` | `ApiError` + typed constructors (`badRequest`, `notFoundError`, `paymentError`, …) and the central Express error handler — every error response is `{ error: <code>, message: <friendly text> }` with the right HTTP status. |
 | `session.js` | Signs/verifies the shopper session **JWT** (httpOnly cookie `meridian_session`; carries `{ id, email, firstName, lastName }` — never the hash). Also mints/reads the short-lived order-scoped **track token** for the public guest-tracking SSE (§4.10). |
-| `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in integer cents. Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
+| `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in **USD dollars** (with `round2()` to snap to whole cents). Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
 | `cache.js` | Tiny TTL wrap-cache (`cache.wrap(key, fn)`) used for product reads, to stay under Salesforce API limits. |
 | `orderEvents.js` | In-process `EventEmitter` bus for order-status changes (`{contactId, orderId, status}`) — the seam between the change *sources* (`sf/orderStream.js` / the mock dev-trigger) and the SSE route that fans out to browsers (§4.9). |
 
@@ -323,9 +323,10 @@ queue, a verified-purchase requirement, and star badges on the catalog grid
 ### 4.7 Wishlist / favorites (`WishlistButton.jsx` + `WishlistContext.jsx` → `routes/account.js` → `store/wishlist.js` → `sf/wishlist.js`)
 
 Logged-in shoppers save coffees via a heart on every product card/detail and
-review them on a Wishlist account tab (`Wishlist.jsx`). Server-persisted to a
-junction object `Meridian_Wishlist_Item__c` (Contact↔Product2), so it follows
-the shopper across devices. `WishlistContext` holds a `Set` of saved ids for
+review them on a Wishlist account tab (`Wishlist.jsx`). Server-persisted to the
+standard `Wishlist` + `WishlistItem` objects (one Wishlist per shopper's Person
+Account + a WebStore; saved coffees are WishlistItem rows), so it follows the
+shopper across devices. `WishlistContext` holds a `Set` of saved ids for
 instant heart state; `toggle` is optimistic. On product cards the heart is a
 sibling of the card `<Link>` (not nested — a button inside an `<a>` is
 invalid/inaccessible). v1 requires login to save (a guest is routed to
@@ -335,11 +336,10 @@ invalid/inaccessible). v1 requires login to save (a guest is routed to
 
 Logged-in shoppers save shipping addresses (Addresses account tab) and pick
 one at checkout — the default auto-fills, a picker switches between saved
-addresses, and a checkbox saves a newly-typed one. Backed by a custom
-`Meridian_Address__c` keyed to the Contact: the standard `ContactPointAddress`
-object exists but its `ParentId` can't reference a Contact (proven by a failed
-insert), and our shoppers are Contacts. One default per shopper, enforced
-server-side in both mock and Salesforce paths. See
+addresses, and a checkbox saves a newly-typed one. Backed by the standard
+`ContactPointAddress` object, parented to the shopper's Person Account (viable
+now that shoppers are Person Accounts — CPA needs an Account/Individual parent).
+One default per shopper, enforced server-side in both mock and Salesforce paths. See
 [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md) and
 [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
 

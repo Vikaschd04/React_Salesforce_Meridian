@@ -63,9 +63,9 @@ instead:
   that decides mock vs. Salesforce; `server/src/sf/*.js` is the only place
   that knows a Salesforce field's API name. Swapping an implementation should
   never require touching a page/route/component.
-- Store money as **integer cents**; format only at display time
-  (`src/lib/money.js`). Every price, discount, and total is **recomputed
-  server-side** from trusted data — the client never sets a price.
+- Store money as **USD dollars** (a decimal Number); format only at display time
+  (`src/lib/money.js` — `formatUsd`, `round2`). Every price, discount, and total
+  is **recomputed server-side** from trusted data — the client never sets a price.
 - Handle loading and error states on every data-fetching screen.
 - Meet the quality floor: responsive to mobile, visible keyboard focus,
   respect `prefers-reduced-motion`, semantic HTML, both themes supported by

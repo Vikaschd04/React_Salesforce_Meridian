@@ -64,8 +64,9 @@ makes the SOQL query fail.
 1. Create one **Account** named exactly **`Meridian Web Orders`** (App Launcher →
    Accounts → New). *Why:* standard Orders require an Account; guest web orders
    hang off this one. (Or let `npm run seed` create it.)
-2. Add custom field on **Order**: `Total_Cents__c` — Number (12, 0). *Why:* stores
-   the server-computed total in integer cents so the receipt matches exactly.
+2. *(No manual money field needed.)* The merchandise total is the standard
+   `Order.TotalAmount`; discount/shipping are the custom Currency fields
+   `Discount__c` / `Shipping_Amount__c` (USD dollars), created by `sf:setup` below.
 3. *(Optional)* Add `GuestEmail__c` (Email) on Order for later phases.
 
 ## 3b. Shopper accounts (login / signup)
@@ -84,19 +85,21 @@ access — no manual work:
 ```
 cd server
 npm run sf:setup     # adds Order.Status values Shipped, Cancelled;
-                     # creates Shopper__c (Lookup→Contact), Guest_Email__c,
-                     # Discount_Cents__c, Promo_Code__c, Shipping_Cents__c,
-                     # Payment_Intent__c, Tracking_Number__c; the review /
-                     # wishlist / address custom objects; enables Order CDC;
+                     # creates Guest_Email__c, Discount__c (USD), Promo_Code__c,
+                     # Shipping_Amount__c (USD), Payment_Intent__c,
+                     # Tracking_Number__c; the Product Review custom object;
+                     # grants access to the standard Wishlist/WishlistItem and
+                     # ContactPointAddress objects; enables Order CDC;
                      # + permission set + assignment
 ```
 *(If your integration user can't modify metadata, add those Status picklist
 values and custom fields manually, then grant the Run-As user access.)*
 
-**Accounts are B2C.** Every shopper is an individual `Contact` (one login = one
-person); there's no company/team-account concept. Each web order lands on the
-single shared "Meridian Web Orders" Account and links to the shopper via
-`Order.Shopper__c`, so order history is per person.
+**Accounts are B2C.** Every registered shopper is a **Person Account** (one login
+= one person); there's no company/team-account concept. A registered shopper's
+web order lands on **their own Person Account** (`Order.AccountId`) — that
+standard link is how order history is per person. Guest orders land on the shared
+"Meridian Web Orders" Account.
 
 **Order lifecycle — the merchant runs fulfillment in Salesforce, on the standard
 `Status` field.** A paid order lands as `Status = Activated`. To advance it, open

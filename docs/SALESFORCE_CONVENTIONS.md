@@ -26,10 +26,13 @@ the data portable to other Salesforce tooling (reports, flows, list views).
 | Order + line items | `Order` + `OrderItem` |
 | Order lifecycle / status | **`Order.Status`** — Draft(=Placed) → Activated(=paid) → **Shipped** → Completed(=delivered), or **Cancelled**. New orders insert `Draft`, then the app activates them after payment; the merchant advances the rest **by changing `Status` in Salesforce**. |
 | Merchandise subtotal | **`Order.TotalAmount`** (currency rollup of the line items — read-only) |
+| Money everywhere | **USD dollars** (a decimal Number), never cents — Salesforce currency fields are already dollars (`TotalAmount`, `Discount__c`, `Shipping_Amount__c`), and the app matches them end-to-end. `round2()` snaps to whole cents at each boundary; the only place cents appear is the Stripe API call (`amount = round(usd * 100)`). |
 | Order date / activation | **`Order.EffectiveDate`** / **`Order.ActivatedDate`** |
 | Shipping address | standard **`Order.Shipping*`** fields (+ `ShippingStateCode` / `ShippingCountryCode` because State & Country picklists are enabled) |
+| Saved addresses (account) | standard **`ContactPointAddress`** parented to the shopper's **Person Account** (`ParentId`). label→`Name`, recipient→`AddressFirstName`/`AddressLastName`, `Street`/`City`/`StateCode`/`PostalCode`/`CountryCode`, `IsDefault`↔`IsPrimary`, `AddressType='Shipping'`. One default per shopper (app-enforced). Now possible because shoppers are Person Accounts — CPA rejects a bare Contact parent, which is why this used to be custom. |
+| Wishlist (saved products) | standard **`Wishlist`** + **`WishlistItem`** — one `Wishlist` per shopper (parented to their Person Account + a `WebStore`, which the standard object requires), saved products are `WishlistItem` rows (`Product2Id`). Replaces the old custom junction object. |
 | Registered shopper (login/signup) | standard **Person Account** (B2C) — one record that is both `Account` (Name + `PersonEmail`) and its backing `Contact` (`PersonContactId`). Created via `Account` insert with the `PersonAccount` record type; the app's identity is the backing Contact (holds `Password_Hash__c`; login is by `Contact.Email`). |
-| Order account | standard **`Account`** via `Order.AccountId` — a **registered** shopper's order lands on **their own person account**; a **guest** order lands on the shared "Meridian Web Orders" catch-all Account. Either way the order also links to the person via `Order.Shopper__c` (order history is by person). |
+| Order account + shopper link | standard **`Account`** via **`Order.AccountId`** — a **registered** shopper's order lands on **their own Person Account**, which IS the shopper↔order link (order history queries `WHERE AccountId = personAccount`, real-time CDC resolves the owner via `Account.PersonContactId`). A **guest** order lands on the shared "Meridian Web Orders" catch-all Account (excluded from personal history; tracked by `Guest_Email__c`). No custom `Shopper__c` field. |
 | Support requests + tracking | standard **`Case`** (`Origin`, `Subject`, `Description`, `Supplied*`, `Status`, `ContactId` for logged-in shoppers) + standard **`CaseComment`** for the customer-visible reply thread (only `IsPublished = true` comments are shown — internal notes never leak). No custom schema. |
 | Promotions / coupons | standard Commerce objects — **`Coupon`** (code, `Status`, `StartDateTime`/`EndDateTime` for validity/expiry, `RedemptionLimit*` for usage limits) → **`Promotion`** (`IsActive`, `StartDate`/`EndDate`) → **`PromotionTarget`** (the discount: `PercentageDiscount` / `FixedAmountOff…` / `TargetType=Shipping`) + **`PromotionQualifier`** (`MinimumAmount` = min-subtotal); usage tracked via **`CouponCodeRedemption`**. A merchant creates/governs coupons in Salesforce; the app reads + applies them (the discount is still computed server-side against trusted prices). **Replaces** the old hardcoded BFF table — a standard-first win with no custom schema. `npm run sf:setup` seeds the demo codes. |
 
@@ -60,15 +63,23 @@ all sit inside the same `Activated` category.
 Each is justified; all are created/granted by `npm run sf:setup`.
 | Custom field | Why no standard field |
 |---|---|
-| `Order.Shopper__c` (Lookup→Contact) | `BillToContactId` / `ShipToContactId` are **not exposed** on this org's Order. |
 | `Order.Guest_Email__c` (Email) | Base Order has no customer-email field. |
-| `Order.Discount_Cents__c` (Number) | No standard order-level discount amount. |
+| `Order.Discount__c` (Currency, **USD dollars**) | No standard order-level discount amount. |
 | `Order.Promo_Code__c` (Text) | No standard promo/coupon field. |
-| `Order.Shipping_Cents__c` (Number) | No standard shipping-cost field on base Order. |
+| `Order.Shipping_Amount__c` (Currency, **USD dollars**) | No standard shipping-cost field on base Order. |
 | `Order.Payment_Intent__c` (Text) | No standard payment reference on base Order (payments live in separate managed packages/OMS). |
 | `Order.Tracking_Number__c` (Text) | No standard tracking-number field on base Order. |
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
 | `Product2.*` (Origin, Roast, Tasting_Notes, …) | Coffee attributes with no standard analog. |
+
+> The shopper↔order link no longer needs a custom field: it's the standard
+> **`Order.AccountId`** (a registered shopper's own Person Account). `BillToContactId`
+> is still not exposed on this org's Order — but with Person Accounts, `AccountId`
+> carries the link, so the old `Order.Shopper__c` was dropped.
+>
+> Money is **USD dollars** on these fields (`Order.Discount__c`, `Order.Shipping_Amount__c`
+> are Currency), matching the standard `TotalAmount`. The old integer-cents fields
+> (`Discount_Cents__c` / `Shipping_Cents__c`) are deprecated — see below.
 
 ## Custom objects we keep (no standard equivalent on this org)
 The checklist above is field-first ("is there a standard *field*?") — the
@@ -79,9 +90,15 @@ this app the answer was yes (`Product2`, `Order`, `Account`, `Contact`,
 
 | Custom object | Why no standard object |
 |---|---|
-| `Meridian_Product_Review__c` | Star ratings + written reviews on a product are a Commerce Cloud B2C concept — this org is Sales Cloud, which has no standard review/rating object. Fields: `Product__c` (Lookup→Product2), `Contact__c` (Lookup→Contact), `Rating__c` (Number 1–5), `Title__c` (Text), `Body__c` (Long Text Area), `Reviewer_Name__c` (Text, a display-name snapshot). One review per (shopper, product) pair, enforced by the app, not a validation rule. Created/granted by `npm run sf:setup`. |
-| `Meridian_Wishlist_Item__c` | A shopper's saved products — a B2C wishlist, with no standard object on Sales Cloud. A junction: `Contact__c` (Lookup→Contact) + `Product__c` (Lookup→Product2), one row per saved (shopper, product) pair. Created/granted by `npm run sf:setup`. Its permission grant is read/**create/edit/delete** (rows are added and removed) — note Salesforce requires `allowEdit` whenever `allowDelete` is granted, even though the app never edits a row. |
-| `Meridian_Address__c` | A shopper's saved shipping addresses. **The standard `ContactPointAddress` object exists and is writable on this org** and has the right fields — but its `ParentId` only accepts `Account` or `Individual`, **not `Contact`** (verified: a real insert with a Contact parent fails `FIELD_INTEGRITY_EXCEPTION`). Meridian's shoppers are Contacts, so using it would require dragging in the whole `Individual` object layer — disproportionate. So a custom object keyed to `Contact__c`, mirroring the app's shipping shape (`Label__c`, `Recipient_Name__c`, `Street__c`, `City__c`, `State_Code__c`, `Postal_Code__c`, `Country_Code__c` as ISO-code text validated by the app, `Is_Default__c`). One default per shopper, enforced by the app. Full CRUD grant. |
+| `Meridian_Product_Review__c` | Star ratings + written reviews on a product are a Commerce Cloud B2C concept — this org is Sales Cloud, which has no standard review/rating object (probed: no `ProductReview`). Fields: `Product__c` (Lookup→Product2), `Contact__c` (Lookup→Contact), `Rating__c` (Number 1–5), `Title__c` (Text), `Body__c` (Long Text Area), `Reviewer_Name__c` (Text, a display-name snapshot). One review per (shopper, product) pair, enforced by the app, not a validation rule. Created/granted by `npm run sf:setup`. |
+
+> **Wishlist and saved addresses used to be custom objects here** —
+> `Meridian_Wishlist_Item__c` and `Meridian_Address__c`. They are now the
+> **standard `Wishlist`/`WishlistItem` and `ContactPointAddress`** objects (see the
+> "map to STANDARD" table above). `ContactPointAddress` became viable once shoppers
+> were modelled as **Person Accounts** — it parents to an Account, so the old
+> "ParentId won't accept a Contact" blocker no longer applies. The custom objects
+> are deprecated (see below).
 
 > **Naming note:** this org already has an unrelated, pre-existing custom
 > object literally named `Product_Review__c` (no `Contact__c`, uses
@@ -106,13 +123,24 @@ feature already does the job).
 `Order.Total_Cents__c` → `TotalAmount`; `Order.Cancelled__c` /
 `Order.Payment_Status__c` / `Order.Fulfillment_Status__c` → `Status`;
 `Order.Shipped_Date__c` → dropped (no standard ship date; status + `ActivatedDate`
-suffice). These are no longer read or written; they can be deleted from the org
-once historical orders no longer need them.
+suffice).
+
+**Standard-first cleanup (2026-07):**
+- `Order.Shopper__c` → standard **`Order.AccountId`** (registered shopper's Person Account).
+- `Order.Discount_Cents__c` → **`Order.Discount__c`** (Currency, USD dollars).
+- `Order.Shipping_Cents__c` → **`Order.Shipping_Amount__c`** (Currency, USD dollars).
+- `Meridian_Wishlist_Item__c` → standard **`Wishlist`/`WishlistItem`**.
+- `Meridian_Address__c` → standard **`ContactPointAddress`**.
+
+All of the above are **no longer read or written** by the app — safe to delete
+from the org in Setup whenever historical rows are no longer needed (`sf:setup`
+neither creates nor touches them anymore).
 
 ## Removed
 `Account.Company_Domain__c` (and the whole B2B "company account / shared team
 order history" feature) was **removed** — the app is now B2C only (one login =
-one individual `Contact`, order history by `Order.Shopper__c`). The custom field
+one individual `Contact`, order history by the shopper's own Person Account via
+`Order.AccountId`). The custom field
 was deleted from the org by the removal. Any company `Account`s created during
 the B2B phase are harmless leftovers (personal order history doesn't depend on
 them). A shared-account feature may return later as a properly-governed one.

@@ -77,7 +77,7 @@ own origin.
 |-------------------|-------------------------------------------------------------------|
 | `npm run dev`     | Start the BFF with auto-reload                                     |
 | `npm run seed`    | Create/update the 16 `Product2` records + standard prices in SF   |
-| `npm run sf:setup`| Create `Order.Shopper__c` + permission set, assign to the user    |
+| `npm run sf:setup`| Create Order custom fields + Product Review object, grant standard-object access (Wishlist/ContactPointAddress/…) via the permission set, assign to the user |
 | `npm run sf:check`| Read-only readiness check (auth, fields, account, products)       |
 
 ---
@@ -122,12 +122,14 @@ The `sf/` folder is the only place that knows Salesforce field names:
 | File                | Responsibility                                                     |
 |---------------------|--------------------------------------------------------------------|
 | `sf/client.js`      | Auth, cached connection, retry                                     |
-| `sf/mappers.js`     | Salesforce record ⇄ app shape; dollars⇄cents; field API names      |
+| `sf/mappers.js`     | Salesforce record ⇄ app shape; USD dollars (no unit conversion); field API names |
 | `sf/catalog.js`     | Product SOQL queries                                               |
 | `sf/orders.js`      | Create Order + OrderItems (Composite API); read/list orders        |
 | `sf/contacts.js`    | Shopper Contact create/find, password hashing                      |
 | `sf/seed.js`        | Populate products + prices                                         |
-| `sf/setup-schema.js`| Create `Order.Shopper__c` + permission set                        |
+| `sf/wishlist.js`    | Standard `Wishlist`/`WishlistItem` CRUD                            |
+| `sf/addresses.js`   | Standard `ContactPointAddress` CRUD                                |
+| `sf/setup-schema.js`| Create Order custom fields + Review object + permission set        |
 | `sf/check.js`       | Readiness diagnostic                                               |
 
 `store/catalog.js`, `store/orders.js`, `store/auth.js` each pick mock vs
@@ -151,7 +153,7 @@ Salesforce based on `DATA_SOURCE`; the route layer never changes.
    Meridian coffees only**, so the org's pre-existing B2B Commerce products
    don't leak into the storefront.
 4. `sf/mappers.js` converts each record to the app shape: `ProductCode` → `id`,
-   `UnitPrice` (dollars) × 100 → `priceCents`, `Tasting_Notes__c` split on `;`.
+   `UnitPrice` → `price` (USD dollars, no conversion), `Tasting_Notes__c` split on `;`.
 5. Product reads pass through a short in-memory TTL cache (Salesforce API limits).
 
 `ProductCode` **is** the app's product id/slug (e.g. `yirgacheffe-koke`), which
@@ -176,9 +178,10 @@ Trigger: shopper clicks **Checkout** with a cart of `[{ id, qty }]`.
    - Resolves and caches two ids: the `Meridian Web Orders` **Account** and the
      **Standard Pricebook** (`getRefs()`).
    - Builds **one Composite API request** (`allOrNone: true`) that creates:
-     - an **`Order`**: `AccountId`, `Pricebook2Id`, `EffectiveDate` (today),
-       `Status = 'Draft'`, `Total_Cents__c` (integer cents), and — if logged in —
-       `Shopper__c` = the shopper's Contact Id.
+     - an **`Order`**: `AccountId` (the shopper's own Person Account if logged in,
+       else the shared account — this carries the shopper link, no custom field),
+       `Pricebook2Id`, `EffectiveDate` (today), `Status = 'Draft'`,
+       `Discount__c` / `Shipping_Amount__c` (Currency, USD dollars).
      - one **`OrderItem`** per line, referencing the new order via
        `@{newOrder.id}`, with `Product2Id`, `PricebookEntryId`, `Quantity`,
        `UnitPrice`.
@@ -187,8 +190,11 @@ Trigger: shopper clicks **Checkout** with a cart of `[{ id, qty }]`.
 5. **UI** navigates to `/confirmation/:orderId`; the confirmation page can
    re-fetch it via `GET /api/orders/:id`.
 
-Money is stored as **integer cents** everywhere in the app; Salesforce stores
-dollars. Conversion happens only at the `sf/mappers.js` boundary.
+Money is **USD dollars** (a decimal Number) everywhere — the app and Salesforce
+match, so there's no unit conversion at the `sf/mappers.js` boundary. `round2()`
+(in `server/src/lib/totals.js` and `src/lib/money.js`) snaps to whole cents at
+each money boundary; the only place cents appear is the Stripe API call
+(`amount = round(usd * 100)` in `pay/index.js`).
 
 ---
 
@@ -219,24 +225,28 @@ the same bcrypt + cookie logic applies.
 
 ## 9. How orders are linked to a user
 
-- **Logged-in checkout** sets **`Order.Shopper__c`** (a custom Lookup → Contact)
-  to the shopper's Contact Id, and **`Order.AccountId` to the shopper's own
-  person account** (resolved from `Contact.AccountId`) — so the order shows up
-  on that customer's account in Salesforce.
+- **Logged-in checkout** sets **`Order.AccountId` to the shopper's own Person
+  Account** (resolved from `Contact.AccountId`, cached). That standard link IS the
+  shopper↔order relationship — there is no custom `Shopper__c` field.
 - **Order history** (`GET /api/account/orders`, requires a session) runs
-  `sf/orders.listOrdersForContact(contactId)`:
+  `sf/orders.listOrdersForContact(contactId)`, which resolves the shopper's Person
+  Account and queries:
   ```sql
-  SELECT ... FROM Order WHERE Shopper__c = :contactId ORDER BY CreatedDate DESC
+  SELECT ... FROM Order WHERE AccountId = :personAccountId ORDER BY CreatedDate DESC
   ```
-  then loads the OrderItems for those orders in one query.
-- **Guest checkout** still works: the order is created with **no** `Shopper__c`,
-  attached to the shared `Meridian Web Orders` account, and simply won't appear
-  in anyone's history.
+  then loads the OrderItems for those orders in one query. Ownership checks
+  (`getOrder`, `cancelOrder`) compare the order's `AccountId` to the shopper's
+  Person Account the same way.
+- **Guest checkout** still works: the order lands on the shared `Meridian Web
+  Orders` account (not a Person Account), so it never appears in any shopper's
+  personal history; guests track it by order number + `Guest_Email__c`.
 
-> Why keep a custom `Shopper__c` (not just `AccountId`)? It keeps the app
-> Contact-keyed — identity, login, and history are all by the backing Contact —
-> so the Person Account model is a Salesforce-side detail. And standard
-> `BillToContactId` isn't exposed on this org's `Order`.
+> Why `AccountId` and not a custom shopper field? Once shoppers are **Person
+> Accounts**, a registered shopper's Person Account uniquely identifies them, so
+> `Order.AccountId` is a clean standard link — no custom field needed. The app is
+> still Contact-keyed for identity/login (session = backing Contact id); order
+> reads just translate that Contact → its Person Account. (Standard
+> `BillToContactId` remains unexposed on this org's `Order`, but it's not needed.)
 
 **B2C only:** every shopper is an individual (one login = one person). There's
 no company/team-account concept — a shopper sees only their own orders, and an
@@ -287,13 +297,14 @@ and justification.
 
 Logged-in shoppers can save coffees to a wishlist — a heart on every product
 card and detail page, plus a Wishlist tab in the account showing saved
-coffees. Server-persisted (keyed to the shopper's Contact) so it follows them
-across devices.
+coffees. Server-persisted (keyed to the shopper's Person Account) so it follows
+them across devices.
 
-- Backed by a junction custom object **`Meridian_Wishlist_Item__c`**
-  (`Contact__c` + `Product__c`); one row per saved (shopper, product). No
-  standard wishlist object exists on Sales Cloud — see
-  [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
+- Backed by the **standard `Wishlist` + `WishlistItem`** objects. Each shopper
+  gets one `Wishlist` (parented to their Person Account + a `WebStore`, which the
+  standard object requires — `SF_WEBSTORE_NAME` picks it, defaulting to the first
+  store on the org); saved products are `WishlistItem` rows (`Product2Id`). One
+  row per saved (shopper, product) — see [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
 - `GET /api/account/wishlist` → `string[]` of saved product slugs (tiny
   payload; the UI joins to full products from the catalog it already loads).
   `POST` adds (idempotent — `sf/wishlist.js` skips if a row exists, so no
@@ -315,14 +326,16 @@ across devices.
 Logged-in shoppers save shipping addresses (Addresses account tab) and pick
 one at checkout instead of retyping.
 
-- **Standard-vs-custom, decided by evidence:** Salesforce's standard
-  `ContactPointAddress` exists and is writable on this org, but its `ParentId`
-  only accepts `Account`/`Individual`, **not `Contact`** — proven by a real
-  insert that failed `FIELD_INTEGRITY_EXCEPTION`. Our shoppers are Contacts, so
-  the app uses a custom `Meridian_Address__c` keyed to `Contact__c`. Its fields
-  mirror the app's `shipping` shape (ISO `State_Code__c`/`Country_Code__c` text,
-  validated by `src/data/regions.js`, flowing into the Order's standard
-  `ShippingStateCode`/`ShippingCountryCode` at checkout).
+- **Standard object**, parented to the shopper's **Person Account**: saved
+  addresses are standard **`ContactPointAddress`** rows (`ParentId` = the person
+  account). `ContactPointAddress` only accepts an `Account`/`Individual` parent —
+  which is exactly why this became viable once shoppers were modelled as Person
+  Accounts (it was a custom object back when shoppers were bare Contacts). App
+  shape ⇄ standard fields: label→`Name`, recipient→`AddressFirstName`/
+  `AddressLastName`, ISO `StateCode`/`CountryCode` picklists (validated by
+  `src/data/regions.js`, flowing into the Order's `ShippingStateCode`/
+  `ShippingCountryCode` at checkout), `IsDefault`↔`IsPrimary`,
+  `AddressType='Shipping'`. Only the app's own `Shipping` rows are read/written.
 - CRUD API under `/api/account/addresses` (`GET`/`POST`/`PATCH`/`DELETE`), all
   requiring a session. **One default per shopper**, enforced server-side
   (`sf/addresses.js`/`store/addresses.js` clear the flag on the shopper's other
@@ -350,8 +363,9 @@ page updates **live** — no reload, no manual Refresh.
 - **BFF subscriber** (`sf/orderStream.js`, salesforce mode, booted once at
   startup): subscribes to the CDC channel via the jsforce Streaming API. A CDC
   event carries only the changed fields + record ids — **not** the owner — so
-  the subscriber does one SOQL lookup (`Shopper__c`, `OrderNumber`, `Status`)
-  and publishes `{contactId, orderId, status}` to an in-process event bus
+  the subscriber does one SOQL lookup (`Account.PersonContactId`, `OrderNumber`,
+  `Status`) to resolve the shopper's backing Contact, then publishes
+  `{contactId, orderId, status}` to an in-process event bus
   (`lib/orderEvents.js`). It self-heals: on transport drop / token expiry it
   resets the connection and re-subscribes with capped backoff.
 - **SSE endpoint** `GET /api/account/orders/stream` (`requireAuth`): holds an
@@ -430,7 +444,8 @@ governs them there, the storefront reads + applies them.
   tracked in **`CouponCodeRedemption`**.
 - **Read path** ([`sf/promos.js`](../server/src/sf/promos.js) — the only file that
   reads these): `getCouponRule(code)` resolves a code to a normalized
-  `{ kind, value, minSubtotalCents, validity, limits, label }` (cached briefly).
+  `{ kind, value, minSubtotal, validity, limits, label }` (all money in USD
+  dollars; cached briefly).
   [`store/promos.js`](../server/src/store/promos.js) then runs one shared
   `evaluate()` for the date/active/min/limit checks and computes the discount —
   **server-side, against the trusted subtotal**, exactly as before. Mock mode
@@ -486,9 +501,10 @@ on this org are custom.
 `AccountId`, and the `Shipping*` address fields. New orders insert as `Draft`,
 the app activates them to `Activated` after payment, and **the merchant advances
 the rest by changing `Status` in Salesforce** — the storefront reads it back.
-`AccountId` is the **registered shopper's own person account** (or the shared
-`Meridian Web Orders` Account for guests). The shopper is also linked via the
-custom `Shopper__c` lookup, so order history is by person (`WHERE Shopper__c`).
+`AccountId` is the **registered shopper's own Person Account** (or the shared
+`Meridian Web Orders` Account for guests) — and that standard link IS the
+shopper↔order relationship, so order history is `WHERE AccountId = personAccount`
+(no custom shopper field).
 
 The display status is derived **only** from `Status` in
 [server/src/sf/mappers.js](../server/src/sf/mappers.js) `orderStatus()`:
@@ -498,17 +514,17 @@ Cancelled→cancelled.
 **Custom fields kept** (no standard equivalent; **API-created** by `sf:setup`):
 | API name          | Type          | Purpose                                   |
 |-------------------|---------------|-------------------------------------------|
-| `Shopper__c`      | Lookup→Contact| links an order to the shopper (BillToContactId isn't available on this org). Child rel `Web_Orders`. |
 | `Guest_Email__c`  | Email         | contact email captured at checkout        |
-| `Discount_Cents__c` | Number (12,0) | promo discount, in cents (paid = TotalAmount − discount + shipping) |
+| `Discount__c`     | Currency (12,2) | promo discount in **USD** (paid = TotalAmount − discount + shipping) |
 | `Promo_Code__c`   | Text (40)     | the applied promo code                    |
-| `Shipping_Cents__c` | Number (12,0) | shipping charged, in cents              |
+| `Shipping_Amount__c` | Currency (12,2) | shipping charged, in **USD**          |
 | `Payment_Intent__c` | Text (64)   | payment provider charge id (`pi_mock_…` / Stripe PaymentIntent) |
 | `Tracking_Number__c` | Text (64)  | tracking, shown on the account order timeline |
 
-*Deprecated (migrated to standard, left in the org unused):* `Total_Cents__c`
-→ `TotalAmount`; `Cancelled__c` / `Payment_Status__c` / `Fulfillment_Status__c`
-→ `Status`; `Shipped_Date__c` dropped.
+*Deprecated (migrated to standard, left in the org unused):* `Shopper__c` →
+standard `AccountId`; `Discount_Cents__c` → `Discount__c` (USD); `Shipping_Cents__c`
+→ `Shipping_Amount__c` (USD); `Total_Cents__c` → `TotalAmount`; `Cancelled__c` /
+`Payment_Status__c` / `Fulfillment_Status__c` → `Status`; `Shipped_Date__c` dropped.
 
 The org has
 **State & Country picklists enabled**, so the BFF writes the ISO code fields
@@ -540,32 +556,21 @@ AutoNumber name field (`PR-{0000}`).
 | `Body__c`             | Long Text Area (4000) | the written review         |
 | `Reviewer_Name__c`    | Text (120)        | display-name snapshot at review time |
 
-### 10.4d `Meridian_Wishlist_Item__c` — new custom object (no standard equivalent)
-A junction for the B2C wishlist — one row per saved (shopper, product).
-Created via `npm run sf:setup` (§9d above). AutoNumber name field
-(`MWL-{0000}`).
+### 10.4d Wishlist — standard `Wishlist` + `WishlistItem` (no custom object)
+The B2C wishlist uses the **standard** objects. One `Wishlist` per shopper
+(`AccountId` = their Person Account, `OwnerId` = integration user, `WebStoreId`
+required — picked via `SF_WEBSTORE_NAME`), and a `WishlistItem` (`Product2Id`)
+per saved coffee. `sf:setup` grants object CRUD; there's no custom schema.
+See [§9d](#9d-wishlist--favorites).
 
-| API name     | Type              | Purpose                    |
-|--------------|-------------------|----------------------------|
-| `Contact__c` | Lookup → Contact  | the shopper who saved it   |
-| `Product__c` | Lookup → Product2 | the saved coffee           |
-
-### 10.4e `Meridian_Address__c` — new custom object (standard didn't fit)
-Saved shipping addresses. Standard `ContactPointAddress` exists but can't
-parent to a Contact (§9e) — so a custom object keyed to `Contact__c`. Created
-via `npm run sf:setup`. AutoNumber name field (`MAD-{0000}`).
-
-| API name           | Type             | Purpose                          |
-|--------------------|------------------|----------------------------------|
-| `Contact__c`       | Lookup → Contact | the shopper                      |
-| `Label__c`         | Text (80)        | "Home", "Office"                 |
-| `Recipient_Name__c`| Text (120)       | name on the parcel               |
-| `Street__c`        | Text (255)       |                                  |
-| `City__c`          | Text (80)        |                                  |
-| `State_Code__c`    | Text (10)        | ISO code (validated by the app)  |
-| `Postal_Code__c`   | Text (20)        |                                  |
-| `Country_Code__c`  | Text (10)        | ISO code                         |
-| `Is_Default__c`    | Checkbox         | one default per shopper          |
+### 10.4e Saved addresses — standard `ContactPointAddress` (no custom object)
+Saved shipping addresses are standard **`ContactPointAddress`** rows parented to
+the shopper's Person Account (`ParentId`) — viable now that shoppers are Person
+Accounts (CPA needs an Account/Individual parent). App shape maps to
+`Name`/`AddressFirstName`/`AddressLastName`/`Street`/`City`/`StateCode`/
+`PostalCode`/`CountryCode`/`IsDefault`/`IsPrimary`, `AddressType='Shipping'`.
+`sf:setup` grants object CRUD (+ FLS on the org's required `received_from_SAP__c`
+flag). See [§9e](#9e-saved-addresses).
 
 ### 10.4f Order Change Data Capture (platform capability, not schema)
 `Order` is added to the standard `ChangeEvents` channel via a
@@ -577,18 +582,19 @@ non-fatal; `sf:check` reports whether it's on.
 ### 10.5 Permission set
 - **`Meridian_Web_Integration`** (label "Meridian Web Integration"). Grants
   read/edit field-level security on every API-created field (the Order
-  fields and every `Meridian_Product_Review__c` /
-  `Meridian_Wishlist_Item__c` field above) and object-level access on `Order`,
-  `Meridian_Product_Review__c` (read/create, `viewAllRecords: true` — the
-  integration user reads every shopper's reviews for the aggregate rating, but
-  the app never edits or deletes one), and `Meridian_Wishlist_Item__c`
-  (read/create/edit/delete — wishlist rows are added and removed; Salesforce
-  requires `allowEdit` alongside `allowDelete` even though the app never edits
-  a row), and `Meridian_Address__c` (full read/create/edit/delete — addresses
-  are added, edited, deleted, and re-defaulted). Assigned to the integration
-  user. Created/updated and assigned by `npm run sf:setup`. Needed because a
-  field or object created via the API has no access by default, so the
-  integration user otherwise can't see it.
+  fields and every `Meridian_Product_Review__c` field above) and object-level
+  access on: `Order`; `Meridian_Product_Review__c` (read/create,
+  `viewAllRecords: true` — the integration user reads every shopper's reviews for
+  the aggregate rating, but the app never edits or deletes one); the **standard**
+  `Wishlist` / `WishlistItem` and `ContactPointAddress`
+  (read/create/edit/delete — rows are added, edited, removed, re-defaulted; the
+  integration user *owns* the rows it creates, so no `viewAllRecords` is needed);
+  plus the parent objects those depend on — `Contact` / `Account` / `WebStore`
+  (Read), which Salesforce requires before it will accept Read on
+  Wishlist/ContactPointAddress. Assigned to the integration user.
+  Created/updated and assigned by `npm run sf:setup`. Needed because a field or
+  object created via the API — and standard objects not on the integration user's
+  profile — have no access by default.
 
 ### 10.6 Accounts
 - **Registered shoppers** are **Person Accounts** (B2C) — created at signup via
@@ -632,7 +638,7 @@ non-fatal; `sf:check` reports whether it's on.
 > To recreate this org from scratch: do the manual steps in
 > [`SALESFORCE_SETUP.md`](SALESFORCE_SETUP.md)
 > (§1–§4: Product2/Order/Contact fields, the Account, the Connected App), then
-> `npm run sf:setup` (Shopper__c + permission set) and `npm run seed` (products).
+> `npm run sf:setup` (Order custom fields + permission set) and `npm run seed` (products).
 > `npm run sf:check` verifies all of it.
 
 ---
@@ -647,9 +653,13 @@ non-fatal; `sf:check` reports whether it's on.
   (hundreds of `Product2` records). The storefront query filters on
   `Origin__c != null AND Roast__c != null` so only Meridian coffees show. If you
   add coffees without those fields they won't appear.
-- **Field-level security on API-created fields.** `Order.Shopper__c` was created
-  via the Metadata API and needed the `Meridian_Web_Integration` permission set
-  to become visible to the integration user (else SOQL reports "No such column").
+- **Field-level security on API-created fields.** `Order.Discount__c` /
+  `Order.Shipping_Amount__c` (and the other custom Order fields) are created via
+  the Metadata API and need the `Meridian_Web_Integration` permission set to
+  become visible to the integration user (else SOQL reports "No such column").
+  The same permission set grants access to the **standard** objects the app uses
+  off-profile (Wishlist/WishlistItem/ContactPointAddress), which have parent-object
+  dependencies (Contact/Account/WebStore Read) that must be granted together.
 - **Field API names use underscores** (`Tasting_Notes__c`, not `TastingNotes__c`)
   because Salesforce derives them from the field label. The canonical list lives
   in `PRODUCT_FIELDS` in [`server/src/sf/mappers.js`](../server/src/sf/mappers.js).
@@ -669,7 +679,7 @@ non-fatal; `sf:check` reports whether it's on.
 | `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |
 | `POST /api/orders`                   | optional  | **Charge payment** then create the order (items + shipping + promo + payment); enforces stock, re-validates the promo. A decline → 402, no order |
 | `GET /api/orders/:id`                | –         | One order by OrderNumber/Id (confirmation)  |
-| `POST /api/promo/validate`           | optional  | Validate a promo code (read from Salesforce Coupon/Promotion) against a subtotal → `{ code, couponId, discountCents, freeShipping, label }`; friendly `promo_*` errors (§9i) |
+| `POST /api/promo/validate`           | optional  | Validate a promo code (read from Salesforce Coupon/Promotion) against a subtotal (USD) → `{ code, couponId, discount, freeShipping, label }`; friendly `promo_*` errors (§9i) |
 | `GET /api/payment-config`            | –         | `{ provider, publishableKey }` — which card UI to render |
 | `POST /api/auth/signup`              | –         | Create an individual shopper + session      |
 | `POST /api/auth/login`               | –         | Log in + session                            |
