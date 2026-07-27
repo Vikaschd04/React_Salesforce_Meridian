@@ -57,6 +57,7 @@ end-to-end with zero external dependencies. Full detail:
 | Doc | What's in it |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | File-by-file map: every frontend/backend file, cross-cutting systems (theming, discovery, promos, payments, SEO, testing/CI), git workflow, deployment |
+| [docs/TECH_STACK_GUIDE.md](docs/TECH_STACK_GUIDE.md) | Plain-language explainer: what Node.js/Express/BFF/jsforce mean and how this project uses each, plus every config file and environment variable |
 | [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Salesforce data flows (catalog, checkout, accounts, B2B), the full org inventory, and the API reference |
 | [docs/SALESFORCE_CONVENTIONS.md](docs/SALESFORCE_CONVENTIONS.md) | The standard-fields-first rule and every custom field's justification |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosting, environment variables, Docker, Render |

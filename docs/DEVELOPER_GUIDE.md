@@ -7,7 +7,9 @@ change, or recreate it.
 > For a file-by-file map of the whole codebase (every frontend/backend file,
 > theming, discovery/search, promos, payments, SEO, testing/CI, git workflow),
 > see [ARCHITECTURE.md](ARCHITECTURE.md) — read that one first if you're new
-> here. This guide goes deep on the Salesforce side specifically.
+> here. This guide goes deep on the Salesforce side specifically. If you're
+> asking "what is Express / a BFF / jsforce" rather than "what does this
+> feature do," see [TECH_STACK_GUIDE.md](TECH_STACK_GUIDE.md) instead.
 
 Last updated to match the current `main` branch.
 

@@ -7,7 +7,10 @@ you only read one doc to get oriented in this codebase, read this one.
 For the Salesforce data model (objects, fields, org inventory) and the API
 reference, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md). For the "why standard
 fields" rule, see [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md). For
-hosting/env vars, see [DEPLOYMENT.md](DEPLOYMENT.md).
+hosting/env vars, see [DEPLOYMENT.md](DEPLOYMENT.md). For a plain-language
+explainer of the stack itself — what Node.js/Express/BFF/jsforce mean and how
+this project uses each, plus every config file and env var — see
+[TECH_STACK_GUIDE.md](TECH_STACK_GUIDE.md).
 
 ---
 
