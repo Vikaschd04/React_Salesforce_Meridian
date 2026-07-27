@@ -1,22 +1,23 @@
 /**
  * One-time schema setup for the parts the app creates via API rather than by
- * hand: web-order fields on Order, the custom objects (reviews, wishlist,
- * addresses), Order Change Data Capture, and the permission set that makes all
- * of it visible to the integration user.
+ * hand: the remaining web-order custom fields on Order, the Product Review
+ * custom object, Order Change Data Capture, and the permission set that makes
+ * all of it (plus the standard objects we use) visible to the integration user.
  *
  * Run:  DATA_SOURCE=salesforce node src/sf/setup-schema.js   (or: npm run sf:setup)
  *
  * Standard-first (see docs/SALESFORCE_CONVENTIONS.md): the order lifecycle uses
  * the STANDARD Order `Status` field — this step just adds the "Shipped" and
- * "Cancelled" values to it. Shoppers are standard `Contact`s; every web order
- * lands on the shared "Meridian Web Orders" `Account` and links to the shopper
- * via `Order.Shopper__c`. Only concepts with no standard equivalent stay custom.
+ * "Cancelled" values to it. A registered shopper's orders link via the STANDARD
+ * `Order.AccountId` (their own Person Account); guests land on the shared
+ * "Meridian Web Orders" `Account`. Only concepts with no standard equivalent
+ * stay custom.
  *
  * Idempotent. Ensures:
  *   - Standard Order Status picklist has Shipped + Cancelled values
- *   - Custom Order fields with no standard equivalent: Shopper__c (Lookup→
- *     Contact), Guest_Email__c, Discount__c, Promo_Code__c,
- *     Shipping_Amount__c, Payment_Intent__c, Tracking_Number__c
+ *   - Custom Order fields with no standard equivalent: Guest_Email__c,
+ *     Discount__c, Promo_Code__c, Shipping_Amount__c, Payment_Intent__c,
+ *     Tracking_Number__c (the shopper↔order link is standard Order.AccountId)
  *   - Permission Set "Meridian_Web_Integration" with FLS on those custom fields,
  *     assigned to the integration (Run-As) user.
  *
@@ -33,18 +34,9 @@ const PERM_SET = 'Meridian_Web_Integration'
 // detect existence/visibility; `sobject` is the object it lives on (Order
 // unless noted).
 const FIELDS = [
-  {
-    sobject: 'Order',
-    probe: 'Shopper__c',
-    def: {
-      fullName: 'Order.Shopper__c',
-      label: 'Shopper',
-      type: 'Lookup',
-      referenceTo: 'Contact',
-      relationshipLabel: 'Web Orders',
-      relationshipName: 'Web_Orders',
-    },
-  },
+  // The shopper↔order link is the STANDARD Order.AccountId (a registered
+  // shopper's own Person Account) — no custom Shopper__c field. Guests land on
+  // the shared account and are tracked by Guest_Email__c below.
   {
     sobject: 'Order',
     probe: 'Guest_Email__c',
@@ -339,27 +331,45 @@ async function ensurePermissions(conn) {
       viewAllRecords: true,
       modifyAllRecords: false,
     },
+    // Wishlist/ContactPointAddress are parented to Account (+ WebStore for
+    // Wishlist), and Salesforce enforces that granting Read on them requires Read
+    // on those parents — so grant the parents Read here. (The integration user
+    // already creates person accounts at signup; this just satisfies the
+    // permission-set dependency chain so the deploy is accepted.)
+    // (Account Read itself depends on Contact Read — person accounts — so Contact
+    // is granted here too.)
+    ...['Contact', 'Account', 'WebStore'].map((object) => ({
+      object,
+      allowRead: true,
+      allowCreate: false,
+      allowEdit: false,
+      allowDelete: false,
+      viewAllRecords: false,
+      modifyAllRecords: false,
+    })),
     // Wishlist — standard Wishlist + WishlistItem. Items are added/removed, so
     // allowDelete: true (Salesforce requires allowEdit alongside allowDelete).
+    // No viewAllRecords: the integration user OWNS every row it creates, so
+    // Read(own) is enough (and viewAll would drag in View All Account/WebStore).
     ...['Wishlist', 'WishlistItem'].map((object) => ({
       object,
       allowRead: true,
       allowCreate: true,
       allowEdit: true,
       allowDelete: true,
-      viewAllRecords: true,
+      viewAllRecords: false,
       modifyAllRecords: false,
     })),
     // Saved addresses — standard ContactPointAddress, fully CRUD
-    // (add / edit / delete / set-default). Scoped to the shopper's own account
-    // by the app; viewAllRecords lets the integration user read them back.
+    // (add / edit / delete / set-default). No viewAllRecords — the integration
+    // user owns the rows it creates (and viewAll would require View All Account).
     {
       object: CONTACT_POINT_ADDRESS,
       allowRead: true,
       allowCreate: true,
       allowEdit: true,
       allowDelete: true,
-      viewAllRecords: true,
+      viewAllRecords: false,
       modifyAllRecords: false,
     },
     // Promotions/coupons (standard Commerce objects) — the app READS the promo

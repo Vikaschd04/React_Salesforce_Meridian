@@ -8,8 +8,10 @@
  * the shopper's order timeline without a reload.
  *
  * A CDC event carries only the *changed* fields + a header of record ids — it
- * does NOT include Shopper__c (the owner) unless that changed. So we resolve
- * owner + human OrderNumber with one SOQL lookup per event before emitting.
+ * does NOT include the owner unless that changed. So we resolve owner + human
+ * OrderNumber with one SOQL lookup per event before emitting. The owner is the
+ * shopper's backing Contact — Order.AccountId → Account.PersonContactId (a
+ * registered shopper's own Person Account); guest orders resolve to null.
  *
  * Reliability: the CometD connection is authenticated with the cached
  * client-credentials access token; when that token expires the transport drops.
@@ -83,11 +85,12 @@ async function handleEvent(message) {
     const conn = await getConnection()
     const idList = ids.map((id) => `'${id.replace(/'/g, "\\'")}'`).join(', ')
     const res = await conn.query(
-      `SELECT Id, OrderNumber, Shopper__c, Status FROM Order WHERE Id IN (${idList})`,
+      `SELECT Id, OrderNumber, Account.PersonContactId, Status FROM Order WHERE Id IN (${idList})`,
     )
     for (const row of res.records) {
-      if (!row.Shopper__c) continue // guest orders with no shopper — skip
-      emitOrderChange({ contactId: row.Shopper__c, orderId: row.OrderNumber, status: row.Status })
+      const contactId = row.Account?.PersonContactId
+      if (!contactId) continue // guest orders (shared account) — no shopper to notify
+      emitOrderChange({ contactId, orderId: row.OrderNumber, status: row.Status })
     }
   } catch (err) {
     console.warn(`[orderStream] event handling failed: ${err?.message || err}`)

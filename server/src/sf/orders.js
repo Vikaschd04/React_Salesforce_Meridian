@@ -20,6 +20,21 @@ import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 // Account + standard pricebook ids are stable per org; resolve once and cache.
 let refs = null // { accountId, pricebookId }
 
+// contactId → person-account id. A registered shopper's orders live on their own
+// Person Account (Order.AccountId) — that's the shopper↔order link (replacing the
+// old custom Shopper__c). Cached per shopper.
+const accountByContact = new Map()
+async function personAccountFor(contactId) {
+  if (!contactId) return null
+  if (accountByContact.has(contactId)) return accountByContact.get(contactId)
+  const res = await withConn((conn) =>
+    conn.query(`SELECT AccountId FROM Contact WHERE Id = '${esc(contactId)}' LIMIT 1`),
+  )
+  const id = res.records[0]?.AccountId || null
+  if (id) accountByContact.set(contactId, id)
+  return id
+}
+
 async function getRefs() {
   if (refs) return refs
   refs = await withConn(async (conn) => {
@@ -47,8 +62,9 @@ const esc = (s) => String(s).replace(/'/g, "\\'")
 /**
  * Create an Order from validated cart items: [{ id, qty }].
  * `shipping` = { name, email, street, city, state, postalCode, country }.
- * `auth` is optional { contactId }; when present the order is linked to that
- * Contact via Order.Shopper__c so it shows up in the shopper's order history.
+ * `auth` is optional { contactId }; when present the order lands on the
+ * shopper's own Person Account (Order.AccountId), which is how it shows up in
+ * their order history.
  */
 export async function createOrder(items, shipping, auth = null, promoCode = null, payment = null) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -58,14 +74,13 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   const byCode = await getProductsByCodes(items.map((it) => it.id))
   const { accountId, pricebookId } = await getRefs()
 
-  // A registered shopper's order lands on THEIR person account; guests (and any
-  // shopper without one) fall back to the shared "Meridian Web Orders" account.
+  // A registered shopper's order lands on THEIR person account (which is the
+  // shopper↔order link — order history queries by it); guests (and any shopper
+  // without one) fall back to the shared "Meridian Web Orders" account.
   let orderAccountId = accountId
   if (auth?.contactId) {
-    const owner = await withConn((conn) =>
-      conn.query(`SELECT AccountId FROM Contact WHERE Id = '${esc(auth.contactId)}' LIMIT 1`),
-    )
-    if (owner.records[0]?.AccountId) orderAccountId = owner.records[0].AccountId
+    const pa = await personAccountFor(auth.contactId)
+    if (pa) orderAccountId = pa
   }
 
   const lines = items.map((it) => {
@@ -112,7 +127,7 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // ref, shopper, guest email) are custom. See docs/SALESFORCE_CONVENTIONS.md.
   const orderBody = {
     // A registered shopper's own person account, else the shared web-orders
-    // account (guests). The shopper is also linked via Shopper__c.
+    // account (guests). AccountId IS the shopper↔order link (order history).
     AccountId: orderAccountId,
     Pricebook2Id: pricebookId,
     EffectiveDate: new Date().toISOString().slice(0, 10),
@@ -128,7 +143,6 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
     // This org has State/Country picklists enabled, so the ISO *Code fields
     // are the writable ones (Salesforce derives the text fields from them).
     ShippingCountryCode: shipping?.countryCode || null,
-    ...(auth?.contactId ? { Shopper__c: auth.contactId } : {}),
   }
   const stateCode = shipping?.stateCode?.trim()
 
@@ -197,8 +211,12 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
 export async function getOrder(idOrNumber, contactId = null) {
   const raw = await readRawOrder(idOrNumber)
   if (!raw) throw notFoundError(`Order "${idOrNumber}" was not found.`)
-  if (contactId && raw.head.Shopper__c !== contactId) {
-    throw notFoundError(`Order "${idOrNumber}" was not found.`)
+  if (contactId) {
+    // The shopper owns an order iff it's on their Person Account.
+    const pa = await personAccountFor(contactId)
+    if (!pa || raw.head.AccountId !== pa) {
+      throw notFoundError(`Order "${idOrNumber}" was not found.`)
+    }
   }
   return orderFromSf(raw.head, raw.items)
 }
@@ -241,7 +259,8 @@ async function readRawOrder(idOrNumber) {
  */
 export async function cancelOrder(idOrNumber, contactId) {
   const raw = await readRawOrder(idOrNumber)
-  if (!raw || raw.head.Shopper__c !== contactId) {
+  const pa = await personAccountFor(contactId)
+  if (!raw || !pa || raw.head.AccountId !== pa) {
     throw notFoundError(`Order "${idOrNumber}" was not found.`)
   }
   if (raw.head.Status === 'Cancelled') {
@@ -279,10 +298,12 @@ export async function cancelOrder(idOrNumber, contactId) {
 
 /** List a shopper's orders (most recent first), each with its line items. */
 export async function listOrdersForContact(contactId) {
-  const safe = esc(contactId)
+  const pa = await personAccountFor(contactId)
+  if (!pa) return []
+  const safe = esc(pa)
   return withConn(async (conn) => {
     const orders = await conn.query(
-      `SELECT ${ORDER_FIELDS} FROM Order WHERE Shopper__c = '${safe}'
+      `SELECT ${ORDER_FIELDS} FROM Order WHERE AccountId = '${safe}'
        ORDER BY CreatedDate DESC LIMIT 50`,
     )
     if (orders.records.length === 0) return []

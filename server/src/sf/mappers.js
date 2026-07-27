@@ -72,13 +72,14 @@ export const PRODUCT_FIELDS = [
 /**
  * Fields selected whenever we read an Order. Standard-first: the lifecycle is the
  * standard `Status` field, the merchandise total is the standard `TotalAmount`
- * rollup, and the order date is standard. Only genuinely-no-standard concepts
- * (shopper link, guest email, promo, discount/shipping amount in USD, payment
+ * rollup, the order date is standard, and the shopper↔order link is the standard
+ * `AccountId` (a registered shopper's own Person Account). Only genuinely-no-
+ * standard concepts (guest email, promo, discount/shipping amount in USD, payment
  * ref, tracking) remain custom. See docs/SALESFORCE_CONVENTIONS.md.
  */
 export const ORDER_FIELDS =
   'Id, OrderNumber, Status, EffectiveDate, CreatedDate, ActivatedDate, TotalAmount, AccountId, ' +
-  'Guest_Email__c, Shopper__c, ' +
+  'Guest_Email__c, ' +
   'Discount__c, Promo_Code__c, ' +
   'Shipping_Amount__c, Payment_Intent__c, Tracking_Number__c, ' +
   'ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry'
