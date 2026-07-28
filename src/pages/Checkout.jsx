@@ -97,7 +97,20 @@ export default function Checkout() {
   // Pick a saved address (or "new" to type a fresh one).
   function selectAddress(id) {
     setSelectedAddressId(id)
-    if (id === 'new') return
+    if (id === 'new') {
+      // Clear the shipping fields so the shopper types fresh details; keep only
+      // name + email pre-filled from their account.
+      setValues((prev) => ({
+        ...prev,
+        name: user ? `${user.firstName} ${user.lastName}`.trim() : prev.name,
+        street: '',
+        city: '',
+        stateCode: '',
+        postalCode: '',
+        countryCode: 'US',
+      }))
+      return
+    }
     const a = savedAddresses.find((x) => x.id === id)
     if (!a) return
     setValues((prev) => ({
@@ -289,7 +302,7 @@ export default function Checkout() {
 
           {useStripe && stripePromise ? (
             <Elements stripe={stripePromise}>
-              <StripePaymentFields ref={stripeRef} />
+              <StripePaymentFields ref={stripeRef} testMode={payPublishableKey.startsWith('pk_test_')} />
             </Elements>
           ) : (
             <PaymentFields value={card} onChange={setCard} />

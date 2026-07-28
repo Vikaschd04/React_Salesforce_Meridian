@@ -11,7 +11,7 @@ import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
  * The parent drives submission; this component only owns the card field + a
  * client-side validation message.
  */
-const StripePaymentFields = forwardRef(function StripePaymentFields(_props, ref) {
+const StripePaymentFields = forwardRef(function StripePaymentFields({ testMode = true }, ref) {
   const stripe = useStripe()
   const elements = useElements()
   const [error, setError] = useState(null)
@@ -58,12 +58,23 @@ const StripePaymentFields = forwardRef(function StripePaymentFields(_props, ref)
     <div className="pay">
       <div className="pay__head">
         <h2 className="account-section-title">Payment</h2>
-        <span className="pay__badge">Test mode</span>
+        <span className="pay__powered" title="Payments securely processed by Stripe">
+          <svg className="pay__lock" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="3.2" y="7" width="9.6" height="6.4" rx="1.4" fill="currentColor" />
+            <path d="M5.2 7V5.1a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <span className="pay__powered-by">Powered by</span>
+          <span className="pay__stripe-wordmark">stripe</span>
+        </span>
       </div>
-      <p className="pay__hint">
-        No real charge. Use <code>4242 4242 4242 4242</code> to succeed, or{' '}
-        <code>4000 0000 0000 0002</code> to see a decline. Any future expiry / CVC / ZIP.
-      </p>
+      {testMode ? (
+        <p className="pay__hint">
+          Test mode — no real charge. Use <code>4242 4242 4242 4242</code> to succeed, or{' '}
+          <code>4000 0000 0000 0002</code> to see a decline. Any future expiry / CVC / ZIP.
+        </p>
+      ) : (
+        <p className="pay__hint">Your card is encrypted and processed securely by Stripe.</p>
+      )}
       <div className="field field--span-2">
         <span className="field__label">Card details</span>
         <div className="pay__stripe-input">

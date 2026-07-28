@@ -19,7 +19,13 @@ const BLANK = {
  * address object via onSubmit and owns persistence.
  */
 export default function AddressForm({ initial, onSubmit, onCancel, submitting }) {
-  const [values, setValues] = useState({ ...BLANK, ...initial })
+  // Keep only the editable fields — dropping `id` and any other extras carried in
+  // by `initial` (an existing address). The PATCH endpoint is strict, so sending
+  // `id` in the body would be rejected ("Unrecognized key") and edits would fail.
+  const [values, setValues] = useState(() => {
+    const src = { ...BLANK, ...initial }
+    return Object.fromEntries(Object.keys(BLANK).map((k) => [k, src[k]]))
+  })
   const [error, setError] = useState(null)
   const region = regionsFor(values.countryCode)
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))

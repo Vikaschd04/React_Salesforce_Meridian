@@ -2857,6 +2857,34 @@
   padding: 0.05rem 0.3rem;
   border-radius: 4px;
 }
+/* "Powered by Stripe" badge (real Stripe provider). */
+.pay__powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(99, 91, 255, 0.12);
+  white-space: nowrap;
+}
+.pay__lock {
+  width: 0.78rem;
+  height: 0.78rem;
+  color: #635bff;
+  flex: none;
+}
+.pay__powered-by {
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+.pay__stripe-wordmark {
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: -0.02em;
+  color: #635bff;
+}
 /* Stripe Elements card iframe — matched to .field input. */
 .pay__stripe-input {
   width: 100%;
