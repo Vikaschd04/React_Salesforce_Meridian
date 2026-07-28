@@ -221,6 +221,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `orderStream.js` | `start()` — subscribes to Order Change Data Capture (Streaming API) and republishes each change to the event bus for live order tracking (§4.9). Booted once at startup in salesforce mode; self-heals on token expiry. | `Order` via `/data/OrderChangeEvent` (CDC) |
 | `contacts.js` | `findByEmail`, `createShopper` (creates a **Person Account** — Account + backing Contact), `verifyPassword`, `updateShopper`, `toProfile` | `Account` (PersonAccount RT) + `Contact` (the backing person contact holds `Password_Hash__c`; the app is keyed on it) |
 | `promos.js` | `getCouponRule`, `countRedemptions`, `recordRedemption` — reads the coupon/promotion definition + writes redemptions (§4.2) | `Coupon`, `Promotion`, `PromotionTarget`, `PromotionQualifier`, `CouponCodeRedemption` |
+| `orderSummary.js` | Order Management — builds an `OrderSummary` per order (delivery group + typed lines + delivery charge + tax → `createOrderSummary`); reads the summary rollups | `OrderSummary`, `OrderItemSummary`, `OrderDeliveryGroupSummary`, `OrderDeliveryGroup`, `OrderDeliveryMethod`, `OrderItemTaxLineItem` |
 | `wishlist.js` | `listForContact`, `add` (idempotent), `remove` | standard `Wishlist` + `WishlistItem` (one Wishlist per shopper's Person Account + WebStore) |
 | `addresses.js` | `listForContact`, `create`, `update`, `remove` (enforces one default) | standard `ContactPointAddress` (parented to the shopper's Person Account; see [DEVELOPER_GUIDE.md §9e](DEVELOPER_GUIDE.md)) |
 | `reviews.js` | `listForProduct`, `findByContactAndProduct`, `create` | `Meridian_Product_Review__c` (new custom object — see [DEVELOPER_GUIDE.md §9c](DEVELOPER_GUIDE.md)) |
@@ -240,7 +241,7 @@ standard vs. custom and why.
 |---|---|
 | `errors.js` | `ApiError` + typed constructors (`badRequest`, `notFoundError`, `paymentError`, …) and the central Express error handler — every error response is `{ error: <code>, message: <friendly text> }` with the right HTTP status. |
 | `session.js` | Signs/verifies the shopper session **JWT** (httpOnly cookie `meridian_session`; carries `{ id, email, firstName, lastName }` — never the hash). Also mints/reads the short-lived order-scoped **track token** for the public guest-tracking SSE (§4.10). |
-| `totals.js` | Pure order-math: subtotal, discount, shipping, grand total — all in **USD dollars** (with `round2()` to snap to whole cents). Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
+| `totals.js` | Pure order-math: subtotal, discount, shipping, **tax** (`computeTax`), grand total — all in **USD dollars** (with `round2()` to snap to whole cents). Used identically by checkout, promo validation, and order creation so the number the shopper sees is always the number that gets charged. |
 | `cache.js` | Tiny TTL wrap-cache (`cache.wrap(key, fn)`) used for product reads, to stay under Salesforce API limits. |
 | `orderEvents.js` | In-process `EventEmitter` bus for order-status changes (`{contactId, orderId, status}`) — the seam between the change *sources* (`sf/orderStream.js` / the mock dev-trigger) and the SSE route that fans out to browsers (§4.9). |
 

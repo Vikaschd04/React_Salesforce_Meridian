@@ -129,6 +129,7 @@ The `sf/` folder is the only place that knows Salesforce field names:
 | `sf/seed.js`        | Populate products + prices                                         |
 | `sf/wishlist.js`    | Standard `Wishlist`/`WishlistItem` CRUD                            |
 | `sf/addresses.js`   | Standard `ContactPointAddress` CRUD                                |
+| `sf/orderSummary.js`| Order Management — builds an `OrderSummary` per order (OMS objects)|
 | `sf/setup-schema.js`| Create Order custom fields + Review object + permission set        |
 | `sf/check.js`       | Readiness diagnostic                                               |
 
@@ -194,7 +195,9 @@ Money is **USD dollars** (a decimal Number) everywhere — the app and Salesforc
 match, so there's no unit conversion at the `sf/mappers.js` boundary. `round2()`
 (in `server/src/lib/totals.js` and `src/lib/money.js`) snaps to whole cents at
 each money boundary; the only place cents appear is the Stripe API call
-(`amount = round(usd * 100)` in `pay/index.js`).
+(`amount = round(usd * 100)` in `pay/index.js`). The charged **grand total** is
+`subtotal − discount + shipping + tax` (§9j) — computed server-side and shown
+identically at checkout and on every order view via `orderPaidUsd`.
 
 ---
 
@@ -462,6 +465,46 @@ governs them there, the storefront reads + applies them.
 - **Seeding**: `npm run sf:setup` seeds the demo codes idempotently
   (`WELCOME10` 10% off, `MERIDIAN5` $5 off over $25, `FREESHIP` free shipping);
   add more in Salesforce.
+
+### 9j. Order Management — OrderSummary + tax
+
+Every order also produces a standard **`OrderSummary`** (with `OrderItemSummary`
++ `OrderDeliveryGroupSummary`), showcasing Salesforce Order Management. It
+**supplements** the Order — status/cancel/real-time still ride `Order.Status`
+(§9f). [`sf/orderSummary.js`](../server/src/sf/orderSummary.js) owns the OMS objects.
+
+- **Tax**: a flat `SF_TAX_RATE` (default 8%) on the post-discount subtotal,
+  computed server-side (`lib/totals.computeTax`), added to the charge, and written
+  as an `OrderItemTaxLineItem` so `OrderSummary.TotalTaxAmount` rolls up. The UI
+  shows a Tax row (cart, checkout, confirmation, order detail); `orderPaidUsd` is
+  tax-inclusive. The client preview rate (`TAX_RATE` in `src/lib/money.js`) is
+  kept in sync with the server.
+- **Pipeline** (in `createOrder`, best-effort — never fails the paid order): the
+  order composite creates the `Order` + `OrderDeliveryGroup` + product lines
+  (`Type = 'Order Product'`, linked to the group via `OrderDeliveryGroupId`) + a
+  `Delivery Charge` line for shipping; then the tax line is added, the order is
+  activated, and the standard **`createOrderSummary`** action runs
+  (`orderLifeCycleType = 'UNMANAGED'`). Reads (`getOrder`/history/track) surface
+  the resulting **summary number**; the displayed line items exclude the delivery
+  charge (shipping is its own row).
+- **Three org-specific gotchas** `sf:setup` / the pipeline handle:
+  1. **`OrderItem.OrderDeliveryGroupId`** (standard) is FLS-hidden from the
+     integration user — `sf:setup` grants it (createOrderSummary needs items on a
+     delivery group).
+  2. A pre-existing **`B2B_UpdateStockOnOrder`** trigger decrements
+     `Product2.Available_Qty__c` on activation for `Order Product` lines and throws
+     if short (an `AuraHandledException`, which surfaces as a hard error over the
+     API). The pipeline tops that field up (max 99999) just-in-time before
+     activating; our own stock stays in `Stock__c`.
+  3. We **don't** create an OMS discount adjustment — this org's B2B adjustment
+     handling rewrites source `OrderItem` prices, which would corrupt reads. The
+     discount stays on `Order.Discount__c`, so `OrderSummary.GrandTotalAmount` is
+     pre-discount on promo orders. The app's totals come from the Order + tax and
+     always match the charge.
+- **Setup** (`sf:setup`): a "Meridian Shipping" `Product2` + $0 `PricebookEntry`
+  (the delivery-charge line references a product) and a "Meridian Standard
+  Shipping" `OrderDeliveryMethod`; the FLS grant above; and `Available_Qty__c`
+  stocked as a baseline. `sf:check` reports "Order Management ready".
 
 ---
 
