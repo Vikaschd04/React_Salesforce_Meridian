@@ -35,7 +35,7 @@ the data portable to other Salesforce tooling (reports, flows, list views).
 | Order account + shopper link | standard **`Account`** via **`Order.AccountId`** — a **registered** shopper's order lands on **their own Person Account**, which IS the shopper↔order link (order history queries `WHERE AccountId = personAccount`, real-time CDC resolves the owner via `Account.PersonContactId`). A **guest** order lands on the shared "Meridian Web Orders" catch-all Account (excluded from personal history; tracked by `Guest_Email__c`). No custom `Shopper__c` field. |
 | Support requests + tracking | standard **`Case`** (`Origin`, `Subject`, `Description`, `Supplied*`, `Status`, `ContactId` for logged-in shoppers) + standard **`CaseComment`** for the customer-visible reply thread (only `IsPublished = true` comments are shown — internal notes never leak). No custom schema. |
 | Order Management / OrderSummary | standard **Salesforce Order Management** — every order also produces an **`OrderSummary`** (+ **`OrderItemSummary`**, **`OrderDeliveryGroupSummary`**) via the standard **`createOrderSummary`** action. The source `Order` carries an **`OrderDeliveryGroup`** (ship-to + `OrderDeliveryMethod`), product lines typed **`Order Product`**, and a **`Delivery Charge`** line for shipping (standard, not a custom field); tax is an **`OrderItemTaxLineItem`**. This *supplements* the Order — the lifecycle still rides `Order.Status`. See "Order Management" below. |
-| Sales tax | flat rate (`SF_TAX_RATE`, default 8%) on the post-discount subtotal, computed server-side (`lib/totals.computeTax`), included in the charge, and stored as a standard **`OrderItemTaxLineItem`** → rolls up to `OrderSummary.TotalTaxAmount`. No custom tax field. |
+| Sales tax | flat rate (`SF_TAX_RATE`, default 8%) on the post-discount subtotal, computed server-side (`lib/totals.computeTax`), included in the charge, and stored as a standard **`OrderItemTaxLineItem`** (one per product line, apportioned by line amount) → rolls up to `OrderSummary.TotalTaxAmount`. No custom tax field. |
 | Promotions / coupons | standard Commerce objects — **`Coupon`** (code, `Status`, `StartDateTime`/`EndDateTime` for validity/expiry, `RedemptionLimit*` for usage limits) → **`Promotion`** (`IsActive`, `StartDate`/`EndDate`) → **`PromotionTarget`** (the discount: `PercentageDiscount` / `FixedAmountOff…` / `TargetType=Shipping`) + **`PromotionQualifier`** (`MinimumAmount` = min-subtotal); usage tracked via **`CouponCodeRedemption`**. A merchant creates/governs coupons in Salesforce; the app reads + applies them (the discount is still computed server-side against trusted prices). **Replaces** the old hardcoded BFF table — a standard-first win with no custom schema. `npm run sf:setup` seeds the demo codes. |
 
 The order display status the UI shows is derived **only** from standard
@@ -53,7 +53,9 @@ fails the paid order):
 1. The order composite creates the `Order` + an **`OrderDeliveryGroup`** (ship-to
    + an `OrderDeliveryMethod`), the product **`OrderItem`**s typed `Order Product`
    and linked to the group, and a `Delivery Charge` line for shipping.
-2. A **`OrderItemTaxLineItem`** carries the sales tax.
+2. One **`OrderItemTaxLineItem`** *per product line* carries that line's share of
+   the sales tax (apportioned by line amount, cents summing exactly to the total),
+   so each `OrderItemSummary` reflects its own tax.
 3. The order is activated, then the standard **`createOrderSummary`** action
    (REST invocable, `orderLifeCycleType = UNMANAGED`) rolls it all up into
    `OrderSummary` + `OrderItemSummary` + `OrderDeliveryGroupSummary`.

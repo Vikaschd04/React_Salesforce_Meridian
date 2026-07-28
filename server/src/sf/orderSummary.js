@@ -64,9 +64,36 @@ export function deliveryGroupBody(shipping, deliveryMethodId, withStateCode = tr
 }
 
 /**
- * Add the sales-tax line to a **Draft** OMS order (activated orders are locked,
+ * Split `tax` across product lines in proportion to each line's amount, in whole
+ * cents, so the per-line shares sum **exactly** to `tax` (largest-remainder
+ * apportionment — floor every share, then hand the leftover cents to the lines
+ * with the biggest fractional parts). Returns a dollar amount per input line.
+ */
+function distributeTax(lineAmounts, tax) {
+  const totalCents = Math.round(tax * 100)
+  const weights = lineAmounts.map((a) => Math.round(Math.max(0, a) * 100))
+  const weightSum = weights.reduce((s, w) => s + w, 0)
+  if (weightSum <= 0 || totalCents <= 0) return lineAmounts.map(() => 0)
+  const exact = weights.map((w) => (totalCents * w) / weightSum)
+  const cents = exact.map((x) => Math.floor(x))
+  let leftover = totalCents - cents.reduce((s, c) => s + c, 0)
+  const byFrac = exact
+    .map((x, i) => ({ i, frac: x - Math.floor(x) }))
+    .sort((a, b) => b.frac - a.frac)
+  for (let k = 0; leftover > 0; k++, leftover--) cents[byFrac[k % byFrac.length].i] += 1
+  return cents.map((c) => c / 100)
+}
+
+/**
+ * Add the sales-tax lines to a **Draft** OMS order (activated orders are locked,
  * so this runs before activation) so `OrderSummary.TotalTaxAmount` rolls up.
- * Best-effort — the caller ignores failures.
+ * One `OrderItemTaxLineItem` **per product line**, each carrying that line's
+ * share of the tax (apportioned by line amount) — so every OrderItemSummary
+ * reflects its own tax and the sum matches the total exactly. Best-effort — the
+ * caller ignores failures.
+ *
+ * `productItems` = `[{ id, amount }]` (Salesforce OrderItem id + pre-discount
+ * line amount = qty × unit price), aligned with the order's product lines.
  *
  * We deliberately do NOT add an OMS discount adjustment: the promo discount lives
  * on Order.Discount__c (Phase 1), and this org's B2B adjustment handling rewrites
@@ -75,17 +102,21 @@ export function deliveryGroupBody(shipping, deliveryMethodId, withStateCode = tr
  * limitation; the app's displayed totals come from the Order + tax and match the
  * charge exactly.)
  */
-export async function addTaxLine({ productItemIds, tax }) {
-  if (!(tax > 0) || !productItemIds[0]) return
-  return withConn((conn) =>
-    conn.sobject('OrderItemTaxLineItem').create({
-      OrderItemId: productItemIds[0],
+export async function addTaxLine({ productItems, tax }) {
+  if (!(tax > 0) || !Array.isArray(productItems) || productItems.length === 0) return
+  const shares = distributeTax(productItems.map((p) => p.amount ?? 0), tax)
+  const rows = productItems
+    .map((p, i) => ({ id: p.id, amount: shares[i] }))
+    .filter((r) => r.id && r.amount > 0)
+    .map((r) => ({
+      OrderItemId: r.id,
       Name: 'Sales Tax',
-      Amount: tax,
+      Amount: r.amount,
       Type: 'Estimated',
       TaxEffectiveDate: today(),
-    }),
-  )
+    }))
+  if (rows.length === 0) return
+  return withConn((conn) => conn.sobject('OrderItemTaxLineItem').create(rows))
 }
 
 /**

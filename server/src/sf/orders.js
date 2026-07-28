@@ -203,7 +203,13 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
         lines.map(({ product }) => ({ Id: product._sfId, Available_Qty__c: 9999 })),
       ),
     ).catch((err) => console.error('[oms] stock top-up failed:', err.message))
-    await addTaxLine({ productItemIds: built.productItemIds, tax }).catch((err) =>
+    // Pair each created OrderItem id with its pre-discount line amount so the tax
+    // is apportioned across every product line (not dumped onto the first).
+    const productItems = built.productItemIds.map((id, i) => ({
+      id,
+      amount: (lines[i]?.qty || 0) * (lines[i]?.product?._unitPriceDollars || 0),
+    }))
+    await addTaxLine({ productItems, tax }).catch((err) =>
       console.error('[oms] tax line failed:', err.message),
     )
   }

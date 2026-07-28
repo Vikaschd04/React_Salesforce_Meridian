@@ -1,7 +1,11 @@
 /**
  * Shipping subdivisions for countries where Salesforce validates the state code.
- * The 2-letter codes here match Salesforce's default State/Country picklist
- * integration values, so orders never hit an "invalid state" rejection.
+ * The codes here are the ISO 3166-2 subdivision codes — verified live against the
+ * org: the `*StateCode` fields (ShippingStateCode / ContactPointAddress.StateCode)
+ * validate against the ISO code (e.g. `MH`, `CA`), NOT the picklist's integration
+ * *value* (which on this org is the full state name). Salesforce then derives the
+ * text field (`ShippingState` → "Maharashtra"). So orders never hit an "invalid
+ * state" rejection.
  *
  * Countries not listed here ship without a state/region field (Salesforce
  * accepts an order with no state), so the checkout only shows this dropdown
@@ -32,6 +36,18 @@ export const CA_PROVINCES = [
   ['YT', 'Yukon'],
 ]
 
+export const IN_STATES = [
+  ['AN', 'Andaman and Nicobar Islands'], ['AP', 'Andhra Pradesh'], ['AR', 'Arunachal Pradesh'],
+  ['AS', 'Assam'], ['BR', 'Bihar'], ['CH', 'Chandigarh'], ['CT', 'Chhattisgarh'],
+  ['DN', 'Dadra and Nagar Haveli'], ['DD', 'Daman and Diu'], ['DL', 'Delhi'], ['GA', 'Goa'],
+  ['GJ', 'Gujarat'], ['HR', 'Haryana'], ['HP', 'Himachal Pradesh'], ['JK', 'Jammu and Kashmir'],
+  ['JH', 'Jharkhand'], ['KA', 'Karnataka'], ['KL', 'Kerala'], ['LD', 'Lakshadweep'],
+  ['MP', 'Madhya Pradesh'], ['MH', 'Maharashtra'], ['MN', 'Manipur'], ['ML', 'Meghalaya'],
+  ['MZ', 'Mizoram'], ['NL', 'Nagaland'], ['OR', 'Odisha'], ['PY', 'Puducherry'], ['PB', 'Punjab'],
+  ['RJ', 'Rajasthan'], ['SK', 'Sikkim'], ['TN', 'Tamil Nadu'], ['TG', 'Telangana'],
+  ['TR', 'Tripura'], ['UP', 'Uttar Pradesh'], ['UT', 'Uttarakhand'], ['WB', 'West Bengal'],
+]
+
 /** Common shipping countries → ISO code (State/Country picklists are enabled). */
 export const COUNTRIES = [
   ['US', 'United States'], ['GB', 'United Kingdom'], ['CA', 'Canada'],
@@ -44,5 +60,6 @@ export const COUNTRIES = [
 export function regionsFor(countryCode) {
   if (countryCode === 'US') return { label: 'State', options: US_STATES }
   if (countryCode === 'CA') return { label: 'Province', options: CA_PROVINCES }
+  if (countryCode === 'IN') return { label: 'State', options: IN_STATES }
   return null
 }

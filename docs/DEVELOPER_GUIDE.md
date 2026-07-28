@@ -475,7 +475,10 @@ Every order also produces a standard **`OrderSummary`** (with `OrderItemSummary`
 
 - **Tax**: a flat `SF_TAX_RATE` (default 8%) on the post-discount subtotal,
   computed server-side (`lib/totals.computeTax`), added to the charge, and written
-  as an `OrderItemTaxLineItem` so `OrderSummary.TotalTaxAmount` rolls up. The UI
+  as **one `OrderItemTaxLineItem` per product line** — the total tax is apportioned
+  across the lines by amount (largest-remainder, so the per-line cents sum exactly
+  to the total), so every `OrderItemSummary` carries its own tax and
+  `OrderSummary.TotalTaxAmount` rolls up to the same total. The UI
   shows a Tax row (cart, checkout, confirmation, order detail); `orderPaidUsd` is
   tax-inclusive. The client preview rate (`TAX_RATE` in `src/lib/money.js`) is
   kept in sync with the server.
