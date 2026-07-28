@@ -38,8 +38,8 @@ const PERM_SET = 'Meridian_Web_Integration'
 // unless noted).
 const FIELDS = [
   // The shopper↔order link is the STANDARD Order.AccountId (a registered
-  // shopper's own Person Account) — no custom Shopper__c field. Guests land on
-  // the shared account and are tracked by Guest_Email__c below.
+  // shopper's own Person Account). Guests land on the shared account and are
+  // tracked by Guest_Email__c below.
   {
     sobject: 'Order',
     probe: 'Guest_Email__c',

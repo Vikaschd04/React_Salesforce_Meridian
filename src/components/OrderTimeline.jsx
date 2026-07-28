@@ -1,8 +1,8 @@
 /**
  * Order progress: Paid → Shipped → Delivered, with the current stage lit and the
- * tracking number / shipped date surfaced once available. The merchant advances
- * an order by editing Fulfillment_Status__c / Tracking_Number__c in Salesforce;
- * this reads those fields back. Cancelled / refunded orders show a flag instead.
+ * tracking number surfaced once available. The merchant advances an order by
+ * changing the standard `Order.Status` (and setting `Tracking_Number__c`) in
+ * Salesforce; this reads those back. Cancelled / refunded orders show a flag instead.
  */
 const STAGES = [
   { key: 'paid', label: 'Paid' },

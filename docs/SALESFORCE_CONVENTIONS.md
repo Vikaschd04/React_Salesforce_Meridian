@@ -155,22 +155,26 @@ feature already does the job).
 |---|---|
 | **Order Change Data Capture** | Real-time order tracking. `Order` is added to the standard `ChangeEvents` channel via a `PlatformEventChannelMember` metadata deploy, so the BFF can subscribe to `/data/OrderChangeEvent` (Streaming API) and push a merchant's status change to the shopper's order page live. PushTopic was **not** an option — it rejects the `Order` object ("'Order' is not supported"); CDC is the modern, supported path. Idempotent + non-fatal in `sf:setup`; if disabled the order page falls back to focus-refresh. |
 
-## Deprecated (migrated to standard — left in the org for old data, unused by the app)
-`Order.Total_Cents__c` → `TotalAmount`; `Order.Cancelled__c` /
-`Order.Payment_Status__c` / `Order.Fulfillment_Status__c` → `Status`;
-`Order.Shipped_Date__c` → dropped (no standard ship date; status + `ActivatedDate`
-suffice).
+## Deprecated (migrated to standard — none read or written by the app)
+Each old custom field/object below was replaced by a standard equivalent. The app
+**no longer reads or writes any of them**, and `sf:setup` neither creates nor
+touches them.
 
-**Standard-first cleanup (2026-07):**
-- `Order.Shopper__c` → standard **`Order.AccountId`** (registered shopper's Person Account).
-- `Order.Discount_Cents__c` → **`Order.Discount__c`** (Currency, USD dollars).
-- `Order.Shipping_Cents__c` → **`Order.Shipping_Amount__c`** (Currency, USD dollars).
-- `Meridian_Wishlist_Item__c` → standard **`Wishlist`/`WishlistItem`**.
-- `Meridian_Address__c` → standard **`ContactPointAddress`**.
+| Old (ours) | Replaced by | Still in the org? |
+|---|---|---|
+| `Order.Total_Cents__c` | `Order.TotalAmount` (standard rollup) | **Yes** — retained, holds ~23 rows of migrated data |
+| `Order.Cancelled__c` / `Payment_Status__c` / `Fulfillment_Status__c` | `Order.Status` | No — dropped from the org |
+| `Order.Shipped_Date__c` | dropped (status + `ActivatedDate` suffice) | No — dropped from the org |
+| `Order.Shopper__c` | `Order.AccountId` (Person Account) | No — dropped from the org |
+| `Order.Discount_Cents__c` | `Order.Discount__c` (Currency, USD) | No — dropped from the org |
+| `Order.Shipping_Cents__c` | `Order.Shipping_Amount__c` (Currency, USD) | No — dropped from the org |
+| `Meridian_Wishlist_Item__c` | `Wishlist` / `WishlistItem` | **Yes** — retained, holds ~9 records |
+| `Meridian_Address__c` | `ContactPointAddress` | **Yes** — retained, holds ~7 records |
 
-All of the above are **no longer read or written** by the app — safe to delete
-from the org in Setup whenever historical rows are no longer needed (`sf:setup`
-neither creates nor touches them anymore).
+The three **retained** items still hold their pre-migration (now-duplicate) data;
+they're deliberately kept for now and can be deleted from Setup whenever those
+historical rows are no longer wanted. Everything else was already removed from the
+org. Nothing here is a foreign object — these were all created by this app.
 
 ## Removed
 `Account.Company_Domain__c` (and the whole B2B "company account / shared team

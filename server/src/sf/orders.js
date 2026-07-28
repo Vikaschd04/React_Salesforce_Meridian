@@ -29,8 +29,7 @@ import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 let refs = null // { accountId, pricebookId }
 
 // contactId → person-account id. A registered shopper's orders live on their own
-// Person Account (Order.AccountId) — that's the shopper↔order link (replacing the
-// old custom Shopper__c). Cached per shopper.
+// Person Account (Order.AccountId) — that IS the shopper↔order link. Cached per shopper.
 const accountByContact = new Map()
 async function personAccountFor(contactId) {
   if (!contactId) return null

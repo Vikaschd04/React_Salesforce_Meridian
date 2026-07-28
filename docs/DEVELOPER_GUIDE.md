@@ -572,10 +572,14 @@ Cancelled→cancelled.
 | `Payment_Intent__c` | Text (64)   | payment provider charge id (`pi_mock_…` / Stripe PaymentIntent) |
 | `Tracking_Number__c` | Text (64)  | tracking, shown on the account order timeline |
 
-*Deprecated (migrated to standard, left in the org unused):* `Shopper__c` →
+*Deprecated (migrated to standard, none read/written by the app):* `Shopper__c` →
 standard `AccountId`; `Discount_Cents__c` → `Discount__c` (USD); `Shipping_Cents__c`
 → `Shipping_Amount__c` (USD); `Total_Cents__c` → `TotalAmount`; `Cancelled__c` /
 `Payment_Status__c` / `Fulfillment_Status__c` → `Status`; `Shipped_Date__c` dropped.
+Most are already removed from the org; `Total_Cents__c` (plus the
+`Meridian_Wishlist_Item__c` / `Meridian_Address__c` objects) are retained holding
+migrated-duplicate data and can be dropped from Setup later. Full table in the
+"Deprecated" section of [SALESFORCE_CONVENTIONS.md](SALESFORCE_CONVENTIONS.md).
 
 The org has
 **State & Country picklists enabled**, so the BFF writes the ISO code fields
