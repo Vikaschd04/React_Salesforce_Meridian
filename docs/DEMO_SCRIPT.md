@@ -48,12 +48,17 @@ in mock mode, so we build and demo without an org, then flip one switch to go
 live."
 
 ### Slide 5 · The Salesforce side  *(~1.5 min)*
-"This isn't a bolt-on schema. Almost everything maps to **standard** Salesforce —
-Product2 and Pricebook, Order and OrderItem, **Person Accounts** for B2C
-customers, Case and CaseComment for support. So admins, reports and flows keep
-working. We added only a handful of custom fields/objects where nothing standard
-fit, and it's all created by **one command** with a single permission set. The
-governing rule: standard-first, custom only when justified — and documented."
+"This isn't a bolt-on schema, and the standard-first story keeps getting stronger.
+Almost everything maps to **standard** Salesforce — Product2 and Pricebook, Order
+and OrderItem, and now a standard **OrderSummary** per order (Salesforce **Order
+Management**) that rolls up shipping and **sales tax**; **Person Accounts** for B2C
+customers; Case and CaseComment for support. Even the things we *used* to keep
+custom are standard now — **Wishlist/WishlistItem** for saved products,
+**ContactPointAddress** for saved addresses, and **Coupon/Promotion** for promo
+codes. So admins, reports and flows keep working. The **one** custom object left is
+Product Reviews (no standard fit), plus a few justified Order fields — all created
+by **one command** with a single permission set. The rule: standard-first, custom
+only when justified — and documented."
 
 ### Slide 6 · Security & governance  *(~1.5 min)*
 "Stakeholders always ask about security, so here it is up front. Secrets live
@@ -65,11 +70,13 @@ And two customer-facing guards: guest order-tracking needs the order number
 case replies — internal notes never leak."
 
 ### Slide 7 · Core flow  *(~1.5 min)*
-"When a shopper pays, a **real Order** is created in Salesforce — Draft, then
-immediately Activated, meaning paid. From there the **merchant** drives it inside
-Salesforce: Shipped, then Completed. The storefront simply reads Status back, so
-the business runs fulfilment in the tool they already use. The trust points:
-totals and stock are server-side, and we take payment *before* we write the
+"When a shopper pays, totals — including **sales tax** — are computed server-side,
+we take payment, then a **real Order** is created in Salesforce (Draft, then
+immediately Activated, meaning paid) **alongside a standard OrderSummary** that
+rolls up the product, shipping and tax amounts. From there the **merchant** drives
+it inside Salesforce: Shipped, then Completed. The storefront simply reads Status
+back, so the business runs fulfilment in the tool they already use. The trust
+points: totals and stock are server-side, and we take payment *before* we write the
 order."
 
 ### Slide 8 · Real-time & identity  *(~1.5 min)*
@@ -82,9 +89,11 @@ instantly, no refresh. Guests get the same live tracking by order number + email
 
 ### Slide 9 · Functionality  *(~1 min)*
 "Sixteen features, each built standard-first and each with automated tests." Scan
-a few — "discovery and search, cart and checkout, promo codes, reviews, wishlist,
-saved addresses, live order tracking, support tickets, guest tracking, theming,
-SEO, accessibility, and an end-to-end test suite in CI."
+a few — "discovery and search, cart and checkout **with sales tax**, promo codes
+(standard **Coupon/Promotion**), reviews, wishlist (standard **Wishlist**), saved
+addresses (standard **ContactPointAddress**), order history with a standard
+**OrderSummary** per order, live order tracking, support tickets, guest tracking,
+theming, SEO, accessibility, and an end-to-end test suite in CI."
 
 ### Slide 10 · How it was built  *(~1.5 min)*
 "'AI-built' with guardrails a senior engineer would recognise. Each feature is
@@ -122,13 +131,17 @@ the URL, so a view is shareable and survives a refresh."
 
 **2. Product → social proof (30s)**
 Open a coffee. Point out tasting notes, **reviews & ratings**, and the **heart**
-to add to a **wishlist**. "Reviews and wishlist are custom Salesforce objects
-behind the scenes."
+to add to a **wishlist**. "Reviews are a custom object; the **wishlist is the
+standard Salesforce `Wishlist` object** — one of several things we moved from
+custom to standard."
 
 **3. Cart → checkout (1 min)**
-Add to cart → **Checkout**. Apply promo code **`WELCOME10`** to show the discount.
-Fill shipping, pay with the test card **`4242 4242 4242 4242`**. "Totals are
-recomputed server-side and stock is checked against Salesforce — the browser is
+Add to cart → **Checkout**. Apply promo code **`WELCOME10`** to show the discount
+(promo codes are standard **Coupon/Promotion** records in Salesforce). Point out the
+**Subtotal → Discount → Shipping → Tax → Total** breakdown — "**sales tax** and the
+grand total are computed server-side." Fill shipping (note the country → **state
+dropdown**, e.g. India), pay with the test card **`4242 4242 4242 4242`**. "Totals
+are recomputed server-side and stock is checked against Salesforce — the browser is
 never trusted with price."
 
 **4. Confirmation (15s)**
@@ -138,7 +151,12 @@ Salesforce."
 **5. Prove it in Salesforce (45s)**
 Switch to Salesforce → open that Order. Show **Status = Activated**, the line
 items, and the **Account** it's linked to. If you registered (vs. guest), show
-it's a **Person Account** for that shopper.
+it's a **Person Account** for that shopper. Then open the matching **OrderSummary**
+(Salesforce Order Management) — point out the **TotalProductAmount /
+TotalDeliveryAmount / TotalTaxAmount / GrandTotalAmount** rollups and the
+**OrderItemSummary** lines, each carrying its own tax. "Every order also produces a
+standard OrderSummary — this *supplements* the Order; the lifecycle still rides
+`Order.Status`."
 
 **6. ⭐ The real-time moment (1 min)**
 Put the storefront's **order page** on screen (Account → Order history → open the
@@ -177,6 +195,22 @@ to slide 12 for next steps.
 - **"Why Person Accounts?"** They're Salesforce's native B2C model — one record
   that is both Account and Contact — so each shopper is a real customer with
   their orders attached. Requires Person Accounts enabled (it is here).
+- **"What's the OrderSummary / do you use Order Management?"** Yes — every order
+  also creates a standard **OrderSummary** (with OrderItemSummary +
+  OrderDeliveryGroupSummary) via the standard `createOrderSummary` action, so the
+  app showcases the standard OMS stack. It **supplements** the Order — the
+  lifecycle still rides `Order.Status` (we deliberately didn't migrate status/
+  cancel onto OMS). Created `UNMANAGED` (no fulfilment engine); the app owns the
+  lifecycle.
+- **"How is sales tax handled?"** A configurable flat rate (`SF_TAX_RATE`, default
+  8%) on the post-discount subtotal, computed server-side, included in the charge,
+  and stored as standard `OrderItemTaxLineItem` records (one per product line) that
+  roll up to `OrderSummary.TotalTaxAmount`. Swappable for a real tax engine later.
+- **"What's standard vs custom now?"** Standard-first got stronger: Product2/
+  Pricebook, Order/OrderItem/OrderSummary, Person Accounts, Case/CaseComment,
+  **Wishlist**, **ContactPointAddress**, and **Coupon/Promotion** are all standard.
+  The only custom **object** is Product Reviews; plus a few justified Order fields
+  (guest email, discount, promo code, shipping amount, payment ref, tracking).
 - **"How does the real-time update work?"** Change Data Capture on Order →
   the middleware subscribes → pushes to the browser over Server-Sent Events.
   Falls back to a manual/refresh path if the stream drops.
@@ -196,9 +230,12 @@ to slide 12 for next steps.
 ---
 
 ## Reference — test data for the demo
-- **Promo code:** `WELCOME10`
+- **Promo code:** `WELCOME10` (a standard `Coupon`/`Promotion`; `npm run sf:setup`
+  seeds the demo codes).
 - **Test card:** `4242 4242 4242 4242`, any future expiry, any CVC.
 - **Order lifecycle (set in Salesforce):** Draft → Activated (paid) → Shipped →
-  Completed; or Cancelled.
+  Completed; or Cancelled — this rides `Order.Status`.
+- **Per order, also created:** a standard **OrderSummary** (+ OrderItemSummary /
+  OrderDeliveryGroupSummary) with product, shipping and **tax** rollups.
+- **Sales tax:** flat `SF_TAX_RATE` (default 8%) on the post-discount subtotal.
 - **Deck file:** `docs/Meridian-Overview.pptx` (12 slides, speaker notes on each).
-  Interactive HTML version also available if you prefer presenting in a browser.
