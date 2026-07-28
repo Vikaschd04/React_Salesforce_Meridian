@@ -10,6 +10,7 @@ import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
 import PaymentFields from '../components/PaymentFields.jsx'
 import StripePaymentFields from '../components/StripePaymentFields.jsx'
+import ErrorPopup from '../components/ErrorPopup.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
 
 const FIELDS = [
@@ -208,11 +209,10 @@ export default function Checkout() {
         <form className="checkout__form" onSubmit={onSubmit}>
           <h2 className="account-section-title">Shipping details</h2>
 
-          {error && (
-            <p className="auth-form__error" role="alert">
-              {error.message || 'Checkout failed. Please try again.'}
-            </p>
-          )}
+          <ErrorPopup
+            message={error ? error.message || 'Checkout failed. Please try again.' : null}
+            onClose={() => setError(null)}
+          />
 
           {savedAddresses.length > 0 && (
             <div className="checkout__saved" role="radiogroup" aria-label="Saved addresses">
@@ -309,7 +309,14 @@ export default function Checkout() {
           )}
 
           <button type="submit" className="btn btn--block checkout__submit" disabled={placing}>
-            {placing ? 'Processing payment…' : `Pay ${formatUsd(grandTotal)}`}
+            {placing ? (
+              <span className="btn__loading">
+                <span className="btn__spinner" aria-hidden="true" />
+                Processing payment…
+              </span>
+            ) : (
+              `Pay ${formatUsd(grandTotal)}`
+            )}
           </button>
           <p className="field__hint">
             Test-mode checkout — no real charge. Your paid order is created in Salesforce.

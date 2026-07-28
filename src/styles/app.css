@@ -458,6 +458,13 @@
   padding-top: var(--sp-6);
   margin-bottom: var(--sp-4);
 }
+/* Cart + Checkout use a tighter, consistent gap above the title: on Cart it's the
+   space from the top, on Checkout the space between the breadcrumb and the title —
+   kept equal (sp-4) so the two pages feel the same. */
+.cart .section-head,
+.checkout .section-head {
+  padding-top: var(--sp-4);
+}
 .section-head__title {
   font-size: var(--step-3);
 }
@@ -2818,6 +2825,98 @@
 }
 .checkout__submit {
   margin-top: var(--sp-2);
+}
+/* Dismissible error popup (toast) — fixed, bottom-centre, above everything. */
+.error-popup {
+  position: fixed;
+  left: 50%;
+  bottom: var(--sp-4);
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  width: min(30rem, calc(100vw - 2 * var(--sp-4)));
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  animation: error-popup-in 0.22s var(--ease, ease) both;
+}
+@keyframes error-popup-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.6rem);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .error-popup {
+    animation: none;
+  }
+}
+.error-popup__icon {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.35rem;
+  text-align: center;
+}
+.error-popup__msg {
+  flex: 1;
+  margin: 0;
+  font-size: var(--step--1);
+  line-height: 1.4;
+}
+.error-popup__close {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--mist);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  transition: color var(--dur-1) var(--ease);
+}
+.error-popup__close:hover {
+  color: var(--ink);
+}
+/* Inline button spinner (shown while an action like payment is processing). */
+.btn__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.btn__spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  flex: none;
+}
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn__spinner {
+    animation-duration: 1.4s;
+  }
 }
 .checkout__loading {
   color: var(--mist);
