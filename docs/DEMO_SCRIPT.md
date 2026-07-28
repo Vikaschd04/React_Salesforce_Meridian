@@ -223,6 +223,29 @@ to slide 12 for next steps.
   charges. Going live is a configuration + hardening step.
 - **"Does the data stay in Salesforce?"** Yes — Salesforce is the system of
   record. The middleware is stateless brokering; it doesn't own the data.
+- **"Can we deploy the whole package (frontend + BFF) *in* Salesforce?"** The
+  frontend can; the BFF as-is can't run *inside* an org — Salesforce's only native
+  server runtime is **Apex**, not Node. Three paths: **(A, recommended)** rehost on
+  the Salesforce family — BFF on **Heroku** (a Salesforce company, runs Node
+  unchanged, with first-party org integration), frontend as a static/Experience
+  Cloud site; keeps all the code. **(B)** Frontend on an Experience Cloud (LWR)
+  site, BFF on Heroku — some adaptation (CSP / size limits). **(C)** Fully native:
+  rebuild the UI as **LWC** and the BFF logic in **Apex** + Named Credentials — a
+  big rewrite that inherits governor limits and re-couples you to Salesforce (the
+  very lock-in the decoupled pattern avoids). Note **Salesforce Functions** (the old
+  serverless middle path) was **retired**. Framing: keeping frontend + BFF outside
+  the org is the point; if "all Salesforce infra" is required, **Heroku** is the
+  natural home with near-zero change.
+- **"Could we build this on SAP Hybris (SAP Commerce Cloud)?"** Yes — the pattern is
+  backend-agnostic, and SAP is an even more natural fit: SAP Commerce exposes **OCC
+  REST APIs** and ships a reference headless storefront (**Spartacus / Composable
+  Storefront**), so it endorses this exact architecture. You'd swap only our thin
+  Salesforce adapter (`server/src/sf/*.js`) for an OCC client; the React frontend,
+  BFF structure, security model and AI build workflow all carry over. Differences:
+  SAP Commerce *is* a full commerce engine, so cart/pricing/promotions/**tax**/
+  inventory are first-class there (less BFF math); no direct CDC→SSE (use SAP
+  events/webhooks or polling); the "commerce without Commerce Cloud" narrative
+  doesn't apply since SAP Commerce is the dedicated platform.
 - **"What's next?"** Subscriptions (Contracts), generative AI when the org is
   entitled (Einstein / Agentforce / Data Cloud), more locales/channels, and
   production payments.
