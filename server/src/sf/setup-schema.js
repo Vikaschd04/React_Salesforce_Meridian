@@ -270,18 +270,23 @@ async function ensureOmsCatalog(conn) {
     await conn.sobject('OrderDeliveryMethod').create({ Name: DELIVERY_METHOD_NAME, ProductId: prodId })
     console.log('  • Created OrderDeliveryMethod')
   } else console.log('  • OrderDeliveryMethod already present')
-  // The org's B2B_UpdateStockOnOrder trigger decrements Product2.Available_Qty__c
-  // on activation for Type='Order Product' items and throws if short — which our
-  // OMS orders use. Keep Meridian products well-stocked on that field so a paid
-  // order always activates (our real stock lives in Stock__c, unaffected).
-  // Available_Qty__c is precision-5 (max 99999); 9999 is a safe, ample baseline.
-  const low = await conn.query(
-    'SELECT Id FROM Product2 WHERE Origin__c != null AND (Available_Qty__c = null OR Available_Qty__c < 1000)',
+  // The org's foreign B2B_UpdateStockOnOrder trigger decrements
+  // Product2.Available_Qty__c on activation for Product-type items and throws if
+  // short — which our OMS orders would trip. We don't use that field for Meridian
+  // inventory (that's Stock__c); we keep it *mirrored* to Stock__c so the trigger
+  // never blocks a paid order AND a merchant sees one consistent number in both
+  // fields. Available_Qty__c is precision-5 (max 99999), so we cap.
+  const prods = await conn.query(
+    'SELECT Id, Stock__c, Available_Qty__c FROM Product2 WHERE Origin__c != null',
   )
-  if (low.records.length) {
-    await conn.sobject('Product2').update(low.records.map((r) => ({ Id: r.Id, Available_Qty__c: 9999 })))
-    console.log(`  • Stocked Available_Qty__c on ${low.records.length} Meridian product(s)`)
-  } else console.log('  • Meridian products already stocked (Available_Qty__c)')
+  const mirror = prods.records
+    .map((r) => ({ Id: r.Id, target: Math.min(99999, Math.max(0, Number(r.Stock__c || 0))), current: Number(r.Available_Qty__c || 0) }))
+    .filter((r) => r.target !== r.current)
+    .map((r) => ({ Id: r.Id, Available_Qty__c: r.target }))
+  if (mirror.length) {
+    await conn.sobject('Product2').update(mirror)
+    console.log(`  • Mirrored Available_Qty__c to Stock__c on ${mirror.length} Meridian product(s)`)
+  } else console.log('  • Available_Qty__c already mirrors Stock__c')
 }
 
 async function ensureProductReviewObject(conn) {

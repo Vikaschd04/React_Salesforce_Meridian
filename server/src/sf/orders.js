@@ -194,15 +194,22 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   // line so the summary rolls up TotalTaxAmount. A failure never blocks the order.
   let summary = null
   if (oms) {
-    // Stock the org's B2B stock field just-in-time: activation fires
-    // B2B_UpdateStockOnOrder for Type='Order Product' lines and throws if
-    // Available_Qty__c is short. A shared-org integration may reset it, so top it
-    // up per order right before activating (our real stock lives in Stock__c).
+    // Mirror the foreign B2B stock field to our real Stock__c right before
+    // activation. The org's pre-existing B2B_UpdateStockOnOrder trigger fires on
+    // activation and subtracts the ordered qty from Product2.Available_Qty__c
+    // (throwing if short). By seeding Available_Qty__c = the current Stock__c, the
+    // trigger's decrement lands on the SAME number the app subtracts from Stock__c
+    // below — so the two fields stay consistent (Stock__c is the source of truth;
+    // Available_Qty__c just shadows it to satisfy the foreign trigger). Capped at
+    // the field's precision-5 max (99999).
     await withConn((conn) =>
       conn.sobject('Product2').update(
-        lines.map(({ product }) => ({ Id: product._sfId, Available_Qty__c: 9999 })),
+        lines.map(({ product }) => ({
+          Id: product._sfId,
+          Available_Qty__c: Math.min(99999, Math.max(0, product.stock)),
+        })),
       ),
-    ).catch((err) => console.error('[oms] stock top-up failed:', err.message))
+    ).catch((err) => console.error('[oms] stock mirror failed:', err.message))
     // Pair each created OrderItem id with its pre-discount line amount so the tax
     // is apportioned across every product line (not dumped onto the first).
     const productItems = built.productItemIds.map((id, i) => ({

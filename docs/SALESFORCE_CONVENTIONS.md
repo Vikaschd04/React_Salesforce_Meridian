@@ -64,10 +64,13 @@ fails the paid order):
 - **`OrderItem.OrderDeliveryGroupId`** is a standard field but FLS-hidden by
   default — `sf:setup` grants it (createOrderSummary requires items assigned to a
   delivery group).
-- The org has a pre-existing **`B2B_UpdateStockOnOrder`** Apex trigger that
-  decrements `Product2.Available_Qty__c` on activation for `Order Product` lines
-  and blocks it if short. We top that field up just-in-time before activating
-  (our real stock is `Stock__c`, untouched).
+- The org has a pre-existing (foreign) **`B2B_UpdateStockOnOrder`** Apex trigger
+  that decrements `Product2.Available_Qty__c` on activation for `Order Product`
+  lines and blocks it if short. **`Stock__c` is Meridian's single source of truth**
+  for inventory; `Available_Qty__c` is not ours. We keep it **mirrored** to
+  `Stock__c` (seeded before activation, capped at 99999) so the trigger's decrement
+  matches the app's `Stock__c` decrement and the two fields always agree — the
+  trigger never blocks a paid order, and a merchant sees one consistent number.
 - We do **not** create an OMS discount adjustment — this org's B2B adjustment
   handling rewrites source line prices. The promo discount stays on
   `Order.Discount__c`; consequently `OrderSummary.GrandTotalAmount` is pre-discount

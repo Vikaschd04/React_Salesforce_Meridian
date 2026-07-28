@@ -494,11 +494,16 @@ Every order also produces a standard **`OrderSummary`** (with `OrderItemSummary`
   1. **`OrderItem.OrderDeliveryGroupId`** (standard) is FLS-hidden from the
      integration user — `sf:setup` grants it (createOrderSummary needs items on a
      delivery group).
-  2. A pre-existing **`B2B_UpdateStockOnOrder`** trigger decrements
+  2. A pre-existing (foreign) **`B2B_UpdateStockOnOrder`** trigger decrements
      `Product2.Available_Qty__c` on activation for `Order Product` lines and throws
      if short (an `AuraHandledException`, which surfaces as a hard error over the
-     API). The pipeline tops that field up (max 99999) just-in-time before
-     activating; our own stock stays in `Stock__c`.
+     API). We don't use that field for Meridian inventory — **`Stock__c` is the
+     single source of truth**. To keep the foreign trigger from blocking activation
+     *and* to avoid a confusing second stock number, the pipeline **mirrors**
+     `Available_Qty__c` to the current `Stock__c` (capped at its precision-5 max,
+     99999) just before activating: the trigger then subtracts the ordered qty from
+     the same value the app subtracts from `Stock__c`, so the two fields always
+     agree. (See [`sf/orders.js`](../server/src/sf/orders.js) `createOrder`.)
   3. We **don't** create an OMS discount adjustment — this org's B2B adjustment
      handling rewrites source `OrderItem` prices, which would corrupt reads. The
      discount stays on `Order.Discount__c`, so `OrderSummary.GrandTotalAmount` is
@@ -507,7 +512,7 @@ Every order also produces a standard **`OrderSummary`** (with `OrderItemSummary`
 - **Setup** (`sf:setup`): a "Meridian Shipping" `Product2` + $0 `PricebookEntry`
   (the delivery-charge line references a product) and a "Meridian Standard
   Shipping" `OrderDeliveryMethod`; the FLS grant above; and `Available_Qty__c`
-  stocked as a baseline. `sf:check` reports "Order Management ready".
+  mirrored to `Stock__c` as a baseline. `sf:check` reports "Order Management ready".
 
 ---
 
