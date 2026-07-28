@@ -105,6 +105,30 @@ async function chargeStripe({ amount, payment, metadata }) {
   }
 }
 
+/**
+ * Refund a payment (best-effort; the caller decides how to handle failure).
+ * No-op for mock ids (`pi_mock_…`) or when Stripe isn't configured, so cancelling
+ * a mock order — or a Stripe order in an org where refunds aren't set up — never
+ * throws. Returns { refunded: boolean, id?: string, reason?: string }.
+ */
+export async function refund(paymentId) {
+  if (!paymentId || String(paymentId).startsWith('pi_mock_') || !useStripe) {
+    return { refunded: false, reason: 'no_op' }
+  }
+  const stripe = await getStripe()
+  const r = await stripe.refunds.create({ payment_intent: paymentId })
+  return { refunded: true, id: r.id }
+}
+
+/**
+ * Verify + parse a Stripe webhook payload. `rawBody` MUST be the unparsed request
+ * body (Buffer/string) or signature verification fails. Throws on a bad signature.
+ */
+export async function constructWebhookEvent(rawBody, signature) {
+  const stripe = await getStripe()
+  return stripe.webhooks.constructEvent(rawBody, signature, config.payment.stripeWebhookSecret)
+}
+
 /** Public payment config for the client (never leaks the secret key). */
 export function paymentConfig() {
   return {

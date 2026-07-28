@@ -15,6 +15,7 @@ import accountRoutes from './routes/account.js'
 import supportRoutes from './routes/support.js'
 import promoRoutes from './routes/promo.js'
 import paymentRoutes from './routes/payment.js'
+import stripeWebhookRoutes from './routes/stripeWebhook.js'
 import seoRoutes from './routes/seo.js'
 import reviewRoutes from './routes/reviews.js'
 
@@ -25,17 +26,21 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 
 // Security + platform middleware. The CSP allows the bundled app + the pre-paint
 // theme script (inline) and data: images; tighten with hashes/nonces later.
+// When Stripe is the payment provider, Stripe.js + Elements need their own hosts
+// (script + the card iframe + api.stripe.com); only widened in that mode.
+const stripeCsp = config.paymentProvider === 'stripe'
 app.disable('x-powered-by')
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", ...(stripeCsp ? ['https://js.stripe.com'] : [])],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", ...(stripeCsp ? ['https://api.stripe.com'] : [])],
         fontSrc: ["'self'", 'data:'],
+        frameSrc: stripeCsp ? ['https://js.stripe.com', 'https://hooks.stripe.com'] : ["'none'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
@@ -44,6 +49,9 @@ app.use(
   }),
 )
 app.use(cors({ origin: config.appOrigin, credentials: true }))
+// Stripe webhook needs the RAW body for signature verification, so it MUST be
+// mounted before the JSON body parser (it uses express.raw internally).
+app.use('/api', stripeWebhookRoutes)
 app.use(express.json({ limit: '32kb' }))
 app.use(cookieParser())
 if (!config.isProd) app.use(morgan('dev'))

@@ -134,7 +134,8 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
 | `OrderRow.jsx` | One row in the shopper's order history (`Orders.jsx`). Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
 | `PromoInput.jsx` | Promo code entry on Checkout — calls `applyPromo()`, shows the discount inline. |
-| `PaymentFields.jsx` | Card number/expiry/CVC inputs for checkout (mock or Stripe-ready — see §4.3). |
+| `PaymentFields.jsx` | Plain card inputs for the **mock** payment provider (see §4.3). |
+| `StripePaymentFields.jsx` | Stripe **Elements** card field (Stripe-hosted iframe) for `PAYMENT_PROVIDER=stripe`; exposes an imperative `createPaymentMethod()` to Checkout (see §4.3). |
 | `StarRating.jsx` | Five-star display; read-only (review list, aggregate summary) or an interactive picker via an `onChange` prop (the review form). |
 | `ProductReviews.jsx` | Reviews section on `ProductDetail` — summary + list + (if eligible) the write-a-review form. See §4.6. |
 | `WishlistButton.jsx` | Heart toggle (♥/♡) for saving a product. `icon` variant sits in the product-card corner (a sibling of the card `<Link>`, not nested); `labeled` variant is a "Save"/"Saved" button on the detail page. Routes logged-out shoppers to `/login`. See §4.7. |
@@ -249,7 +250,7 @@ standard vs. custom and why.
 
 | File | Role |
 |---|---|
-| `index.js` | Payment provider seam. `PAYMENT_PROVIDER=mock` (default) simulates a charge fully offline — a specific test card number (`4000000000000002`) triggers a decline path, everything else succeeds — so checkout works with zero third-party accounts. `PAYMENT_PROVIDER=stripe` uses real Stripe test-mode PaymentIntents; the `stripe` SDK is **lazy-imported** so mock mode carries no extra dependency. Single entry point: `charge()` → `{ paymentId, status }` or throws a 402 `ApiError` on decline. |
+| `index.js` | Payment provider seam. `PAYMENT_PROVIDER=mock` (default) simulates a charge fully offline — a specific test card number (`4000000000000002`) triggers a decline path, everything else succeeds — so checkout works with zero third-party accounts. `PAYMENT_PROVIDER=stripe` uses real Stripe test-mode PaymentIntents; the `stripe` SDK is **lazy-imported** so mock mode carries no extra dependency. Entry points: `charge()` → `{ paymentId, status }` (or a 402 `ApiError` on decline), `refund()` (best-effort, no-op for mock ids), and `constructWebhookEvent()` (signature-verified) for `routes/stripeWebhook.js`. |
 
 ### 3.7 `server/src/data/`
 
@@ -285,12 +286,32 @@ written (best-effort) for usage tracking. Mock mode keeps a static table with th
 same shape (incl. test `EXPIRED10` / `ONCE5` codes) so the app runs offline and
 E2E covers the expiry/limit paths. `sf:setup` seeds the demo codes.
 
-### 4.3 Payments (`PaymentFields.jsx` → `placeOrder()` → `server/src/pay/index.js`)
+### 4.3 Payments (`PaymentFields.jsx` / `StripePaymentFields.jsx` → `placeOrder()` → `server/src/pay/index.js`)
 
 See §3.6. `GET /api/payment-config` tells the front end which UI to render
-(`{ provider: 'mock' | 'stripe', publishableKey }`); `PaymentFields.jsx`
-renders plain card inputs for mock, or is ready to swap in Stripe Elements
-once `PAYMENT_PROVIDER=stripe` is set.
+(`{ provider: 'mock' | 'stripe', publishableKey }`):
+
+- **`PAYMENT_PROVIDER=mock`** (default): `PaymentFields.jsx` renders plain card
+  inputs; the BFF simulates the charge offline. No account, no keys — this is what
+  CI/E2E and the offline demo use.
+- **`PAYMENT_PROVIDER=stripe`** (with `STRIPE_*` test keys): Checkout mounts
+  `StripePaymentFields.jsx` inside a Stripe `<Elements>` provider. The card lives
+  in a **Stripe-hosted iframe and never touches our server** — on submit the client
+  turns it into a **PaymentMethod id** (`stripe.createPaymentMethod`), which is all
+  `placeOrder` sends. `pay/index.js` `chargeStripe()` creates + confirms a
+  test-mode **PaymentIntent** server-side (amount = the server-computed total).
+- **Refund-on-cancel:** cancelling a paid order calls `refund()` (both the SF and
+  mock cancel paths), a no-op for mock ids and a real Stripe refund for a `pi_` id.
+- **Webhook:** `POST /api/stripe/webhook` (mounted with `express.raw` **before**
+  the JSON parser) verifies the Stripe signature (`STRIPE_WEBHOOK_SECRET`) and
+  acknowledges `payment_intent.*` / `charge.refunded`. It's a backstop — the order
+  is confirmed synchronously, so it never depends on the webhook.
+- **CSP** widens to Stripe's hosts (`js.stripe.com`, `api.stripe.com`, the card
+  iframe) **only** when `PAYMENT_PROVIDER=stripe`; mock mode keeps the tight CSP.
+
+Test mode moves **no real money** — `4242 4242 4242 4242` succeeds,
+`4000 0000 0000 0002` declines. Live mode is the same code with `sk_live_`/`pk_live_`
+keys. See `server/.env.example` for setup + local webhook forwarding.
 
 ### 4.4 Theming (`ThemeContext.jsx` + `ThemeToggle.jsx` + `tokens.css` + inline script in `index.html`)
 

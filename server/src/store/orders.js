@@ -15,7 +15,7 @@ import { config } from '../config.js'
 import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
 import { applyPromo, recordPromoRedemption } from './promos.js'
-import { charge } from '../pay/index.js'
+import { charge, refund } from '../pay/index.js'
 import { computeShipping, computeTax, round2 } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 import * as sfOrders from '../sf/orders.js'
@@ -157,7 +157,13 @@ async function mockCancelOrder(id, contactId) {
     throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
   }
   order.status = 'cancelled'
-  if (order.paymentStatus === 'paid') order.paymentStatus = 'refunded'
+  if (order.paymentStatus === 'paid') {
+    // Best-effort refund (no-op for mock ids; real for a Stripe pi_ id).
+    await refund(order.paymentId).catch((err) =>
+      console.error('[pay] refund on cancel failed:', err.message),
+    )
+    order.paymentStatus = 'refunded'
+  }
   for (const line of order.items) {
     const src = PRODUCTS.find((p) => p.id === line.id)
     if (src) src.stock += line.qty

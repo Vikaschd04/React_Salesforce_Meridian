@@ -2857,6 +2857,19 @@
   padding: 0.05rem 0.3rem;
   border-radius: 4px;
 }
+/* Stripe Elements card iframe — matched to .field input. */
+.pay__stripe-input {
+  width: 100%;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.pay__stripe-input:focus-within {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+}
 .checkout__summary {
   position: static;
 }

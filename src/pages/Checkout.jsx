@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements } from '@stripe/react-stripe-js'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder, getPaymentConfig, getAddresses, addAddress } from '../api/store.js'
@@ -7,6 +9,7 @@ import { formatUsd, round2, computeTax, SHIP_FREE_THRESHOLD, SHIP_FLAT } from '.
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
 import PaymentFields from '../components/PaymentFields.jsx'
+import StripePaymentFields from '../components/StripePaymentFields.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
 
 const FIELDS = [
@@ -33,6 +36,8 @@ export default function Checkout() {
   })
   const [card, setCard] = useState({ number: '', exp: '', cvc: '', name: '' })
   const [payProvider, setPayProvider] = useState('mock')
+  const [payPublishableKey, setPayPublishableKey] = useState('')
+  const stripeRef = useRef(null)
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState(null)
   const [savedAddresses, setSavedAddresses] = useState([])
@@ -43,12 +48,23 @@ export default function Checkout() {
   useEffect(() => {
     let alive = true
     getPaymentConfig()
-      .then((cfg) => alive && setPayProvider(cfg.provider || 'mock'))
+      .then((cfg) => {
+        if (!alive) return
+        setPayProvider(cfg.provider || 'mock')
+        setPayPublishableKey(cfg.publishableKey || '')
+      })
       .catch(() => {})
     return () => {
       alive = false
     }
   }, [])
+
+  // Load Stripe.js once, only when the BFF is in Stripe mode with a key.
+  const useStripe = payProvider === 'stripe' && !!payPublishableKey
+  const stripePromise = useMemo(
+    () => (useStripe ? loadStripe(payPublishableKey) : null),
+    [useStripe, payPublishableKey],
+  )
 
   // Logged-in shoppers: load saved addresses and auto-fill the default.
   useEffect(() => {
@@ -117,9 +133,22 @@ export default function Checkout() {
     setPlacing(true)
     setError(null)
     try {
-      // Mock provider takes raw card fields; a real Stripe build would pass a
-      // { paymentMethodId } created client-side by Stripe Elements instead.
-      const payment = payProvider === 'stripe' ? { card } : { card }
+      // Stripe: tokenize the card client-side (never hits our server) → send the
+      // PaymentMethod id. Mock: send the raw card fields. A Stripe card error
+      // (e.g. a decline PAN) throws here and is shown by the catch below.
+      const payment = useStripe
+        ? await stripeRef.current.createPaymentMethod({
+            name: values.name,
+            email: values.email,
+            address: {
+              line1: values.street,
+              city: values.city,
+              state: values.stateCode || undefined,
+              postal_code: values.postalCode,
+              country: values.countryCode,
+            },
+          })
+        : { card }
       const order = await placeOrder(items, values, promo?.code || null, payment)
       // Best-effort: save this shipping address for next time (never blocks the
       // order if it fails). Only when the shopper opted in and typed a new one.
@@ -258,7 +287,13 @@ export default function Checkout() {
             </label>
           )}
 
-          <PaymentFields value={card} onChange={setCard} />
+          {useStripe && stripePromise ? (
+            <Elements stripe={stripePromise}>
+              <StripePaymentFields ref={stripeRef} />
+            </Elements>
+          ) : (
+            <PaymentFields value={card} onChange={setCard} />
+          )}
 
           <button type="submit" className="btn btn--block checkout__submit" disabled={placing}>
             {placing ? 'Processing payment…' : `Pay ${formatUsd(grandTotal)}`}

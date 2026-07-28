@@ -13,7 +13,7 @@ import { withConn } from './client.js'
 import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
 import { applyPromo, recordPromoRedemption } from '../store/promos.js'
-import { charge } from '../pay/index.js'
+import { charge, refund } from '../pay/index.js'
 import { computeShipping, computeTax, round2 } from '../lib/totals.js'
 import {
   getOmsRefs,
@@ -336,10 +336,16 @@ export async function cancelOrder(idOrNumber, contactId) {
     throw badRequest('This order has already shipped and can no longer be cancelled.', 'not_cancellable')
   }
 
-  // Standard lifecycle: move the order to the 'Cancelled' Status (a paid order is
-  // implicitly refunded). Restores stock below.
+  // Standard lifecycle: move the order to the 'Cancelled' Status. Restores stock
+  // below.
   await withConn((conn) =>
     conn.sobject('Order').update({ Id: raw.head.Id, Status: 'Cancelled' }),
+  )
+
+  // Refund the payment (best-effort — a refund hiccup never blocks the cancel;
+  // no-op for mock/unconfigured payments). Stripe test refunds are instant.
+  await refund(raw.head.Payment_Intent__c).catch((err) =>
+    console.error('[pay] refund on cancel failed:', err.message),
   )
 
   // Restore stock (best effort).

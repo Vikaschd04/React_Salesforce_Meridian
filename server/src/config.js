@@ -31,6 +31,9 @@ export const config = {
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
     // Safe to expose to the browser (used to mount Stripe Elements).
     stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    // Signing secret for the Stripe webhook endpoint (whsec_…). When set, the
+    // webhook verifies every event's signature; when empty, the endpoint no-ops.
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   },
 
   // Shopper sessions (signed JWT in an httpOnly cookie).
