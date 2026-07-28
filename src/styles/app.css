@@ -2826,68 +2826,84 @@
 .checkout__submit {
   margin-top: var(--sp-2);
 }
-/* Dismissible error popup (toast) — fixed, bottom-centre, above everything. */
-.error-popup {
+/* Dismissible error popup — centred modal over a dimmed backdrop. */
+.error-popup-overlay {
   position: fixed;
-  left: 50%;
-  bottom: var(--sp-4);
-  transform: translateX(-50%);
+  inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  width: min(30rem, calc(100vw - 2 * var(--sp-4)));
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--danger);
-  border-left-width: 4px;
-  border-radius: var(--radius);
-  background: var(--raised);
-  color: var(--ink);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-  animation: error-popup-in 0.22s var(--ease, ease) both;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(0, 0, 0, 0.45);
+  animation: error-overlay-in 0.2s ease both;
 }
-@keyframes error-popup-in {
+@keyframes error-overlay-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 0.6rem);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
+  }
+}
+.error-popup {
+  position: relative;
+  width: min(26rem, 100%);
+  padding: 1.7rem 1.5rem 1.5rem;
+  border: 1px solid var(--danger);
+  border-top: 4px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+  text-align: center;
+  animation: error-popup-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes error-popup-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .error-popup-overlay,
   .error-popup {
     animation: none;
   }
 }
 .error-popup__icon {
-  flex: none;
-  width: 1.35rem;
-  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.85rem;
   border-radius: 50%;
   background: var(--danger);
   color: #fff;
   font-weight: 700;
-  font-size: 0.9rem;
-  line-height: 1.35rem;
-  text-align: center;
+  font-size: 1.35rem;
 }
 .error-popup__msg {
-  flex: 1;
   margin: 0;
-  font-size: var(--step--1);
-  line-height: 1.4;
+  font-size: var(--step-0);
+  line-height: 1.5;
 }
 .error-popup__close {
-  flex: none;
+  position: absolute;
+  top: 0.4rem;
+  right: 0.6rem;
   border: none;
   background: none;
   color: var(--mist);
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0 0.15rem;
+  padding: 0.1rem 0.35rem;
   transition: color var(--dur-1) var(--ease);
 }
 .error-popup__close:hover {
