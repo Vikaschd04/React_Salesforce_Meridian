@@ -11,6 +11,7 @@ import { createCache } from '../lib/cache.js'
 import { config } from '../config.js'
 import { notFoundError } from '../lib/errors.js'
 import * as sfCatalog from '../sf/catalog.js'
+import * as query from '../lib/productQuery.js'
 
 const cache = createCache(config.cacheTtlMs)
 const useSalesforce = config.dataSource === 'salesforce'
@@ -37,6 +38,42 @@ export async function getProducts() {
   return cache.wrap('products:all', () =>
     useSalesforce ? sfCatalog.getProducts() : mockGetProducts(),
   )
+}
+
+/**
+ * One page of the catalog for the shop's product-listing page (PLP).
+ *
+ * This is the "modern ecommerce" contract: the filters, sort, and facets are
+ * computed over the ENTIRE catalog server-side, then only the requested page is
+ * returned — the browser never holds the whole catalog. For our catalog size
+ * (hundreds of SKUs) the full active list is a single cached read, so a page of
+ * results costs no extra Salesforce API calls; the query strategy could later be
+ * pushed into SOQL LIMIT/OFFSET without changing this signature or the frontend.
+ *
+ * Returns { items, page, pageSize, total, totalPages, facets } where `total` is
+ * the count AFTER filtering (before paging) and `facets` describe the whole
+ * catalog so the filter UI never collapses.
+ */
+export async function listProducts({
+  page = 1,
+  pageSize = 10,
+  q = '',
+  roasts = [],
+  origin = '',
+  price = '',
+  sort = 'featured',
+} = {}) {
+  const all = await getProducts()
+  const facets = query.buildFacets(all)
+  const filtered = query.filterProducts(all, { q, roasts, origin, price })
+  const sorted = query.sortProducts(filtered, sort)
+  const { pageItems, total, totalPages, page: safePage } = query.paginate(sorted, page, pageSize)
+  return { items: pageItems, page: safePage, pageSize, total, totalPages, facets }
+}
+
+/** Typeahead suggestions (products + tasting notes) over the whole catalog. */
+export async function suggestProducts(q) {
+  return query.suggest(await getProducts(), q)
 }
 
 /** Fetch one active product by id, or throw a 404 ApiError. */

@@ -1,40 +1,45 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getSearchSuggestions } from '../api/store.js'
 
 /**
- * Search box with a typeahead dropdown over the loaded catalog. Suggests
- * matching coffees (→ navigate to the product) and tasting notes (→ fill the
- * search term). Implements the ARIA combobox pattern with full keyboard support
- * (↑/↓ to move, Enter to choose, Esc to close).
+ * Search box with a typeahead dropdown. Suggestions come from the BFF
+ * (server-side, over the whole catalog) so the browser never has to download
+ * every product just to autocomplete. Suggests matching coffees (→ navigate to
+ * the product) and tasting notes (→ fill the search term). Implements the ARIA
+ * combobox pattern with full keyboard support (↑/↓ to move, Enter to choose,
+ * Esc to close).
  */
-export default function SearchSuggest({ value, onChange, products = [] }) {
+export default function SearchSuggest({ value, onChange }) {
   const navigate = useNavigate()
   const listId = useId()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
+  const [suggestions, setSuggestions] = useState([])
   const blurTimer = useRef(null)
 
-  const suggestions = useMemo(() => {
-    const q = value.trim().toLowerCase()
-    if (q.length < 1) return []
-    const out = []
-    for (const p of products) {
-      if (p.name.toLowerCase().includes(q) || p.origin.toLowerCase().includes(q)) {
-        out.push({ type: 'product', id: p.id, label: p.name, hint: p.origin })
-      }
-      if (out.length >= 6) break
+  // Debounced server fetch — one request per pause in typing, not per keystroke.
+  useEffect(() => {
+    const q = value.trim()
+    if (q.length < 1) {
+      setSuggestions([])
+      return undefined
     }
-    const notes = new Set()
-    for (const p of products) {
-      for (const note of p.tastingNotes) {
-        if (note.toLowerCase().includes(q)) notes.add(note)
-      }
+    let alive = true
+    const t = setTimeout(() => {
+      getSearchSuggestions(q)
+        .then((s) => {
+          if (!alive) return
+          setSuggestions(s)
+          setActive(-1)
+        })
+        .catch(() => alive && setSuggestions([]))
+    }, 180)
+    return () => {
+      alive = false
+      clearTimeout(t)
     }
-    for (const note of [...notes].slice(0, 4)) {
-      out.push({ type: 'note', id: `note-${note}`, label: note, hint: 'Tasting note' })
-    }
-    return out.slice(0, 8)
-  }, [value, products])
+  }, [value])
 
   const showList = open && suggestions.length > 0
 

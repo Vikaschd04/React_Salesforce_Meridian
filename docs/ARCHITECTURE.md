@@ -100,7 +100,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | File | Role |
 |---|---|
 | `Home.jsx` | Landing page — hero, featured coffees (`getProducts()`), origin ticker (`CoordTicker`). |
-| `Shop.jsx` | **Discovery/catalog page.** Filters (search text, roast, origin country, price bucket) and sort all live in the URL via `useSearchParams` — a filtered view is shareable and survives a refresh/back-button. See §4.1. |
+| `Shop.jsx` | **Discovery/catalog page (server-paged PLP).** Filters (search text, roast, origin country, price bucket), sort, **and page** all live in the URL via `useSearchParams` — a filtered/paged view is shareable and survives a refresh/back-button. Fetches one page at a time from `GET /api/catalog` (`getCatalogPage`); the server filters/facets across the whole catalog so filters aren't limited to the current page. See §4.1. |
 | `ProductDetail.jsx` | One coffee's full detail (origin, tasting notes, process, altitude/lat-long) + `RelatedProducts`. |
 | `Cart.jsx` | Cart line items with `QtyStepper`, subtotal, link to checkout. Guards against navigating to checkout while the cart is still hydrating from `localStorage`. |
 | `Checkout.jsx` | Shipping form (state/country dependent dropdowns via `src/data/regions.js`) → `PromoInput` → `PaymentFields` → `placeOrder()`. For a logged-in shopper with saved addresses, shows a picker that auto-fills the default; a "save this address" checkbox persists a new one (§4.8). |
@@ -129,7 +129,8 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `Breadcrumbs.jsx` | Breadcrumb trail (Home / Shop / product name, etc.). |
 | `ShopControls.jsx` | The Shop page's filter/search/sort bar — fully controlled, parent (`Shop.jsx`) owns the actual filtering logic. |
 | `ActiveFilters.jsx` | Chips showing currently-applied Shop filters, each removable. |
-| `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav) over the loaded catalog — suggests matching coffees and tasting notes. |
+| `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav). Suggestions come from the BFF (`GET /api/catalog/suggest`, debounced) so the box never needs a client-side copy of the catalog — suggests matching coffees and tasting notes. |
+| `Pagination.jsx` | Accessible pager for the PLP — Prev / numbered pages (with … gaps) / Next; presentational, `Shop.jsx` owns the page and keeps it in the URL. |
 | `RelatedProducts.jsx` | "You might also like" strip on `ProductDetail`, calls `getProducts()` and picks by shared roast/origin. |
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
 | `OrderRow.jsx` | One row in the shopper's order history (`Orders.jsx`). Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
@@ -184,7 +185,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 
 | File | Mounted paths | Delegates to |
 |---|---|---|
-| `products.js` | `GET /api/products`, `GET /api/products/:id` | `store/catalog.js` |
+| `products.js` | `GET /api/products` (whole catalog), `GET /api/catalog` (one filtered/sorted **page** for the PLP — `page,pageSize,q,roast,origin,price,sort` → `{ items, page, total, totalPages, facets }`), `GET /api/catalog/suggest` (typeahead), `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `orders.js` | `POST /api/orders`, `POST /api/orders/track` + `GET /api/orders/track/stream` (public guest tracking + live SSE, token-authorized), `GET /api/orders/:id` | `store/orders.js`, `lib/orderEvents.js` |
 | `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses`, `GET /api/account/tickets[/:caseNumber]` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `store/support.js`, `lib/orderEvents.js` (all require a session) |
@@ -202,7 +203,7 @@ Each file exports the same function signatures regardless of data source; every 
 
 | File | Mock implementation | Salesforce implementation |
 |---|---|---|
-| `catalog.js` | Filters `server/src/data/products.js` | `sf/catalog.js` — cached behind a short TTL (`lib/cache.js`) |
+| `catalog.js` | Filters `server/src/data/products.js` | `sf/catalog.js` — cached behind a short TTL (`lib/cache.js`). `listProducts()`/`suggestProducts()` add PLP paging + faceting + typeahead over the cached catalog via the pure `lib/productQuery.js` helpers (source-agnostic) |
 | `orders.js` | In-memory order Map, stock tracked in-memory | `sf/orders.js` |
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
@@ -265,11 +266,21 @@ standard vs. custom and why.
 ### 4.1 Discovery / catalog filtering (`Shop.jsx` + `ShopControls.jsx` + `ActiveFilters.jsx` + `SearchSuggest.jsx`)
 
 All filter state (`q` search text, `roast`, `origin` country, `price` bucket,
-`sort`) is synced to the URL via `useSearchParams` — never local-only state.
-That makes any filtered/sorted view a shareable link and survives a page
-refresh or the browser back button. `SearchSuggest` layers a typeahead on top,
-implementing the ARIA combobox pattern (arrow keys, Enter, Escape) against the
-already-loaded product list — no separate search endpoint.
+`sort`) **plus the current `page`** is synced to the URL via `useSearchParams` —
+never local-only state. That makes any filtered/sorted/paged view a shareable
+link and survives a page refresh or the browser back button.
+
+The PLP is **server-paged** (the modern-storefront pattern): `Shop.jsx` fetches
+one page at a time from `GET /api/catalog`, and the BFF applies the
+filter → sort → facet across the **whole** catalog before slicing the page — so
+filters work over every product, not just the ~10 on screen, and the returned
+`facets` keep the filter UI from collapsing. Changing any filter resets to
+page 1; the search box is debounced; the previous page stays visible (dimmed)
+while the next loads. `SearchSuggest` layers a typeahead on top, implementing
+the ARIA combobox pattern (arrow keys, Enter, Escape); its suggestions come from
+`GET /api/catalog/suggest` (debounced), so the browser never downloads the whole
+catalog just to autocomplete. The derived facet/search logic (country, price
+buckets, note matching) lives once in `server/src/lib/productQuery.js`.
 
 ### 4.2 Promo codes (`PromoInput.jsx` → `POST /api/promo/validate` → `store/promos.js` → `sf/promos.js`)
 

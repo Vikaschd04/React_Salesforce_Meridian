@@ -28,11 +28,10 @@ export default function ShopControls({
   onSort,
   onReset,
   hasFilters,
-  products = [],
 }) {
   return (
     <div className="shop-controls">
-      <SearchSuggest value={search} onChange={onSearch} products={products} />
+      <SearchSuggest value={search} onChange={onSearch} />
 
       <div className="shop-controls__row">
         <div className="shop-controls__facets">

@@ -1030,6 +1030,76 @@
   font-size: var(--step-1);
 }
 
+/* Pagination — server-paged PLP */
+/* While the next page/filter loads, dim the current results but keep them
+   interactive — clicking a product mid-refresh should still open it. */
+.grid.is-loading {
+  opacity: 0.5;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-6);
+}
+.pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  list-style: none;
+}
+.pagination__btn,
+.pagination__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 2.4rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-70);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.pagination__btn:hover:not(:disabled),
+.pagination__page:hover {
+  border-color: var(--gold-soft);
+  color: var(--ink);
+}
+.pagination__page.is-current {
+  border-color: var(--gold);
+  color: var(--ink);
+  box-shadow: var(--glow-gold);
+  cursor: default;
+}
+.pagination__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pagination__gap {
+  color: var(--mist);
+  padding: 0 0.2rem;
+  user-select: none;
+}
+.pagination__btn:focus-visible,
+.pagination__page:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .grid.is-loading {
+    transition: none;
+  }
+}
+
 /* ============ Detail ============ */
 .detail-wrap {
   padding-block: var(--sp-4) var(--sp-7);

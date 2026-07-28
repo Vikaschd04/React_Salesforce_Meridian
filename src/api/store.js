@@ -66,9 +66,48 @@ async function request(path, options) {
   return data
 }
 
-/** List all active products. */
+/**
+ * List all active products (the whole catalog). Used where a caller genuinely
+ * needs every product — pricing the cart, related products, wishlists, the
+ * home page. The shop PLP uses getCatalogPage() instead so it only downloads
+ * one page at a time.
+ */
 export async function getProducts() {
   return request('/products')
+}
+
+/**
+ * One filtered/sorted page of the catalog for the shop PLP. The BFF filters,
+ * sorts, and facets across the WHOLE catalog, then returns just this page:
+ *   { items, page, pageSize, total, totalPages, facets:{origins,priceBuckets,roasts} }
+ * `total` is the match count after filters (before paging).
+ */
+export async function getCatalogPage({
+  page = 1,
+  pageSize = 10,
+  q = '',
+  roasts = [],
+  origin = '',
+  price = '',
+  sort = 'featured',
+} = {}) {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('pageSize', String(pageSize))
+  if (q) params.set('q', q)
+  if (roasts.length) params.set('roast', roasts.join(','))
+  if (origin) params.set('origin', origin)
+  if (price) params.set('price', price)
+  if (sort && sort !== 'featured') params.set('sort', sort)
+  return request(`/catalog?${params.toString()}`)
+}
+
+/** Typeahead suggestions for the shop search box (server-side, over all products). */
+export async function getSearchSuggestions(q) {
+  const term = String(q || '').trim()
+  if (!term) return []
+  const data = await request(`/catalog/suggest?q=${encodeURIComponent(term)}`)
+  return data?.suggestions || []
 }
 
 /** Fetch a single product by id. Throws StoreError(404) if not found. */

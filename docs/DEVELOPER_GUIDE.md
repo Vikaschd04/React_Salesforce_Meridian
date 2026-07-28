@@ -141,6 +141,10 @@ Salesforce based on `DATA_SOURCE`; the route layer never changes.
 ## 6. Product catalog flow
 
 1. UI calls `getProducts()` / `getProduct(id)` in `store.js` → `GET /api/products[/:id]`.
+   The shop listing page (PLP) instead calls `getCatalogPage(params)` →
+   `GET /api/catalog?...` (see **6a** below); `getProducts()` (the whole catalog)
+   is used only where a caller genuinely needs every product — pricing the cart,
+   related products, wishlists, the home page.
 2. `routes/products.js` → `store/catalog.js` → (salesforce) `sf/catalog.js`.
 3. SOQL selects active `Product2` records **plus** their standard-pricebook
    price via a subquery:
@@ -159,6 +163,37 @@ Salesforce based on `DATA_SOURCE`; the route layer never changes.
 
 `ProductCode` **is** the app's product id/slug (e.g. `yirgacheffe-koke`), which
 keeps image URLs and links stable across environments.
+
+### 6a. Server-side pagination + faceting (the PLP)
+
+The shop page is **server-paged**, the way a modern storefront scales past a
+handful of SKUs: the browser never holds the whole catalog. `GET /api/catalog`
+takes `page`, `pageSize` (default 10, max 48), `q`, `roast`, `origin`, `price`,
+and `sort`, and returns one page:
+
+```json
+{ "items": [ …≤pageSize… ], "page": 2, "pageSize": 10,
+  "total": 47, "totalPages": 5,
+  "facets": { "origins": [...], "priceBuckets": [...], "roasts": [...] } }
+```
+
+- The **filter → sort → facet** all run over the **entire** catalog first, then
+  the result is sliced into a page. So filters apply to every product, not just
+  what's on screen — `total` is the match count *before* paging, and `facets`
+  describe the whole catalog so the filter UI never collapses.
+- The pure logic (country parsed from `Origin__c`, price buckets, tasting-note
+  search, sort, paginate, suggest) lives in **`lib/productQuery.js`** — the one
+  source of truth, moved out of the React page. `store/catalog.js`
+  `listProducts()` fetches the cached full catalog and delegates to it.
+- **Why filter in the BFF, not SOQL?** For our catalog size (hundreds of SKUs)
+  the full active list is a single cached read, so a page costs no extra
+  Salesforce API calls — whereas SOQL push-down would fire a fresh query + COUNT
+  + GROUP BY on every filter click, and the derived facets (country, buckets,
+  note search) don't map cleanly to SOQL. The API contract is identical to a
+  DB-backed one, so the query could be pushed into SOQL `LIMIT/OFFSET` or a
+  search index later without touching the frontend.
+- **Typeahead** uses `GET /api/catalog/suggest?q=` (→ `suggestProducts()`), so
+  the search box no longer needs a client-side copy of the catalog either.
 
 ---
 
@@ -728,7 +763,9 @@ non-fatal; `sf:check` reports whether it's on.
 | Method & path                        | Auth      | Purpose                                     |
 |--------------------------------------|-----------|---------------------------------------------|
 | `GET /health`                        | –         | Liveness                                    |
-| `GET /api/products`                  | –         | List active Meridian products               |
+| `GET /api/products`                  | –         | List **all** active Meridian products (cart/related/wishlist/home) |
+| `GET /api/catalog`                   | –         | One filtered/sorted **page** for the PLP: `?page,pageSize,q,roast,origin,price,sort` → `{ items, page, total, totalPages, facets }` |
+| `GET /api/catalog/suggest`           | –         | `?q=` → `{ suggestions }` typeahead over the whole catalog |
 | `GET /api/products/:id`              | –         | One product by slug                         |
 | `GET /api/products/:id/reviews`      | optional  | `{ reviews, average, count, myReview }` — `myReview` set only when logged in and reviewed |
 | `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |
