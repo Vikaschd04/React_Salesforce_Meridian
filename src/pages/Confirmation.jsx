@@ -87,6 +87,10 @@ export default function Confirmation() {
               <span>Shipping</span>
               <span>{order.shippingCost ? formatUsd(order.shippingCost) : 'Free'}</span>
             </div>
+            <div className="confirm__subtotal">
+              <span>Tax</span>
+              <span>{formatUsd(order.tax)}</span>
+            </div>
             <div className="confirm__total">
               <span>Total paid</span>
               <span>{formatUsd(orderPaidUsd(order))}</span>

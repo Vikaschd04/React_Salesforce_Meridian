@@ -1,21 +1,19 @@
 import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { formatUsd, round2 } from '../lib/money.js'
+import { formatUsd, round2, computeTax, SHIP_FREE_THRESHOLD, SHIP_FLAT } from '../lib/money.js'
 import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 import PromoInput from '../components/PromoInput.jsx'
-
-const SHIP_FREE_THRESHOLD = 45
-const SHIP_FLAT_USD = 6
 
 export default function Cart() {
   const { lines, items, subtotal, promo, discount, setQty, removeItem } = useCart()
   const { isAuthed, user } = useAuth()
 
   const freeShipping = promo?.freeShipping || subtotal === 0 || subtotal >= SHIP_FREE_THRESHOLD
-  const shippingCost = freeShipping ? 0 : SHIP_FLAT_USD
-  const grandTotal = round2(subtotal - discount + shippingCost)
+  const shippingCost = freeShipping ? 0 : SHIP_FLAT
+  const tax = computeTax(subtotal, discount)
+  const grandTotal = round2(subtotal - discount + shippingCost + tax)
   // Block checkout if any line exceeds available stock.
   const overStock = lines.some(({ qty, product }) => qty > product.stock)
 
@@ -99,6 +97,10 @@ export default function Cart() {
               Add {formatUsd(SHIP_FREE_THRESHOLD - subtotal)} more for free shipping.
             </p>
           )}
+          <div className="summary__row">
+            <span>Tax</span>
+            <span>{formatUsd(tax)}</span>
+          </div>
           <PromoInput />
           <div className="summary__row summary__row--total">
             <span>Total</span>

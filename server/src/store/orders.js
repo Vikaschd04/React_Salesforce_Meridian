@@ -16,7 +16,7 @@ import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
 import { applyPromo, recordPromoRedemption } from './promos.js'
 import { charge } from '../pay/index.js'
-import { computeShipping, round2 } from '../lib/totals.js'
+import { computeShipping, computeTax, round2 } from '../lib/totals.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 import * as sfOrders from '../sf/orders.js'
 
@@ -66,10 +66,12 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
   })
   const total = round2(subtotal - promo.discount)
   const shippingCost = computeShipping(subtotal, promo.freeShipping)
+  const tax = computeTax(subtotal, promo.discount, config.taxRate)
+  const grandTotal = round2(total + shippingCost + tax)
 
   // Take payment before recording the order (a decline throws 402).
   const paid = await charge({
-    amount: round2(total + shippingCost),
+    amount: grandTotal,
     payment,
     metadata: { email: shipping?.email || '' },
   })
@@ -86,7 +88,9 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
     subtotal,
     discount: promo.discount,
     shippingCost,
-    paid: round2(total + shippingCost),
+    tax,
+    paid: grandTotal,
+    grandTotal,
     promoCode: promo.code,
     freeShipping: promo.freeShipping,
     total,

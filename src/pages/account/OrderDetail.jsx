@@ -163,6 +163,10 @@ export default function OrderDetail() {
           <span>Shipping</span>
           <span>{order.shippingCost ? formatUsd(order.shippingCost) : 'Free'}</span>
         </div>
+        <div className="order-card__line order-card__line--sub">
+          <span>Tax</span>
+          <span>{formatUsd(order.tax)}</span>
+        </div>
 
         <div className="order-card__total">
           <span>Total paid</span>

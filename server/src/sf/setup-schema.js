@@ -27,13 +27,11 @@
  */
 import { config } from '../config.js'
 import { withConn } from './client.js'
+// OMS shipping catalog names/codes (the app builds an OrderSummary per order —
+// see sf/orderSummary.js, which owns these constants).
+import { SHIPPING_PRODUCT_CODE, DELIVERY_METHOD_NAME } from './orderSummary.js'
 
 const PERM_SET = 'Meridian_Web_Integration'
-// OMS: the app builds an OrderSummary per order (sf/orderSummary.js). The
-// standard "Delivery Charge" line references a shipping Product2; an
-// OrderDeliveryMethod points at it. Names/codes are stable + resolved at runtime.
-export const SHIPPING_PRODUCT_CODE = 'meridian-shipping'
-export const DELIVERY_METHOD_NAME = 'Meridian Standard Shipping'
 
 // Field definitions in Metadata API shape. `probe` is the SOQL column used to
 // detect existence/visibility; `sobject` is the object it lives on (Order
@@ -276,11 +274,12 @@ async function ensureOmsCatalog(conn) {
   // on activation for Type='Order Product' items and throws if short — which our
   // OMS orders use. Keep Meridian products well-stocked on that field so a paid
   // order always activates (our real stock lives in Stock__c, unaffected).
+  // Available_Qty__c is precision-5 (max 99999); 9999 is a safe, ample baseline.
   const low = await conn.query(
     'SELECT Id FROM Product2 WHERE Origin__c != null AND (Available_Qty__c = null OR Available_Qty__c < 1000)',
   )
   if (low.records.length) {
-    await conn.sobject('Product2').update(low.records.map((r) => ({ Id: r.Id, Available_Qty__c: 100000 })))
+    await conn.sobject('Product2').update(low.records.map((r) => ({ Id: r.Id, Available_Qty__c: 9999 })))
     console.log(`  • Stocked Available_Qty__c on ${low.records.length} Meridian product(s)`)
   } else console.log('  • Meridian products already stocked (Available_Qty__c)')
 }

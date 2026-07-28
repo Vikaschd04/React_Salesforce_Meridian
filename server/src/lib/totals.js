@@ -17,3 +17,9 @@ export function computeShipping(subtotal, freeShipping = false) {
   if (subtotal <= 0 || subtotal >= SHIP_FREE_THRESHOLD_USD) return 0
   return SHIP_FLAT_USD
 }
+
+/** Sales tax on the post-discount merchandise subtotal (USD). `rate` e.g. 0.08. */
+export function computeTax(subtotal, discount, rate) {
+  const taxable = Math.max(0, round2(subtotal - (discount || 0)))
+  return round2(taxable * (Number(rate) || 0))
+}

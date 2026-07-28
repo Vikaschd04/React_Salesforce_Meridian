@@ -14,7 +14,15 @@ import { getProductsByCodes } from './catalog.js'
 import { orderFromSf, ORDER_FIELDS } from './mappers.js'
 import { applyPromo, recordPromoRedemption } from '../store/promos.js'
 import { charge } from '../pay/index.js'
-import { computeShipping, round2 } from '../lib/totals.js'
+import { computeShipping, computeTax, round2 } from '../lib/totals.js'
+import {
+  getOmsRefs,
+  deliveryGroupBody,
+  addTaxLine,
+  createFromOrder,
+  summaryForOrder,
+  summariesForOrders,
+} from './orderSummary.js'
 import { badRequest, conflict, notFoundError } from '../lib/errors.js'
 
 // Account + standard pricebook ids are stable per org; resolve once and cache.
@@ -110,13 +118,22 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
   })
   const total = round2(subtotal - promo.discount)
   const shippingCost = computeShipping(subtotal, promo.freeShipping)
+  const tax = computeTax(subtotal, promo.discount, config.taxRate)
+  const grandTotal = round2(total + shippingCost + tax)
 
-  // Take payment against the trusted amount BEFORE writing anything — a decline
-  // throws (402) and no order is created.
+  // Take payment against the trusted amount (incl. tax) BEFORE writing anything —
+  // a decline throws (402) and no order is created.
   const paid = await charge({
-    amount: round2(total + shippingCost),
+    amount: grandTotal,
     payment,
     metadata: { email: shipping?.email || '' },
+  })
+
+  // OMS refs for the delivery group + delivery-charge line (best-effort — if the
+  // OMS catalog isn't set up we still create a plain order without a summary).
+  const oms = await getOmsRefs().catch((err) => {
+    console.error('[oms] refs unavailable, skipping OrderSummary:', err.message)
+    return null
   })
 
   const base = apiPath()
@@ -148,31 +165,66 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
 
   // Attempt with the state code; if Salesforce rejects it as an invalid
   // state/country picklist value, retry once without it so the order still
-  // goes through rather than failing the whole checkout.
-  let orderResult
+  // goes through rather than failing the whole checkout. The order + (when OMS
+  // is available) its delivery group + typed line items + a "Delivery Charge"
+  // line are created atomically in one composite.
+  let built
   try {
-    orderResult = await submitOrder(
+    built = await submitOrder(
       { ...orderBody, ...(stateCode ? { ShippingStateCode: stateCode } : {}) },
       lines,
       base,
+      { oms, shipping, shippingCost, withStateCode: true },
     )
   } catch (err) {
     if (stateCode && isStateCountryError(err)) {
       console.warn('[order] invalid state for country, retrying without it:', err.message)
-      orderResult = await submitOrder(orderBody, lines, base).catch((err2) => {
+      built = await submitOrder(orderBody, lines, base, {
+        oms, shipping, shippingCost, withStateCode: false,
+      }).catch((err2) => {
         throw orderCreationError(err2)
       })
     } else {
       throw orderCreationError(err)
     }
   }
+  const orderId = built.orderId
+
+  // OMS enrichment (best-effort, while the order is still Draft): the sales-tax
+  // line so the summary rolls up TotalTaxAmount. A failure never blocks the order.
+  let summary = null
+  if (oms) {
+    // Stock the org's B2B stock field just-in-time: activation fires
+    // B2B_UpdateStockOnOrder for Type='Order Product' lines and throws if
+    // Available_Qty__c is short. A shared-org integration may reset it, so top it
+    // up per order right before activating (our real stock lives in Stock__c).
+    await withConn((conn) =>
+      conn.sobject('Product2').update(
+        lines.map(({ product }) => ({ Id: product._sfId, Available_Qty__c: 9999 })),
+      ),
+    ).catch((err) => console.error('[oms] stock top-up failed:', err.message))
+    await addTaxLine({ productItemIds: built.productItemIds, tax }).catch((err) =>
+      console.error('[oms] tax line failed:', err.message),
+    )
+  }
 
   // Payment succeeded → move the order out of Draft to the standard 'Activated'
   // (paid) status. Best-effort: the order + payment already exist, so a failure
   // here just leaves it Draft/pending for the merchant to activate.
-  await withConn((conn) =>
-    conn.sobject('Order').update({ Id: orderResult.body.id, Status: 'Activated' }),
-  ).catch((err) => console.error('[order] activation failed:', err.message))
+  const activated = await withConn((conn) =>
+    conn.sobject('Order').update({ Id: orderId, Status: 'Activated' }),
+  ).then(() => true).catch((err) => {
+    console.error('[order] activation failed:', err.message)
+    return false
+  })
+
+  // Now that it's activated, create the OrderSummary (best-effort).
+  if (oms && activated) {
+    summary = await createFromOrder(orderId).catch((err) => {
+      console.error('[oms] createOrderSummary failed:', err.message)
+      return null
+    })
+  }
 
   // Decrement live stock (best effort — the order itself already succeeded).
   await withConn((conn) =>
@@ -186,7 +238,7 @@ export async function createOrder(items, shipping, auth = null, promoCode = null
 
   // freeShipping isn't persisted (it only waives the display shipping fee), so
   // carry it on the fresh response for the confirmation page.
-  const order = await getOrder(orderResult.body.id)
+  const order = await getOrder(orderId)
 
   // Record the coupon redemption in Salesforce (usage tracking / limits).
   // Best-effort — the order is already created + paid, so never fail it here.
@@ -218,7 +270,8 @@ export async function getOrder(idOrNumber, contactId = null) {
       throw notFoundError(`Order "${idOrNumber}" was not found.`)
     }
   }
-  return orderFromSf(raw.head, raw.items)
+  const summary = await summaryForOrder(raw.head.Id).catch(() => null)
+  return orderFromSf(raw.head, raw.items, summary)
 }
 
 /**
@@ -233,7 +286,8 @@ export async function trackOrder(idOrNumber, email) {
   if (!raw || (raw.head.Guest_Email__c || '').toLowerCase() !== wanted) {
     throw notFoundError('No order matches that number and email.')
   }
-  return orderFromSf(raw.head, raw.items)
+  const summary = await summaryForOrder(raw.head.Id).catch(() => null)
+  return orderFromSf(raw.head, raw.items, summary)
 }
 
 async function readRawOrder(idOrNumber) {
@@ -246,7 +300,7 @@ async function readRawOrder(idOrNumber) {
     const head = orders.records[0]
     if (!head) return null
     const lineItems = await conn.query(
-      `SELECT Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
+      `SELECT Type, Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
        FROM OrderItem WHERE OrderId = '${head.Id}'`,
     )
     return { head, items: lineItems.records }
@@ -307,9 +361,10 @@ export async function listOrdersForContact(contactId) {
        ORDER BY CreatedDate DESC LIMIT 50`,
     )
     if (orders.records.length === 0) return []
-    const ids = orders.records.map((o) => `'${o.Id}'`).join(', ')
+    const orderSfIds = orders.records.map((o) => o.Id)
+    const ids = orderSfIds.map((id) => `'${id}'`).join(', ')
     const items = await conn.query(
-      `SELECT OrderId, Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
+      `SELECT OrderId, Type, Quantity, UnitPrice, TotalPrice, Product2Id, Product2.Name, Product2.ProductCode
        FROM OrderItem WHERE OrderId IN (${ids})`,
     )
     const byOrder = new Map()
@@ -317,31 +372,53 @@ export async function listOrdersForContact(contactId) {
       if (!byOrder.has(it.OrderId)) byOrder.set(it.OrderId, [])
       byOrder.get(it.OrderId).push(it)
     }
-    return orders.records.map((o) => orderFromSf(o, byOrder.get(o.Id) || []))
+    // Bulk-load the OrderSummary rollups (tax + grand total) for these orders.
+    const summaries = await summariesForOrders(orderSfIds).catch(() => new Map())
+    return orders.records.map((o) => orderFromSf(o, byOrder.get(o.Id) || [], summaries.get(o.Id) || null))
   })
 }
 
 /**
- * Build + run the Order/OrderItem composite for a given order body. On failure
- * throws an Error carrying `_sfDetail` (the Salesforce message) so the caller
- * can decide whether to retry or surface it.
+ * Build + run the Order composite. When `oms` refs are present the composite also
+ * creates an OrderDeliveryGroup, types the product lines `Order Product` + links
+ * them to the group (so they can be summarized), and adds a `Delivery Charge`
+ * line for shipping — all atomically. Returns { orderId, productItemIds }. On
+ * failure throws an Error carrying `_sfDetail` so the caller can retry/surface it.
  */
-async function submitOrder(orderBody, lines, base) {
+async function submitOrder(orderBody, lines, base, { oms, shipping, shippingCost, withStateCode } = {}) {
+  const item = (refId, body) => ({ method: 'POST', url: `${base}/sobjects/OrderItem`, referenceId: refId, body })
   const compositeRequest = [
     { method: 'POST', url: `${base}/sobjects/Order`, referenceId: 'newOrder', body: orderBody },
-    ...lines.map(({ product, qty }, i) => ({
-      method: 'POST',
-      url: `${base}/sobjects/OrderItem`,
-      referenceId: `item${i}`,
-      body: {
-        OrderId: '@{newOrder.id}',
-        Product2Id: product._sfId,
-        PricebookEntryId: product._pricebookEntryId,
-        Quantity: qty,
-        UnitPrice: product._unitPriceDollars,
-      },
-    })),
   ]
+  if (oms) {
+    compositeRequest.push({
+      method: 'POST',
+      url: `${base}/sobjects/OrderDeliveryGroup`,
+      referenceId: 'deliveryGroup',
+      body: deliveryGroupBody(shipping, oms.deliveryMethodId, withStateCode),
+    })
+  }
+  lines.forEach(({ product, qty }, i) => {
+    compositeRequest.push(item(`item${i}`, {
+      OrderId: '@{newOrder.id}',
+      Product2Id: product._sfId,
+      PricebookEntryId: product._pricebookEntryId,
+      Quantity: qty,
+      UnitPrice: product._unitPriceDollars,
+      ...(oms ? { Type: 'Order Product', OrderDeliveryGroupId: '@{deliveryGroup.id}' } : {}),
+    }))
+  })
+  if (oms) {
+    compositeRequest.push(item('shipItem', {
+      OrderId: '@{newOrder.id}',
+      Product2Id: oms.shippingProductId,
+      PricebookEntryId: oms.shippingPbeId,
+      Quantity: 1,
+      UnitPrice: shippingCost || 0,
+      Type: 'Delivery Charge',
+      OrderDeliveryGroupId: '@{deliveryGroup.id}',
+    }))
+  }
 
   const result = await withConn((conn) =>
     conn.request({
@@ -359,7 +436,10 @@ async function submitOrder(orderBody, lines, base) {
     err._sfDetail = detail
     throw err
   }
-  return orderResult
+  const productItemIds = (result.compositeResponse || [])
+    .filter((r) => /^item\d+$/.test(r.referenceId) && r.body?.id)
+    .map((r) => r.body.id)
+  return { orderId: orderResult.body.id, productItemIds }
 }
 
 /** True when a Salesforce failure looks like a state/country picklist rejection. */

@@ -3,14 +3,11 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { placeOrder, getPaymentConfig, getAddresses, addAddress } from '../api/store.js'
-import { formatUsd, round2 } from '../lib/money.js'
+import { formatUsd, round2, computeTax, SHIP_FREE_THRESHOLD, SHIP_FLAT } from '../lib/money.js'
 import Breadcrumbs from '../components/Breadcrumbs.jsx'
 import PromoInput from '../components/PromoInput.jsx'
 import PaymentFields from '../components/PaymentFields.jsx'
 import { COUNTRIES, regionsFor } from '../data/regions.js'
-
-const SHIP_FREE_THRESHOLD = 45
-const SHIP_FLAT_USD = 6
 
 const FIELDS = [
   { key: 'name', label: 'Full name', autoComplete: 'name', span: 2 },
@@ -107,8 +104,9 @@ export default function Checkout() {
 
   const freeShipping =
     promo?.freeShipping || subtotal === 0 || subtotal >= SHIP_FREE_THRESHOLD
-  const shippingCost = freeShipping ? 0 : SHIP_FLAT_USD
-  const grandTotal = round2(subtotal - discount + shippingCost)
+  const shippingCost = freeShipping ? 0 : SHIP_FLAT
+  const tax = computeTax(subtotal, discount)
+  const grandTotal = round2(subtotal - discount + shippingCost + tax)
   const set = (k, v) => setValues((prev) => ({ ...prev, [k]: v }))
   // Changing country clears any previously chosen state/province.
   const setCountry = (code) => setValues((prev) => ({ ...prev, countryCode: code, stateCode: '' }))
@@ -295,6 +293,10 @@ export default function Checkout() {
           <div className="summary__row">
             <span>Shipping</span>
             <span>{shippingCost === 0 ? 'Free' : formatUsd(shippingCost)}</span>
+          </div>
+          <div className="summary__row">
+            <span>Tax</span>
+            <span>{formatUsd(tax)}</span>
           </div>
           <PromoInput />
           <div className="summary__row summary__row--total">

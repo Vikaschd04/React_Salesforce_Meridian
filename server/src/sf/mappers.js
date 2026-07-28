@@ -9,7 +9,8 @@
  * USD dollars end-to-end, no conversion. `round2` snaps to whole cents.
  */
 
-import { round2 } from '../lib/totals.js'
+import { round2, computeTax } from '../lib/totals.js'
+import { config } from '../config.js'
 
 /** Split a semicolon-separated notes field into a trimmed array. */
 function parseNotes(value) {
@@ -104,39 +105,54 @@ export function orderStatus({ Status }) {
   }
 }
 
-/** Standard Order + OrderItems → app order shape (matches the mock BFF output). */
-export function orderFromSf(order, items = []) {
-  const lines = items.map((it) => ({
-    id: it.Product2?.ProductCode || it.Product2Id,
-    name: it.Product2?.Name || '',
-    qty: Number(it.Quantity || 0),
-    unitPrice: Number(it.UnitPrice || 0),
-    lineTotal: round2(it.TotalPrice ?? it.UnitPrice * it.Quantity),
-  }))
-  // Merchandise subtotal comes from the standard TotalAmount rollup (fallback to
-  // the line items if it hasn't calculated yet). Discount + shipping are custom
-  // USD-dollar currency fields.
-  const subtotal =
-    order.TotalAmount != null
-      ? Number(order.TotalAmount)
-      : round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
+/**
+ * Standard Order + OrderItems → app order shape (matches the mock BFF output).
+ * `summary` (optional) is the order's OrderSummary rollups (tax + grand total)
+ * from sf/orderSummary.js; when absent, tax is recomputed from the configured
+ * rate so the displayed total always matches what was charged.
+ */
+export function orderFromSf(order, items = [], summary = null) {
+  // Exclude the OMS "Delivery Charge" line — shipping is shown separately, not
+  // as a product line. (Pre-OMS orders have Type = null → kept.)
+  const lines = items
+    .filter((it) => it.Type !== 'Delivery Charge')
+    .map((it) => ({
+      id: it.Product2?.ProductCode || it.Product2Id,
+      name: it.Product2?.Name || '',
+      qty: Number(it.Quantity || 0),
+      unitPrice: Number(it.UnitPrice || 0),
+      lineTotal: round2(it.TotalPrice ?? it.UnitPrice * it.Quantity),
+    }))
+  // Merchandise subtotal = the product lines only (Order.TotalAmount would also
+  // include the OMS delivery-charge line, so we sum the filtered lines instead).
+  const subtotal = lines.length
+    ? round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
+    : Number(order.TotalAmount || 0)
   const discount = Number(order.Discount__c || 0)
   const shippingCost = Number(order.Shipping_Amount__c || 0)
   const total = round2(subtotal - discount) // merchandise after discount
+  // Tax + grand total are computed from the Order (same formula used at checkout,
+  // so the display always matches the charge). The OrderSummary — when present —
+  // is the OMS record of the same order; we surface its number as evidence.
+  const tax = computeTax(subtotal, discount, config.taxRate)
+  const grandTotal = round2(total + shippingCost + tax)
   const status = orderStatus(order)
-  const paid = status === 'paid' || status === 'shipped' || status === 'delivered'
+  const isPaid = status === 'paid' || status === 'shipped' || status === 'delivered'
 
   const hasShipping = order.ShippingStreet || order.ShippingCity
   return {
     orderId: order.OrderNumber || order.Id,
     status,
-    paymentStatus: paid ? 'paid' : status === 'cancelled' ? 'refunded' : 'unpaid',
+    paymentStatus: isPaid ? 'paid' : status === 'cancelled' ? 'refunded' : 'unpaid',
     trackingNumber: order.Tracking_Number__c || null,
+    summaryNumber: summary?.summaryNumber || null,
     items: lines,
     subtotal,
     discount,
     shippingCost,
-    paid: round2(total + shippingCost),
+    tax,
+    paid: grandTotal,
+    grandTotal,
     promoCode: order.Promo_Code__c || null,
     total,
     placedAt: order.EffectiveDate || order.CreatedDate || new Date().toISOString(),

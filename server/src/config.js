@@ -14,6 +14,9 @@ export const config = {
   // In single-service prod this is the deployed host; falls back to appOrigin.
   publicUrl: process.env.PUBLIC_URL || process.env.APP_ORIGIN || '',
   cacheTtlMs: (Number(process.env.CACHE_TTL_SECONDS) || 60) * 1000,
+  // Flat sales-tax rate applied to the post-discount merchandise subtotal (USD).
+  // Keep in sync with the client preview (TAX_RATE in src/lib/money.js).
+  taxRate: process.env.SF_TAX_RATE != null ? Number(process.env.SF_TAX_RATE) : 0.08,
   isProd: process.env.NODE_ENV === 'production',
 
   // 'mock' (default) reads the in-repo catalog; 'salesforce' reads a live org.
