@@ -2,14 +2,16 @@
 # serves dist/ + /api on a single origin. Deploy: push to a repo, "New +" →
 # "Blueprint" in Render, point at this file.
 #
-# This deploys straight away in mock mode (no secrets to fill). To go live, add
-# these in the Render dashboard (service → Environment) and redeploy:
+# This deploys straight away in mock mode (leave the sync:false vars blank). To
+# go live, set these in the Render dashboard (service → Environment) and redeploy:
 #   PUBLIC_URL         = https://<your-service>.onrender.com   (sitemap/canonical)
 #   DATA_SOURCE        = salesforce
 #   SF_LOGIN_URL       = https://<your-org>.my.salesforce.com
 #   SF_CLIENT_ID / SF_CLIENT_SECRET / SF_ACCOUNT_NAME
-#   PAYMENT_PROVIDER   = stripe   (also add `stripe` to server deps)
-#   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY
+# To enable Stripe TEST-mode payments, set (test keys only — see below):
+#   PAYMENT_PROVIDER   = stripe
+#   STRIPE_SECRET_KEY  = sk_test_…    STRIPE_PUBLISHABLE_KEY = pk_test_…
+#   STRIPE_WEBHOOK_SECRET = whsec_…   (optional; refund-on-cancel works without it)
 services:
   - type: web
     name: meridian
@@ -25,8 +27,17 @@ services:
         value: "production"
       - key: DATA_SOURCE
         value: "mock"
+      # Payments are dashboard-managed (sync:false) so secrets never touch git and
+      # a blueprint re-sync never clobbers them. Leave PAYMENT_PROVIDER blank for
+      # mock (the default); set it to "stripe" + the keys to enable Stripe.
       - key: PAYMENT_PROVIDER
-        value: "mock"
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: COOKIE_SECURE
         value: "true"
       - key: SESSION_SECRET
