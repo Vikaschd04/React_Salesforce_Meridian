@@ -129,6 +129,7 @@ The `sf/` folder is the only place that knows Salesforce field names:
 | `sf/seed.js`        | Populate products + prices                                         |
 | `sf/wishlist.js`    | Standard `Wishlist`/`WishlistItem` CRUD                            |
 | `lib/guided.js`     | Guided-selling quiz + pure scoring (no I/O) — shared by mock + SF  |
+| `sf/bundles.js`     | Bundle reads — Product2 (`bundle-*`) + `Meridian_Bundle_Component__c` |
 | `sf/contacts.js`    | …also writes the guided-selling taste profile back to `Contact`   |
 | `sf/addresses.js`   | Standard `ContactPointAddress` CRUD                                |
 | `sf/orderSummary.js`| Order Management — builds an `OrderSummary` per order (OMS objects)|
@@ -224,6 +225,34 @@ add it to `PRODUCT_FIELDS` + `productFromSf` (`mappers.js`) and `productToSf`
 (`seed.js`), seed values in `data/products.js`, then add a question to `QUIZ` in
 `lib/guided.js`. No route or UI change needed — the wizard renders whatever
 `GET /api/guided/quiz` returns.
+
+### 6c. Product bundles ("sampler flights")
+
+Standard-first, and a good example of *checking* the standard model before adding
+custom:
+
+1. **A bundle is a standard `Product2`.** ProductCode `bundle-*`, priced by its
+   standard `PricebookEntry`, no Origin/Roast (so it stays out of the coffee
+   catalog). Because it's just a Product2, the **existing** order pipeline prices
+   it (`getProductsByCodes`), stock-checks it (`Stock__c`), mirrors Available-Qty
+   for the org's stock trigger, taxes it, and builds its OMS `OrderSummary` — all
+   with **zero** changes to `sf/orders.js`.
+2. **Components — the one custom bit.** The org has the standard
+   `ProductRelatedComponent` bundle model, but it's unusable via our API: it
+   requires the parent to be `Product2.ProductClass='Bundle'`, and `ProductClass`
+   is **not API-writable** here (describe: `createable=false, updateable=false`;
+   integration inserts always land as `Simple`). So components use one minimal
+   custom junction, `Meridian_Bundle_Component__c` (`Bundle__c` → the bundle,
+   `Component__c` → the coffee, `Quantity__c`). `sf/bundles.js` reads the bundle
+   Product2 and resolves each component's **live** price to compute the saving.
+3. **Mock + cart/order parity.** `data/bundles.js` mirrors the model; `store/
+   catalog.js` (`getProductsByIds`) and `store/orders.js` (mock stock) learned to
+   look in bundles too, and `CartContext` merges `getBundles()` into its display
+   lookup — so a mixed cart of coffees + bundles works identically in both modes.
+
+Adding a bundle: define it in `data/bundles.js` (id `bundle-*`, price, stock,
+image, `components[{id, qty}]`), then `npm run seed` upserts the bundle Product2 +
+PricebookEntry and reconciles the junction rows.
 
 ---
 
@@ -798,6 +827,8 @@ non-fatal; `sf:check` reports whether it's on.
 | `GET /api/catalog/suggest`           | –         | `?q=` → `{ suggestions }` typeahead over the whole catalog |
 | `GET /api/guided/quiz`               | –         | Guided-selling questions + options for the "Find your coffee" wizard |
 | `POST /api/guided/recommend`         | optional  | `{ answers }` → `{ recommendations }` scored over the (Salesforce) catalog; logged-in shoppers also get their taste profile saved to Contact |
+| `GET /api/bundles`                   | –         | Active bundles, each with `components[]`, `componentTotal`, `savings`, `savingsPct` |
+| `GET /api/bundles/:id`               | –         | One bundle by slug (404 if missing) |
 | `GET /api/products/:id`              | –         | One product by slug                         |
 | `GET /api/products/:id/reviews`      | optional  | `{ reviews, average, count, myReview }` — `myReview` set only when logged in and reviewed |
 | `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |

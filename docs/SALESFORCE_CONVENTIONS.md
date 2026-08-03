@@ -108,6 +108,7 @@ Each is justified; all are created/granted by `npm run sf:setup`.
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
 | `Contact.Preferred_Roast__c` / `Preferred_Flavors__c` (Text) | Guided-selling taste profile captured from the "Find your coffee" quiz — CRM personalization data with no standard analog. |
 | `Product2.*` (Origin, Roast, Tasting_Notes, Body, Flavor_Profile, Brew_Methods, …) | Coffee attributes with no standard analog. `Body__c` / `Flavor_Profile__c` / `Brew_Methods__c` power guided selling and follow the `Tasting_Notes__c` convention (`;`-delimited Text). |
+| `Meridian_Bundle_Component__c` (junction: `Bundle__c`, `Component__c`, `Quantity__c`) | Bundle → coffees. The **bundle itself is a standard `Product2`** (`bundle-*` ProductCode, standard `PricebookEntry`) — only the parent/child link is custom. The standard `ProductRelatedComponent` model exists on the org but is **unusable via the API**: it needs the parent to be `Product2.ProductClass='Bundle'`, and `ProductClass` is not API-writable here (integration inserts always become `Simple`). Verified with a live create spike before falling back to the junction. |
 
 > The shopper↔order link no longer needs a custom field: it's the standard
 > **`Order.AccountId`** (a registered shopper's own Person Account). `BillToContactId`

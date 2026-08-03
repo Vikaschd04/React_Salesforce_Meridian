@@ -144,6 +144,21 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create them and grant field access.')
   }
 
+  // 4g2. Product bundles — a bundle is a standard Product2 (bundle-* ProductCode);
+  // its components use the Meridian_Bundle_Component__c junction (the standard
+  // ProductRelatedComponent model is unusable here — it needs a non-API-writable
+  // ProductClass='Bundle' parent).
+  try {
+    await withConn((conn) =>
+      conn.query('SELECT Id, Bundle__c, Component__c, Quantity__c FROM Meridian_Bundle_Component__c LIMIT 1'),
+    )
+    ok('Product bundles ready (Meridian_Bundle_Component__c readable)')
+  } catch (err) {
+    failures++
+    bad(`Bundle schema missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create it and grant access.')
+  }
+
   // 4h. Wishlist — standard Wishlist + WishlistItem, readable by Run-As.
   try {
     await withConn((conn) =>

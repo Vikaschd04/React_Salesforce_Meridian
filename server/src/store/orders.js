@@ -14,6 +14,7 @@ import { randomBytes } from 'node:crypto'
 import { config } from '../config.js'
 import { getProductsByIds, invalidateCatalogCache } from './catalog.js'
 import { PRODUCTS } from '../data/products.js'
+import { BUNDLES } from '../data/bundles.js'
 import { applyPromo, recordPromoRedemption } from './promos.js'
 import { charge, refund } from '../pay/index.js'
 import { computeShipping, computeTax, round2 } from '../lib/totals.js'
@@ -25,6 +26,11 @@ const orders = new Map() // orderId -> order (mock only)
 
 function makeOrderId() {
   return `MRD-${randomBytes(4).toString('hex').toUpperCase()}`
+}
+
+// Mock stock lives on the in-repo catalog; a line can be a coffee or a bundle.
+function mockStockSource(id) {
+  return PRODUCTS.find((p) => p.id === id) || BUNDLES.find((b) => b.id === id)
 }
 
 // ---- Mock implementation ----
@@ -54,7 +60,7 @@ async function mockCreateOrder(items, shipping, user, promoCode, payment) {
   })
   // Decrement mock stock (mutates the in-repo catalog for this server run).
   for (const line of lines) {
-    const src = PRODUCTS.find((p) => p.id === line.id)
+    const src = mockStockSource(line.id)
     if (src) src.stock = Math.max(0, src.stock - line.qty)
   }
   invalidateCatalogCache()
@@ -165,7 +171,7 @@ async function mockCancelOrder(id, contactId) {
     order.paymentStatus = 'refunded'
   }
   for (const line of order.items) {
-    const src = PRODUCTS.find((p) => p.id === line.id)
+    const src = mockStockSource(line.id)
     if (src) src.stock += line.qty
   }
   invalidateCatalogCache()

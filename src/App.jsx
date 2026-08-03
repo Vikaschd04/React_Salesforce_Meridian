@@ -4,6 +4,8 @@ import Footer from './components/Footer.jsx'
 import Home from './pages/Home.jsx'
 import Shop from './pages/Shop.jsx'
 import GuidedSelling from './pages/GuidedSelling.jsx'
+import Bundles from './pages/Bundles.jsx'
+import BundleDetail from './pages/BundleDetail.jsx'
 import About from './pages/About.jsx'
 import Contact from './pages/Contact.jsx'
 import ProductDetail from './pages/ProductDetail.jsx'
@@ -39,6 +41,8 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/find-your-coffee" element={<GuidedSelling />} />
+          <Route path="/bundles" element={<Bundles />} />
+          <Route path="/bundles/:id" element={<BundleDetail />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/product/:id" element={<ProductDetail />} />

@@ -132,6 +132,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav). Suggestions come from the BFF (`GET /api/catalog/suggest`, debounced) so the box never needs a client-side copy of the catalog — suggests matching coffees and tasting notes. |
 | `Pagination.jsx` | Accessible pager for the PLP — Prev / numbered pages (with … gaps) / Next; presentational, `Shop.jsx` owns the page and keeps it in the URL. |
 | `GuidedSelling.jsx` | **"Find your coffee" quiz** (`/find-your-coffee`) — a 4-step wizard (roast, flavour, body, brew) that POSTs answers to `GET/POST /api/guided/*` and renders scored matches (reusing `ProductCard`) with a % badge + match reasons. See §4.8. |
+| `Bundles.jsx` / `BundleDetail.jsx` / `BundleCard.jsx` | **Product bundles** (`/bundles`, `/bundles/:id`) — curated sampler flights. The card shows the coffees inside + the saving; the detail lists each component (linking to its product) and adds the bundle to cart. See §4.13. |
 | `RelatedProducts.jsx` | "You might also like" strip on `ProductDetail`, calls `getProducts()` and picks by shared roast/origin. |
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
 | `OrderRow.jsx` | One row in the shopper's order history (`Orders.jsx`). Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
@@ -189,6 +190,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 | `products.js` | `GET /api/products` (whole catalog), `GET /api/catalog` (one filtered/sorted **page** for the PLP — `page,pageSize,q,roast,origin,price,sort` → `{ items, page, total, totalPages, facets }`), `GET /api/catalog/suggest` (typeahead), `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
 | `guided.js` | `GET /api/guided/quiz`, `POST /api/guided/recommend` (optional auth — logged-in shoppers also get their taste profile saved to their Contact) | `store/guided.js` |
+| `bundles.js` | `GET /api/bundles`, `GET /api/bundles/:id` | `store/bundles.js` |
 | `orders.js` | `POST /api/orders`, `POST /api/orders/track` + `GET /api/orders/track/stream` (public guest tracking + live SSE, token-authorized), `GET /api/orders/:id` | `store/orders.js`, `lib/orderEvents.js` |
 | `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses`, `GET /api/account/tickets[/:caseNumber]` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `store/support.js`, `lib/orderEvents.js` (all require a session) |
 | `dev.js` | `POST /api/dev/orders/:id/advance` + `POST /api/dev/cases/:caseNumber/reply` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); simulate merchant-side updates (order status / ticket reply) to drive the live stream + ticket thread in dev/E2E | `store/orders.js`, `store/support.js`, `lib/orderEvents.js` |
@@ -211,6 +213,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
 | `guided.js` | Scores the mock catalog via `lib/guided.js` | Scores the **live Salesforce** catalog (Product2 `Body__c`/`Flavor_Profile__c`/`Brew_Methods__c`) via the same `lib/guided.js`; saves the taste profile to `Contact` (`sf/contacts.js`) |
+| `bundles.js` | mock bundle defs (`data/bundles.js`) | `sf/bundles.js` — a bundle is a standard `Product2` (`bundle-*` ProductCode) priced by its PricebookEntry; components are the minimal custom `Meridian_Bundle_Component__c` junction. Cached. |
 | `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
 | `promos.js` | Static in-repo table (with the same validity/limit shape) + in-memory redemption counts | `sf/promos.js` — reads standard Coupon/Promotion objects; shared `evaluate()` so both modes behave identically |
 | `support.js` | Mock: persists tickets in-memory (list/get/reply) | `sf/cases.js` |
@@ -447,7 +450,29 @@ profile is written back onto their **Contact** (`Preferred_Roast__c` /
 results reuse `ProductCard` with a % badge + reason chips. See
 [DEVELOPER_GUIDE.md §6b](DEVELOPER_GUIDE.md).
 
-### 4.12 Testing & CI
+### 4.12 Product bundles (`Bundles.jsx` + `BundleDetail.jsx` → `routes/bundles.js` → `store/bundles.js` → `sf/bundles.js`)
+
+Curated "sampler flight" bundles, **standard-first**: a bundle **is** a standard
+`Product2` (ProductCode `bundle-*`, priced by its standard `PricebookEntry`), so
+it flows through the **existing** order pipeline unchanged — pricing
+(`getProductsByCodes`), stock (`Stock__c` + the Available-Qty mirror), tax, and
+the OMS `OrderSummary` all treat it like any coffee. Meridian bundles are scoped
+by the `bundle-*` ProductCode (as coffees are scoped by Origin/Roast), so the
+org's other Bundle-class products never leak in.
+
+The bundle→coffees relationship is the one thing with no *usable* standard
+equivalent here: the org **has** the standard `ProductRelatedComponent` model,
+but it requires the parent to be `Product2.ProductClass='Bundle'`, and
+`ProductClass` is **not API-writable** on this org (an integration insert always
+lands as `Simple`). So components use a single small custom junction,
+`Meridian_Bundle_Component__c` (Bundle → Product2, Component → Product2,
+Quantity) — same pattern as the Review object. `sf/bundles.js` reads the bundle
+Product2 + resolves each component's live price to compute the saving. Mock mode
+mirrors the model from `data/bundles.js`; the cart/order layers gained bundle
+awareness so a mixed cart of coffees + bundles prices and stock-checks correctly
+in both modes. See [DEVELOPER_GUIDE.md §6c](DEVELOPER_GUIDE.md).
+
+### 4.13 Testing & CI
 
 | File | Role |
 |---|---|

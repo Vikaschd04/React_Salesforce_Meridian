@@ -15,6 +15,9 @@
 import { config } from '../config.js'
 import { withConn } from './client.js'
 import { PRODUCTS } from '../data/products.js'
+import { BUNDLES } from '../data/bundles.js'
+
+const BUNDLE_COMPONENT = 'Meridian_Bundle_Component__c'
 
 function productToSf(p) {
   return {
@@ -94,6 +97,55 @@ async function upsertProduct(conn, pricebookId, product) {
   return productId
 }
 
+// Ensure the standard PricebookEntry for a product carries `unitPrice`.
+async function ensurePricebookEntry(conn, pricebookId, productId, unitPrice) {
+  const pbe = await conn.query(
+    `SELECT Id FROM PricebookEntry WHERE Pricebook2Id = '${pricebookId}' AND Product2Id = '${productId}' LIMIT 1`,
+  )
+  if (pbe.records[0]) {
+    await conn.sobject('PricebookEntry').update({ Id: pbe.records[0].Id, UnitPrice: unitPrice, IsActive: true })
+  } else {
+    await conn.sobject('PricebookEntry').create({
+      Pricebook2Id: pricebookId, Product2Id: productId, UnitPrice: unitPrice, IsActive: true,
+    })
+  }
+}
+
+// A bundle is a standard Product2 (no Origin/Roast → stays out of the coffee
+// catalog) priced by its PricebookEntry; its coffees are reconciled into the
+// Meridian_Bundle_Component__c junction (delete + recreate → idempotent).
+async function upsertBundle(conn, pricebookId, bundle, idByCode) {
+  const fields = {
+    Name: bundle.name,
+    ProductCode: bundle.id,
+    Description: bundle.description,
+    IsActive: true,
+    Stock__c: bundle.stock,
+    Image_Path__c: bundle.image,
+    Accent__c: bundle.accent,
+  }
+  const found = await conn.query(`SELECT Id FROM Product2 WHERE ProductCode = '${bundle.id}' LIMIT 1`)
+  let bundleId
+  if (found.records[0]) {
+    bundleId = found.records[0].Id
+    await conn.sobject('Product2').update({ Id: bundleId, ...fields })
+  } else {
+    bundleId = (await conn.sobject('Product2').create(fields)).id
+  }
+  await ensurePricebookEntry(conn, pricebookId, bundleId, bundle.price)
+
+  // Reconcile components: clear existing junction rows, then recreate.
+  const existing = await conn.query(`SELECT Id FROM ${BUNDLE_COMPONENT} WHERE Bundle__c = '${bundleId}'`)
+  if (existing.records.length) {
+    await conn.sobject(BUNDLE_COMPONENT).destroy(existing.records.map((r) => r.Id))
+  }
+  const rows = bundle.components
+    .map((c) => ({ Bundle__c: bundleId, Component__c: idByCode.get(c.id), Quantity__c: c.qty }))
+    .filter((r) => r.Component__c)
+  if (rows.length) await conn.sobject(BUNDLE_COMPONENT).create(rows)
+  return { bundleId, componentCount: rows.length }
+}
+
 async function main() {
   if (config.dataSource !== 'salesforce') {
     console.error('Set DATA_SOURCE=salesforce (and SF_* creds) before seeding.')
@@ -104,13 +156,19 @@ async function main() {
   await withConn(async (conn) => {
     await ensureAccount(conn)
     const pricebookId = await getStandardPricebookId(conn)
+    const idByCode = new Map()
     for (const product of PRODUCTS) {
-      await upsertProduct(conn, pricebookId, product)
+      const productId = await upsertProduct(conn, pricebookId, product)
+      idByCode.set(product.id, productId)
       console.log(`  • Upserted ${product.id} — $${product.price.toFixed(2)}`)
+    }
+    for (const bundle of BUNDLES) {
+      const { componentCount } = await upsertBundle(conn, pricebookId, bundle, idByCode)
+      console.log(`  • Upserted bundle ${bundle.id} — $${bundle.price.toFixed(2)} (${componentCount} coffees)`)
     }
   })
 
-  console.log(`Done. Seeded ${PRODUCTS.length} products.`)
+  console.log(`Done. Seeded ${PRODUCTS.length} products + ${BUNDLES.length} bundles.`)
 }
 
 main().catch((err) => {

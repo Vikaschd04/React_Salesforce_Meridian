@@ -7,6 +7,7 @@
  * Salesforce's per-org API limits.
  */
 import { PRODUCTS } from '../data/products.js'
+import { BUNDLES } from '../data/bundles.js'
 import { createCache } from '../lib/cache.js'
 import { config } from '../config.js'
 import { notFoundError } from '../lib/errors.js'
@@ -89,10 +90,15 @@ export async function getProduct(id) {
  */
 export async function getProductsByIds(ids) {
   if (useSalesforce) {
+    // Queries Product2 by ProductCode (unscoped), so bundles — also Product2
+    // records — resolve here exactly like coffees.
     const byId = await sfCatalog.getProductsByCodes(ids)
     return ids.map((id) => byId.get(id))
   }
   const all = await getProducts()
   const byId = new Map(all.map((p) => [p.id, p]))
+  // Mock parity: bundles are their own data source, so add them to the lookup so
+  // a cart/order containing a bundle prices + stock-checks like any product.
+  for (const b of BUNDLES) if (b.active && !byId.has(b.id)) byId.set(b.id, b)
   return ids.map((id) => byId.get(id))
 }

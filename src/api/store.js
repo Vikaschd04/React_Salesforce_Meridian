@@ -122,6 +122,19 @@ export async function getGuidedRecommendations(answers) {
   return data?.recommendations || []
 }
 
+/**
+ * List active product bundles. Each bundle is a product-shaped object plus
+ * `{ isBundle, components[], componentTotal, savings, savingsPct }`.
+ */
+export async function getBundles() {
+  return request('/bundles')
+}
+
+/** One bundle by id (slug). Throws StoreError(404) if not found. */
+export async function getBundle(id) {
+  return request(`/bundles/${encodeURIComponent(id)}`)
+}
+
 /** Typeahead suggestions for the shop search box (server-side, over all products). */
 export async function getSearchSuggestions(q) {
   const term = String(q || '').trim()

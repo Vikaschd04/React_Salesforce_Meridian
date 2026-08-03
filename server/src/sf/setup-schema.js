@@ -213,6 +213,58 @@ const GUIDED_FIELDS = [
   },
 ]
 
+// ---- Product bundles ("sampler flights"). Standard-first: a bundle IS a
+// standard Product2 (with a standard PricebookEntry for its discounted price),
+// so the whole order pipeline (pricing, stock, OMS, tax) treats it like any
+// other product; Meridian bundles are scoped by the `bundle-*` ProductCode
+// convention (as coffees are scoped by Origin/Roast) — no custom marker field.
+//
+// The org DOES have the standard bundle relationship model (ProductRelatedComponent
+// + ProductRelationshipType), but it's unusable via the integration API here: it
+// requires the parent Product2 to be ProductClass='Bundle', and ProductClass is
+// not API-writable on this org (createable/updateable = false; everything an
+// integration inserts defaults to 'Simple'). So the bundle→components link is the
+// one thing with no *usable* standard equivalent — a small custom junction, same
+// pattern as the Review object. See sf/bundles.js. ----
+const BUNDLE_COMPONENT_OBJECT = 'Meridian_Bundle_Component__c'
+const BUNDLE_FIELDS = [
+  {
+    sobject: BUNDLE_COMPONENT_OBJECT,
+    probe: 'Bundle__c',
+    def: {
+      fullName: `${BUNDLE_COMPONENT_OBJECT}.Bundle__c`,
+      label: 'Bundle',
+      type: 'Lookup',
+      referenceTo: 'Product2',
+      relationshipLabel: 'Bundle Components',
+      relationshipName: 'Meridian_Bundle_Components',
+    },
+  },
+  {
+    sobject: BUNDLE_COMPONENT_OBJECT,
+    probe: 'Component__c',
+    def: {
+      fullName: `${BUNDLE_COMPONENT_OBJECT}.Component__c`,
+      label: 'Component',
+      type: 'Lookup',
+      referenceTo: 'Product2',
+      relationshipLabel: 'Component Of Bundles',
+      relationshipName: 'Meridian_Component_Of',
+    },
+  },
+  {
+    sobject: BUNDLE_COMPONENT_OBJECT,
+    probe: 'Quantity__c',
+    def: {
+      fullName: `${BUNDLE_COMPONENT_OBJECT}.Quantity__c`,
+      label: 'Quantity',
+      type: 'Number',
+      precision: 3,
+      scale: 0,
+    },
+  },
+]
+
 // ---- Wishlist now uses the STANDARD `Wishlist` + `WishlistItem` objects (no
 // custom schema). A shopper's Wishlist is parented to their Person Account + a
 // WebStore (which the standard object requires); saved products are WishlistItem
@@ -309,17 +361,24 @@ async function ensureOmsCatalog(conn) {
   // inventory (that's Stock__c); we keep it *mirrored* to Stock__c so the trigger
   // never blocks a paid order AND a merchant sees one consistent number in both
   // fields. Available_Qty__c is precision-5 (max 99999), so we cap.
-  const prods = await conn.query(
-    'SELECT Id, Stock__c, Available_Qty__c FROM Product2 WHERE Origin__c != null',
-  )
-  const mirror = prods.records
-    .map((r) => ({ Id: r.Id, target: Math.min(99999, Math.max(0, Number(r.Stock__c || 0))), current: Number(r.Available_Qty__c || 0) }))
-    .filter((r) => r.target !== r.current)
-    .map((r) => ({ Id: r.Id, Available_Qty__c: r.target }))
-  if (mirror.length) {
-    await conn.sobject('Product2').update(mirror)
-    console.log(`  • Mirrored Available_Qty__c to Stock__c on ${mirror.length} Meridian product(s)`)
-  } else console.log('  • Available_Qty__c already mirrors Stock__c')
+  // Meridian coffees (Origin__c set) + bundles (bundle-* ProductCode). Wrapped so
+  // a transient read failure never aborts setup — the per-order mirror in
+  // sf/orders.js also keeps Available_Qty__c in sync at order time.
+  try {
+    const prods = await conn.query(
+      "SELECT Id, Stock__c, Available_Qty__c FROM Product2 WHERE Origin__c != null OR ProductCode LIKE 'bundle-%'",
+    )
+    const mirror = prods.records
+      .map((r) => ({ Id: r.Id, target: Math.min(99999, Math.max(0, Number(r.Stock__c || 0))), current: Number(r.Available_Qty__c || 0) }))
+      .filter((r) => r.target !== r.current)
+      .map((r) => ({ Id: r.Id, Available_Qty__c: r.target }))
+    if (mirror.length) {
+      await conn.sobject('Product2').update(mirror)
+      console.log(`  • Mirrored Available_Qty__c to Stock__c on ${mirror.length} Meridian product(s)`)
+    } else console.log('  • Available_Qty__c already mirrors Stock__c')
+  } catch (err) {
+    console.warn(`  ! Available_Qty__c mirror skipped (non-fatal): ${err.message}`)
+  }
 }
 
 async function ensureProductReviewObject(conn) {
@@ -328,6 +387,15 @@ async function ensureProductReviewObject(conn) {
     label: 'Meridian Product Review',
     pluralLabel: 'Meridian Product Reviews',
     displayFormat: 'MPR-{0000}',
+  })
+}
+
+async function ensureBundleComponentObject(conn) {
+  await ensureCustomObject(conn, {
+    apiName: BUNDLE_COMPONENT_OBJECT,
+    label: 'Meridian Bundle Component',
+    pluralLabel: 'Meridian Bundle Components',
+    displayFormat: 'MBC-{0000}',
   })
 }
 
@@ -387,7 +455,7 @@ async function ensureOrderStatusValues(conn) {
 }
 
 async function ensurePermissions(conn) {
-  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...GUIDED_FIELDS]
+  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...GUIDED_FIELDS, ...BUNDLE_FIELDS]
     .map(({ def }) => ({ field: def.fullName, readable: true, editable: true }))
     .concat(CPA_FIELD_PERMISSIONS)
     // OMS: the app builds an OrderSummary per order (sf/orderSummary.js), which
@@ -430,6 +498,18 @@ async function ensurePermissions(conn) {
       allowCreate: true,
       allowEdit: false,
       allowDelete: false,
+      viewAllRecords: true,
+      modifyAllRecords: false,
+    },
+    // Bundle components — the seed creates them and the app reads them; full CRUD
+    // so `npm run seed` can reconcile a bundle's component list. viewAllRecords so
+    // components created by any user (e.g. a merchant) are visible.
+    {
+      object: BUNDLE_COMPONENT_OBJECT,
+      allowRead: true,
+      allowCreate: true,
+      allowEdit: true,
+      allowDelete: true,
       viewAllRecords: true,
       modifyAllRecords: false,
     },
@@ -658,6 +738,8 @@ async function main() {
     for (const field of GUIDED_FIELDS) await ensureField(conn, field)
     await ensureProductReviewObject(conn)
     for (const field of PRODUCT_REVIEW_FIELDS) await ensureField(conn, field)
+    await ensureBundleComponentObject(conn)
+    for (const field of BUNDLE_FIELDS) await ensureField(conn, field)
     // Wishlist + saved addresses use standard objects (Wishlist/WishlistItem and
     // ContactPointAddress) — no custom object to create; access is granted in
     // ensurePermissions().

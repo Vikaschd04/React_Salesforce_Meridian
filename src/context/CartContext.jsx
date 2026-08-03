@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { getProducts, applyPromo } from '../api/store.js'
+import { getProducts, getBundles, applyPromo } from '../api/store.js'
 import { round2 } from '../lib/money.js'
 
 /**
@@ -35,14 +35,17 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState(loadInitial)
   const [catalog, setCatalog] = useState({}) // id -> product
 
-  // Load the catalog once so we can join prices/names for display.
+  // Load the catalog once so we can join prices/names for display. Bundles are
+  // their own endpoint but also product-shaped, so they join the same lookup —
+  // a bundle in the cart renders exactly like a coffee.
   useEffect(() => {
     let alive = true
-    getProducts()
-      .then((products) => {
+    Promise.all([getProducts(), getBundles().catch(() => [])])
+      .then(([products, bundles]) => {
         if (!alive) return
         const byId = {}
         for (const p of products) byId[p.id] = p
+        for (const b of bundles) if (!byId[b.id]) byId[b.id] = b
         setCatalog(byId)
       })
       .catch(() => {

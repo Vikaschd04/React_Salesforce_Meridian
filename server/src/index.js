@@ -19,6 +19,7 @@ import stripeWebhookRoutes from './routes/stripeWebhook.js'
 import seoRoutes from './routes/seo.js'
 import reviewRoutes from './routes/reviews.js'
 import guidedRoutes from './routes/guided.js'
+import bundleRoutes from './routes/bundles.js'
 
 assertProductionConfig()
 
@@ -69,6 +70,7 @@ app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 app.use('/api', reviewRoutes)
 app.use('/api', guidedRoutes)
+app.use('/api', bundleRoutes)
 
 // Mock-only helper routes (never against a real org) — e.g. the real-time
 // dev-trigger that stands in for merchant-side Salesforce changes.
