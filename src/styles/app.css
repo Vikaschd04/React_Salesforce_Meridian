@@ -2552,6 +2552,35 @@
 }
 /* Bundle tiles reuse the product `.card` shell (see BundleCard.jsx); these add
    the bundle-specific accents on top of the shared card styles. */
+
+/* Collage of the component coffees filling the card art. The grid adapts to the
+   count: 3 = one lead image over two; 4 = 2×2; 5 = lead over 2×2; 2 = side by
+   side. So a shopper sees every coffee in the box at a glance. */
+.card__bundle-imgs {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  transition: transform 0.9s var(--ease-out);
+}
+.card__bundle-imgs[data-count='1'] {
+  grid-template-columns: 1fr;
+}
+.card__bundle-imgs[data-count='3'] > :first-child,
+.card__bundle-imgs[data-count='5'] > :first-child {
+  grid-column: span 2;
+}
+.card__link:hover .card__bundle-imgs {
+  transform: scale(1.04);
+}
+.card__bundle-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.92) brightness(0.94);
+}
+
 .card__bundle-tag {
   position: absolute;
   z-index: 1;

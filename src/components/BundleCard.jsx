@@ -35,12 +35,12 @@ export default function BundleCard({ bundle }) {
     >
       <Link to={`/bundles/${bundle.id}`} className="card__link" viewTransition>
         <div className="card__art">
-          <ProductImage
-            product={bundle}
-            className="card__img"
-            sizes="(max-width: 640px) 100vw, 320px"
-            style={{ viewTransitionName: `bundle-${bundle.id}` }}
-          />
+          {/* Collage of the coffees inside, so shoppers see what's in the box. */}
+          <div className="card__bundle-imgs" data-count={bundle.components.length}>
+            {bundle.components.map((c) => (
+              <ProductImage key={c.id} product={c} className="card__bundle-img" />
+            ))}
+          </div>
           <span className="card__bundle-tag">Bundle · {bundle.components.length} coffees</span>
           {bundle.savings > 0 && <span className="card__save">Save {bundle.savingsPct}%</span>}
           {soldOut && <span className="card__stock card__stock--out">Sold out</span>}
