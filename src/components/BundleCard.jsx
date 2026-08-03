@@ -38,7 +38,7 @@ export default function BundleCard({ bundle }) {
           {/* Collage of the coffees inside, so shoppers see what's in the box. */}
           <div className="card__bundle-imgs" data-count={bundle.components.length}>
             {bundle.components.map((c) => (
-              <ProductImage key={c.id} product={c} className="card__bundle-img" />
+              <ProductImage key={c.id} product={c} className="card__bundle-img" loading="eager" />
             ))}
           </div>
           <span className="card__bundle-tag">Bundle · {bundle.components.length} coffees</span>
