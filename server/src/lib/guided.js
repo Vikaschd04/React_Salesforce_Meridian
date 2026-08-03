@@ -108,17 +108,18 @@ function naturalJoin(items) {
   return `${items.slice(0, -1).join(', ')} & ${items[items.length - 1]}`
 }
 
-// A short, human "why this matched" line for one dimension.
+// A short, chip-friendly "why this matched" label for one dimension. Kept terse
+// so up to four fit neatly in the results card's fixed-height header.
 function reasonFor(question, product, hits) {
   switch (question.id) {
     case 'roast':
       return `${product.roast} roast`
     case 'flavor':
-      return `${naturalJoin(hits)} notes`
+      return naturalJoin(hits)
     case 'body':
       return `${product.body} body`
     case 'brew':
-      return `Brews great as ${hits[0]?.toLowerCase()}`
+      return `For ${hits[0]?.toLowerCase()}`
     default:
       return hits.join(', ')
   }
