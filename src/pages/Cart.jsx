@@ -5,6 +5,7 @@ import { formatUsd, round2, computeTax, SHIP_FREE_THRESHOLD, SHIP_FLAT } from '.
 import ProductImage from '../components/ProductImage.jsx'
 import QtyStepper from '../components/QtyStepper.jsx'
 import PromoInput from '../components/PromoInput.jsx'
+import { catalogPath } from '../lib/catalogPath.js'
 
 export default function Cart() {
   const { lines, items, subtotal, promo, discount, setQty, removeItem } = useCart()
@@ -45,7 +46,7 @@ export default function Cart() {
             const over = qty > product.stock
             // Bundles link to their own PDP and describe what's inside; coffees
             // show their origin.
-            const to = product.isBundle ? `/bundles/${id}` : `/product/${id}`
+            const to = catalogPath(product)
             const sub = product.isBundle
               ? product.components?.map((c) => c.name).join(' · ') ||
                 `${product.components?.length ?? ''}-coffee bundle`

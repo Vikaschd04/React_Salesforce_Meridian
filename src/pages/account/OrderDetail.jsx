@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyOrder, cancelOrder } from '../../api/store.js'
 import { formatUsd, orderPaidUsd } from '../../lib/money.js'
+import { catalogPath } from '../../lib/catalogPath.js'
 import Spinner from '../../components/Spinner.jsx'
 import ErrorState from '../../components/ErrorState.jsx'
 import OrderTimeline from '../../components/OrderTimeline.jsx'
@@ -142,7 +143,7 @@ export default function OrderDetail() {
           {order.items.map((item) => (
             <li key={item.id} className="order-card__line">
               <span>
-                {item.qty} × <Link to={`/product/${item.id}`}>{item.name}</Link>
+                {item.qty} × <Link to={catalogPath(item.id)}>{item.name}</Link>
               </span>
               <span>{formatUsd(item.lineTotal)}</span>
             </li>
