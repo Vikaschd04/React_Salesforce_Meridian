@@ -102,6 +102,26 @@ export async function getCatalogPage({
   return request(`/catalog?${params.toString()}`)
 }
 
+/** The guided-selling ("Find your coffee") quiz: an array of { id, label, help, options }. */
+export async function getGuidedQuiz() {
+  const data = await request('/guided/quiz')
+  return data?.quiz || []
+}
+
+/**
+ * Score the catalog against quiz answers. `answers` = { roast, flavor, body, brew }
+ * (each an option value; omit or '' for no preference). Returns the top matches,
+ * each with `matchPct` and `reasons`. If logged in, the BFF also saves the taste
+ * profile onto the shopper's Salesforce Contact.
+ */
+export async function getGuidedRecommendations(answers) {
+  const data = await request('/guided/recommend', {
+    method: 'POST',
+    body: JSON.stringify({ answers: answers || {} }),
+  })
+  return data?.recommendations || []
+}
+
 /** Typeahead suggestions for the shop search box (server-side, over all products). */
 export async function getSearchSuggestions(q) {
   const term = String(q || '').trim()

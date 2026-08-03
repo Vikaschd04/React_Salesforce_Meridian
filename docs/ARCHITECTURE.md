@@ -131,6 +131,7 @@ live-Stripe configuration — every store module mirrors the same business rules
 | `ActiveFilters.jsx` | Chips showing currently-applied Shop filters, each removable. |
 | `SearchSuggest.jsx` | Typeahead search box implementing the ARIA combobox pattern (full keyboard nav). Suggestions come from the BFF (`GET /api/catalog/suggest`, debounced) so the box never needs a client-side copy of the catalog — suggests matching coffees and tasting notes. |
 | `Pagination.jsx` | Accessible pager for the PLP — Prev / numbered pages (with … gaps) / Next; presentational, `Shop.jsx` owns the page and keeps it in the URL. |
+| `GuidedSelling.jsx` | **"Find your coffee" quiz** (`/find-your-coffee`) — a 4-step wizard (roast, flavour, body, brew) that POSTs answers to `GET/POST /api/guided/*` and renders scored matches (reusing `ProductCard`) with a % badge + match reasons. See §4.8. |
 | `RelatedProducts.jsx` | "You might also like" strip on `ProductDetail`, calls `getProducts()` and picks by shared roast/origin. |
 | `QtyStepper.jsx` | +/− quantity control used in Cart and ProductDetail. |
 | `OrderRow.jsx` | One row in the shopper's order history (`Orders.jsx`). Deliberately splits the card into a `<Link>` (navigates to the order) and a sibling `<button>` "Reorder" — nesting a button inside the link would be invalid HTML and break keyboard/screen-reader navigation. |
@@ -187,6 +188,7 @@ Each file maps HTTP verbs/paths to a `store/*.js` call; validates input with `zo
 |---|---|---|
 | `products.js` | `GET /api/products` (whole catalog), `GET /api/catalog` (one filtered/sorted **page** for the PLP — `page,pageSize,q,roast,origin,price,sort` → `{ items, page, total, totalPages, facets }`), `GET /api/catalog/suggest` (typeahead), `GET /api/products/:id` | `store/catalog.js` |
 | `reviews.js` | `GET /api/products/:id/reviews` (optional auth), `POST /api/products/:id/reviews` (required auth) | `store/reviews.js` |
+| `guided.js` | `GET /api/guided/quiz`, `POST /api/guided/recommend` (optional auth — logged-in shoppers also get their taste profile saved to their Contact) | `store/guided.js` |
 | `orders.js` | `POST /api/orders`, `POST /api/orders/track` + `GET /api/orders/track/stream` (public guest tracking + live SSE, token-authorized), `GET /api/orders/:id` | `store/orders.js`, `lib/orderEvents.js` |
 | `account.js` | `GET/PATCH /api/account/profile`, `GET /api/account/orders[/:id]`, `GET /api/account/orders/stream` (SSE), `POST /api/account/orders/:id/cancel`, `GET/POST/DELETE /api/account/wishlist`, `GET/POST/PATCH/DELETE /api/account/addresses`, `GET /api/account/tickets[/:caseNumber]` | `store/orders.js`, `store/auth.js`, `store/wishlist.js`, `store/addresses.js`, `store/support.js`, `lib/orderEvents.js` (all require a session) |
 | `dev.js` | `POST /api/dev/orders/:id/advance` + `POST /api/dev/cases/:caseNumber/reply` — **mock mode only** (mounted from `index.js` when `DATA_SOURCE=mock`); simulate merchant-side updates (order status / ticket reply) to drive the live stream + ticket thread in dev/E2E | `store/orders.js`, `store/support.js`, `lib/orderEvents.js` |
@@ -208,6 +210,7 @@ Each file exports the same function signatures regardless of data source; every 
 | `auth.js` | In-memory user Map, same bcrypt hashing | `sf/contacts.js` |
 | `reviews.js` | In-memory review array | `sf/reviews.js` |
 | `wishlist.js` | In-memory `Map<contactId, Set<productId>>` | `sf/wishlist.js` |
+| `guided.js` | Scores the mock catalog via `lib/guided.js` | Scores the **live Salesforce** catalog (Product2 `Body__c`/`Flavor_Profile__c`/`Brew_Methods__c`) via the same `lib/guided.js`; saves the taste profile to `Contact` (`sf/contacts.js`) |
 | `addresses.js` | In-memory `Map<contactId, Address[]>` | `sf/addresses.js` — both enforce one default per shopper |
 | `promos.js` | Static in-repo table (with the same validity/limit shape) + in-memory redemption counts | `sf/promos.js` — reads standard Coupon/Promotion objects; shared `evaluate()` so both modes behave identically |
 | `support.js` | Mock: persists tickets in-memory (list/get/reply) | `sf/cases.js` |
@@ -427,7 +430,24 @@ schema):
 
 See [DEVELOPER_GUIDE.md §9g–§9h](DEVELOPER_GUIDE.md).
 
-### 4.11 Testing & CI
+### 4.11 Guided selling — "Find your coffee" (`GuidedSelling.jsx` → `routes/guided.js` → `store/guided.js` → `lib/guided.js`)
+
+A 4-step quiz (roast → flavour → body → brew) that recommends coffees. Every
+attribute it scores against lives on **Salesforce Product2** — `Roast__c` plus
+three fields added for this feature (`Body__c`, `Flavor_Profile__c`,
+`Brew_Methods__c`), stored as `;`-delimited Text exactly like `Tasting_Notes__c`
+and read through the normal catalog mapper. So recommendations are computed over
+**live Salesforce data**, not a local copy (the mock catalog mirrors the same
+fields for offline/E2E). `lib/guided.js` holds the quiz definition + a pure
+scoring function (weighted matches per dimension, a small bonus for multiple
+flavour hits, `matchPct` + human "reasons"); `store/guided.js` scores whatever
+`store/catalog.js` returns. When a **logged-in** shopper finishes, their taste
+profile is written back onto their **Contact** (`Preferred_Roast__c` /
+`Preferred_Flavors__c`, best-effort) — the quiz doubles as CRM lead-capture. The
+results reuse `ProductCard` with a % badge + reason chips. See
+[DEVELOPER_GUIDE.md §6b](DEVELOPER_GUIDE.md).
+
+### 4.12 Testing & CI
 
 | File | Role |
 |---|---|

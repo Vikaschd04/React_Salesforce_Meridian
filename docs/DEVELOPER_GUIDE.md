@@ -128,6 +128,8 @@ The `sf/` folder is the only place that knows Salesforce field names:
 | `sf/contacts.js`    | Shopper Contact create/find, password hashing                      |
 | `sf/seed.js`        | Populate products + prices                                         |
 | `sf/wishlist.js`    | Standard `Wishlist`/`WishlistItem` CRUD                            |
+| `lib/guided.js`     | Guided-selling quiz + pure scoring (no I/O) — shared by mock + SF  |
+| `sf/contacts.js`    | …also writes the guided-selling taste profile back to `Contact`   |
 | `sf/addresses.js`   | Standard `ContactPointAddress` CRUD                                |
 | `sf/orderSummary.js`| Order Management — builds an `OrderSummary` per order (OMS objects)|
 | `sf/setup-schema.js`| Create Order custom fields + Review object + permission set        |
@@ -194,6 +196,34 @@ and `sort`, and returns one page:
   search index later without touching the frontend.
 - **Typeahead** uses `GET /api/catalog/suggest?q=` (→ `suggestProducts()`), so
   the search box no longer needs a client-side copy of the catalog either.
+
+### 6b. Guided selling — "Find your coffee"
+
+A 4-question quiz (`/find-your-coffee`) that recommends coffees, fully backed by
+Salesforce:
+
+1. **Attributes live on Product2.** Beyond the existing `Roast__c`, three fields
+   drive the match — `Body__c`, `Flavor_Profile__c`, `Brew_Methods__c` — stored
+   as `;`-delimited Text (same convention as `Tasting_Notes__c`), created by
+   `sf:setup` and populated by `npm run seed`. The catalog mapper reads them into
+   `product.body` / `flavorProfile` / `brewMethods`.
+2. **Scoring is pure + shared.** `lib/guided.js` holds the quiz definition and
+   `scoreProducts(products, answers)`: weighted matches per dimension (roast 3,
+   flavour 3 + a bonus per extra flavour hit, body 2, brew 2), returning the top
+   3 with a `matchPct` and human "reasons". `store/guided.js` runs it over
+   whatever `store/catalog.js` returns — so in Salesforce mode it scores **live
+   Product2 data**; the mock catalog mirrors the same fields for offline/E2E.
+3. **The result is captured in the CRM.** `POST /api/guided/recommend` uses
+   optional auth; when a shopper is logged in, their taste profile is written back
+   onto their **Contact** (`Preferred_Roast__c` / `Preferred_Flavors__c`, via
+   `sf/contacts.js#updateTasteProfile`) — best-effort, never blocking the
+   recommendation. Guests just get recommendations.
+
+Extending it: add a new attribute → create the Product2 field in `setup-schema.js`,
+add it to `PRODUCT_FIELDS` + `productFromSf` (`mappers.js`) and `productToSf`
+(`seed.js`), seed values in `data/products.js`, then add a question to `QUIZ` in
+`lib/guided.js`. No route or UI change needed — the wizard renders whatever
+`GET /api/guided/quiz` returns.
 
 ---
 
@@ -766,6 +796,8 @@ non-fatal; `sf:check` reports whether it's on.
 | `GET /api/products`                  | –         | List **all** active Meridian products (cart/related/wishlist/home) |
 | `GET /api/catalog`                   | –         | One filtered/sorted **page** for the PLP: `?page,pageSize,q,roast,origin,price,sort` → `{ items, page, total, totalPages, facets }` |
 | `GET /api/catalog/suggest`           | –         | `?q=` → `{ suggestions }` typeahead over the whole catalog |
+| `GET /api/guided/quiz`               | –         | Guided-selling questions + options for the "Find your coffee" wizard |
+| `POST /api/guided/recommend`         | optional  | `{ answers }` → `{ recommendations }` scored over the (Salesforce) catalog; logged-in shoppers also get their taste profile saved to Contact |
 | `GET /api/products/:id`              | –         | One product by slug                         |
 | `GET /api/products/:id/reviews`      | optional  | `{ reviews, average, count, myReview }` — `myReview` set only when logged in and reviewed |
 | `POST /api/products/:id/reviews`     | required  | Submit a review; `409 already_reviewed` if the shopper already reviewed this product |

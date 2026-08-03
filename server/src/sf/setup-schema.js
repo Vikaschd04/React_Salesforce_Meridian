@@ -180,6 +180,39 @@ const PRODUCT_REVIEW_FIELDS = [
   },
 ]
 
+// ---- Guided selling ("Find your coffee") — attributes the quiz scores against.
+// Stored on Product2 as ';'-delimited Text, exactly like Tasting_Notes__c, so a
+// merchant edits them the same way (Roast is the existing Roast__c). The quiz
+// result (a shopper's taste profile) is written back onto their Contact so it
+// lives in the CRM. See sf/guided.js + lib/guided.js. ----
+const GUIDED_FIELDS = [
+  {
+    sobject: 'Product2',
+    probe: 'Body__c',
+    def: { fullName: 'Product2.Body__c', label: 'Body', type: 'Text', length: 20 },
+  },
+  {
+    sobject: 'Product2',
+    probe: 'Flavor_Profile__c',
+    def: { fullName: 'Product2.Flavor_Profile__c', label: 'Flavor Profile', type: 'Text', length: 255 },
+  },
+  {
+    sobject: 'Product2',
+    probe: 'Brew_Methods__c',
+    def: { fullName: 'Product2.Brew_Methods__c', label: 'Brew Methods', type: 'Text', length: 255 },
+  },
+  {
+    sobject: 'Contact',
+    probe: 'Preferred_Roast__c',
+    def: { fullName: 'Contact.Preferred_Roast__c', label: 'Preferred Roast', type: 'Text', length: 20 },
+  },
+  {
+    sobject: 'Contact',
+    probe: 'Preferred_Flavors__c',
+    def: { fullName: 'Contact.Preferred_Flavors__c', label: 'Preferred Flavors', type: 'Text', length: 255 },
+  },
+]
+
 // ---- Wishlist now uses the STANDARD `Wishlist` + `WishlistItem` objects (no
 // custom schema). A shopper's Wishlist is parented to their Person Account + a
 // WebStore (which the standard object requires); saved products are WishlistItem
@@ -354,7 +387,7 @@ async function ensureOrderStatusValues(conn) {
 }
 
 async function ensurePermissions(conn) {
-  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS]
+  const fieldPermissions = [...FIELDS, ...PRODUCT_REVIEW_FIELDS, ...GUIDED_FIELDS]
     .map(({ def }) => ({ field: def.fullName, readable: true, editable: true }))
     .concat(CPA_FIELD_PERMISSIONS)
     // OMS: the app builds an OrderSummary per order (sf/orderSummary.js), which
@@ -622,6 +655,7 @@ async function main() {
   console.log(`Setting up Meridian schema (${config.salesforce.loginUrl})…`)
   await withConn(async (conn) => {
     for (const field of FIELDS) await ensureField(conn, field)
+    for (const field of GUIDED_FIELDS) await ensureField(conn, field)
     await ensureProductReviewObject(conn)
     for (const field of PRODUCT_REVIEW_FIELDS) await ensureField(conn, field)
     // Wishlist + saved addresses use standard objects (Wishlist/WishlistItem and

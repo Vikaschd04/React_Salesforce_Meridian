@@ -90,6 +90,21 @@ export async function verifyPassword(record, password) {
   return bcrypt.compare(password, hash)
 }
 
+/**
+ * Persist a shopper's guided-selling taste profile on their Contact
+ * (Preferred_Roast__c / Preferred_Flavors__c). Best-effort personalization data
+ * — the caller never blocks a recommendation on this write.
+ */
+export async function updateTasteProfile(contactId, { roast, flavors }) {
+  return withConn((conn) =>
+    conn.sobject('Contact').update({
+      Id: contactId,
+      Preferred_Roast__c: roast || null,
+      Preferred_Flavors__c: flavors || null,
+    }),
+  )
+}
+
 /** Update a shopper's name on their Contact; returns the fresh profile. */
 export async function updateShopper(contactId, { firstName, lastName }) {
   await withConn((conn) =>

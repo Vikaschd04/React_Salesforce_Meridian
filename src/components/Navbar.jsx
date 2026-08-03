@@ -9,6 +9,7 @@ import ThemeToggle from './ThemeToggle.jsx'
 const LINKS = [
   { to: '/', label: 'Home', end: true },
   { to: '/shop', label: 'Shop' },
+  { to: '/find-your-coffee', label: 'Find your coffee' },
   { to: '/about', label: 'Our sourcing' },
   { to: '/contact', label: 'Contact' },
 ]

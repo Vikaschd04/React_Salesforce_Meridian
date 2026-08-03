@@ -106,7 +106,8 @@ Each is justified; all are created/granted by `npm run sf:setup`.
 | `Order.Payment_Intent__c` (Text) | No standard payment reference on base Order (payments live in separate managed packages/OMS). |
 | `Order.Tracking_Number__c` (Text) | No standard tracking-number field on base Order. |
 | `Contact.Password_Hash__c` (Text) | No standard password store (by design — bcrypt hash only). |
-| `Product2.*` (Origin, Roast, Tasting_Notes, …) | Coffee attributes with no standard analog. |
+| `Contact.Preferred_Roast__c` / `Preferred_Flavors__c` (Text) | Guided-selling taste profile captured from the "Find your coffee" quiz — CRM personalization data with no standard analog. |
+| `Product2.*` (Origin, Roast, Tasting_Notes, Body, Flavor_Profile, Brew_Methods, …) | Coffee attributes with no standard analog. `Body__c` / `Flavor_Profile__c` / `Brew_Methods__c` power guided selling and follow the `Tasting_Notes__c` convention (`;`-delimited Text). |
 
 > The shopper↔order link no longer needs a custom field: it's the standard
 > **`Order.AccountId`** (a registered shopper's own Person Account). `BillToContactId`

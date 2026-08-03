@@ -128,6 +128,22 @@ async function main() {
     console.log('    → Run `npm run sf:setup` to create it and grant object/field access.')
   }
 
+  // 4g. Guided selling ("Find your coffee") — Product2 scoring attributes +
+  // the Contact taste-profile fields the quiz writes back.
+  try {
+    await withConn((conn) =>
+      Promise.all([
+        conn.query('SELECT Body__c, Flavor_Profile__c, Brew_Methods__c FROM Product2 LIMIT 1'),
+        conn.query('SELECT Preferred_Roast__c, Preferred_Flavors__c FROM Contact LIMIT 1'),
+      ]),
+    )
+    ok('Guided-selling fields present (Product2 body/flavor/brew + Contact taste profile)')
+  } catch (err) {
+    failures++
+    bad(`Guided-selling fields missing/hidden: ${err.message}`)
+    console.log('    → Run `npm run sf:setup` to create them and grant field access.')
+  }
+
   // 4h. Wishlist — standard Wishlist + WishlistItem, readable by Run-As.
   try {
     await withConn((conn) =>
