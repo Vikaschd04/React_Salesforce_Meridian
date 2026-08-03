@@ -2550,44 +2550,49 @@
 .bundles {
   padding-bottom: var(--sp-7);
 }
-.grid--bundles {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+/* Bundle tiles reuse the product `.card` shell (see BundleCard.jsx); these add
+   the bundle-specific accents on top of the shared card styles. */
+.card__bundle-tag {
+  position: absolute;
+  z-index: 1;
+  left: var(--sp-3);
+  top: var(--sp-3);
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  background: var(--chip-media-bg);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--gold-soft);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.card__save {
+  position: absolute;
+  z-index: 1;
+  right: var(--sp-3);
+  top: var(--sp-3);
+  padding: 0.24rem 0.55rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: var(--glow-gold);
+}
+.card__was {
+  margin-left: 0.5rem;
+  color: var(--mist);
+  text-decoration: line-through;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: 400;
 }
 
-/* Bundle card */
-.bundle-card {
-  height: 100%;
-}
-.bundle-card__link {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: linear-gradient(180deg, var(--raised), var(--surface));
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease),
-    transform var(--dur-2) var(--ease-out);
-}
-.bundle-card__link:hover {
-  border-color: var(--gold-soft);
-  box-shadow: var(--shadow), var(--glow-gold);
-  transform: translateY(-3px);
-}
-.bundle-card__thumbs {
-  position: relative;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  height: 9rem;
-  gap: 2px;
-}
-.bundle-card__thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.bundle-card__save,
+/* Bundle detail */
 .bundle-detail__save {
   position: absolute;
   top: var(--sp-3);
@@ -2602,58 +2607,6 @@
   letter-spacing: 0.02em;
   box-shadow: var(--glow-gold);
 }
-.bundle-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
-  flex: 1;
-}
-.bundle-card__count {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--gold);
-}
-.bundle-card__name {
-  font-family: var(--font-display);
-  font-size: var(--step-1);
-  font-weight: 600;
-}
-.bundle-card__contents {
-  color: var(--mist);
-  font-size: var(--step--1);
-  line-height: 1.5;
-  flex: 1;
-}
-.bundle-card__foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-top: var(--sp-2);
-}
-.bundle-card__price {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-.bundle-card__now {
-  font-family: var(--font-display);
-  font-size: var(--step-1);
-  font-weight: 600;
-}
-.bundle-card__was {
-  color: var(--mist);
-  text-decoration: line-through;
-  font-size: var(--step--1);
-}
-.bundle-card__cta {
-  color: var(--pine-bright);
-  font-size: var(--step--1);
-}
-
-/* Bundle detail */
 .bundle-detail {
   display: grid;
   grid-template-columns: 1fr;

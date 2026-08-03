@@ -10,7 +10,7 @@ export default function ProductImage({ product, className = '', sizes, loading =
     <img
       className={className}
       src={product.image}
-      alt={`${product.name} — ${product.origin}`}
+      alt={[product.name, product.origin].filter(Boolean).join(' — ')}
       loading={loading}
       decoding="async"
       sizes={sizes}

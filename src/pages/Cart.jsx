@@ -43,16 +43,23 @@ export default function Cart() {
         <ul className="cart__lines">
           {lines.map(({ id, qty, product, lineTotal }) => {
             const over = qty > product.stock
+            // Bundles link to their own PDP and describe what's inside; coffees
+            // show their origin.
+            const to = product.isBundle ? `/bundles/${id}` : `/product/${id}`
+            const sub = product.isBundle
+              ? product.components?.map((c) => c.name).join(' · ') ||
+                `${product.components?.length ?? ''}-coffee bundle`
+              : product.origin
             return (
               <li key={id} className="line">
-                <Link to={`/product/${id}`} className="line__art" aria-hidden="true" tabIndex={-1}>
+                <Link to={to} className="line__art" aria-hidden="true" tabIndex={-1}>
                   <ProductImage product={product} className="line__img" />
                 </Link>
                 <div className="line__main">
-                  <Link to={`/product/${id}`} className="line__name">
+                  <Link to={to} className="line__name">
                     {product.name}
                   </Link>
-                  <p className="line__origin">{product.origin}</p>
+                  <p className="line__origin">{sub}</p>
                   {over && (
                     <p className="line__stockwarn">
                       Only {product.stock} left — reduce the quantity to check out.

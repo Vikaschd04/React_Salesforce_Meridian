@@ -1,41 +1,73 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ProductImage from './ProductImage.jsx'
 import { formatUsd } from '../lib/money.js'
+import { useCart } from '../context/CartContext.jsx'
+import useTilt from '../lib/useTilt.js'
 
 /**
- * Catalog tile for a product bundle. Shows the coffees inside (thumbnails),
- * the saving vs buying separately, and the bundle price. Links to the bundle
- * detail page.
+ * Catalog tile for a product bundle. Mirrors ProductCard (same `.card` shell,
+ * image, and body) so bundles read as first-class products, with a bundle count
+ * label tag, a savings badge, and the coffees inside as the "notes" line.
  */
 export default function BundleCard({ bundle }) {
-  const { id, name, price, componentTotal, savings, savingsPct, components } = bundle
+  const { addItem } = useCart()
+  const tilt = useTilt(6)
+  const [added, setAdded] = useState(false)
+
+  const soldOut = bundle.stock <= 0
+
+  function quickAdd(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (soldOut) return
+    addItem(bundle.id, 1)
+    setAdded(true)
+    window.setTimeout(() => setAdded(false), 1600)
+  }
+
   return (
-    <article className="bundle-card">
-      <Link to={`/bundles/${id}`} className="bundle-card__link" viewTransition>
-        <div className="bundle-card__thumbs">
-          {components.slice(0, 4).map((c) => (
-            <ProductImage key={c.id} product={c} className="bundle-card__thumb" />
-          ))}
-          {savings > 0 && (
-            <span className="bundle-card__save">
-              Save {savingsPct}%
-            </span>
-          )}
+    <article
+      className="card"
+      ref={tilt.ref}
+      onPointerMove={tilt.onPointerMove}
+      onPointerLeave={tilt.onPointerLeave}
+    >
+      <Link to={`/bundles/${bundle.id}`} className="card__link" viewTransition>
+        <div className="card__art">
+          <ProductImage
+            product={bundle}
+            className="card__img"
+            sizes="(max-width: 640px) 100vw, 320px"
+            style={{ viewTransitionName: `bundle-${bundle.id}` }}
+          />
+          <span className="card__bundle-tag">Bundle · {bundle.components.length} coffees</span>
+          {bundle.savings > 0 && <span className="card__save">Save {bundle.savingsPct}%</span>}
+          {soldOut && <span className="card__stock card__stock--out">Sold out</span>}
+          <button
+            type="button"
+            className={`card__quick${added ? ' is-added' : ''}`}
+            onClick={quickAdd}
+            disabled={soldOut}
+            aria-label={soldOut ? `${bundle.name} is sold out` : `Add ${bundle.name} to cart`}
+          >
+            {soldOut ? 'Sold out' : added ? '✓ Added' : '+ Add'}
+          </button>
         </div>
-        <div className="bundle-card__body">
-          <span className="bundle-card__count">{components.length}-coffee bundle</span>
-          <h3 className="bundle-card__name">{name}</h3>
-          <p className="bundle-card__contents">{components.map((c) => c.name).join(' · ')}</p>
-          <div className="bundle-card__foot">
-            <span className="bundle-card__price">
-              <span className="bundle-card__now">{formatUsd(price)}</span>
-              {savings > 0 && <span className="bundle-card__was">{formatUsd(componentTotal)}</span>}
+        <div className="card__body">
+          <h3 className="card__name">{bundle.name}</h3>
+          <p className="card__notes">{bundle.components.map((c) => c.name).join(' · ')}</p>
+          <div className="card__foot">
+            <span className="card__price">
+              {formatUsd(bundle.price)}
+              {bundle.savings > 0 && <span className="card__was">{formatUsd(bundle.componentTotal)}</span>}
             </span>
-            <span className="bundle-card__cta" aria-hidden="true">
+            <span className="card__cta" aria-hidden="true">
               View →
             </span>
           </div>
         </div>
+        <span className="card__glare" aria-hidden="true" />
       </Link>
     </article>
   )

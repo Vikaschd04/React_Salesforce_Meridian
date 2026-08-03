@@ -51,7 +51,7 @@ export default function Bundles() {
       ) : bundles.length === 0 ? (
         <p className="shop__count">No bundles available right now.</p>
       ) : (
-        <ul className="grid grid--bundles">
+        <ul className="grid">
           {bundles.map((b, i) => (
             <li key={b.id} style={{ '--n': i }}>
               <BundleCard bundle={b} />

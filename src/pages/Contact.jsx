@@ -43,7 +43,9 @@ export default function Contact() {
 
       <header className="page-head">
         <p className="hero__eyebrow">Support · 24h response</p>
-        <h1 className="page-head__title">Get in touch</h1>
+        <h1 className="page-head__title">
+          Get in <span className="hero__accent">touch.</span>
+        </h1>
         <p className="page-head__lede">
           Question about a coffee, an order, or where something’s from? Send us a note and
           we’ll get back to you. Every message opens a tracked support case.

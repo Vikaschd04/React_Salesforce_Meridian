@@ -140,7 +140,10 @@ export default function Shop() {
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Shop' }]} />
 
       <header className="page-head">
-        <h1 className="page-head__title">The whole map</h1>
+        <p className="hero__eyebrow">The catalog</p>
+        <h1 className="page-head__title">
+          The whole <span className="hero__accent">map.</span>
+        </h1>
         <p className="page-head__lede">
           Single-origin coffees, each traced to a named farm and plotted to its coordinates.
           Filter by roast, hunt by tasting note, or just browse the world.

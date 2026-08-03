@@ -5,9 +5,9 @@ import { test, expect } from '@playwright/test'
 // through the identical order pipeline.
 test('buy a bundle end-to-end', async ({ page }) => {
   await page.goto('/bundles')
-  await expect(page.locator('.bundle-card')).not.toHaveCount(0)
+  await expect(page.locator('.card')).not.toHaveCount(0)
 
-  await page.locator('.bundle-card__link').first().click()
+  await page.locator('.card__link').first().click()
   await expect(page).toHaveURL(/\/bundles\//)
   // The detail lists the component coffees and shows a saving.
   await expect(page.locator('.bundle-content')).not.toHaveCount(0)
