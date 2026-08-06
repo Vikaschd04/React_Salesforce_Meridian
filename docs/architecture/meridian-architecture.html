@@ -1,0 +1,1064 @@
+<title>Meridian — Headless Commerce Architecture on Salesforce</title>
+
+<style>
+  /* ============================================================
+     Meridian design tokens — the storefront's own system.
+     Light = "Day Observatory" (parchment), Dark = "Dark Observatory".
+     ============================================================ */
+  :root {
+    --void: #f2ece0;
+    --surface: #fbf7ef;
+    --raised: #ffffff;
+    --ink: #241d12;
+    --ink-70: rgba(36, 29, 18, 0.74);
+    --mist: #6b6252;
+    --gold: #b3801c;
+    --gold-soft: rgba(179, 128, 28, 0.4);
+    --gold-wash: rgba(179, 128, 28, 0.08);
+    --pine: #2f7d61;
+    --pine-soft: rgba(47, 125, 97, 0.38);
+    --pine-wash: rgba(47, 125, 97, 0.07);
+    --rust: #a8512f;
+    --rust-soft: rgba(168, 81, 47, 0.42);
+    --rust-wash: rgba(168, 81, 47, 0.07);
+    --line: rgba(36, 29, 18, 0.14);
+    --line-strong: rgba(36, 29, 18, 0.24);
+    --shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 18px 40px -24px rgba(60, 45, 20, 0.22);
+
+    --font-display: Fraunces, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+    --font-body: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --sp-1: 0.35rem;
+    --sp-2: 0.6rem;
+    --sp-3: 1rem;
+    --sp-4: 1.6rem;
+    --sp-5: 2.6rem;
+    --sp-6: 4rem;
+    --radius: 6px;
+    --radius-lg: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --void: #0d0b08;
+      --surface: #161310;
+      --raised: #1e1a15;
+      --ink: #ede6d8;
+      --ink-70: rgba(237, 230, 216, 0.72);
+      --mist: #9a917f;
+      --gold: #e2b450;
+      --gold-soft: rgba(226, 180, 80, 0.38);
+      --gold-wash: rgba(226, 180, 80, 0.08);
+      --pine: #55b28e;
+      --pine-soft: rgba(85, 178, 142, 0.35);
+      --pine-wash: rgba(85, 178, 142, 0.08);
+      --rust: #d98a63;
+      --rust-soft: rgba(217, 138, 99, 0.42);
+      --rust-wash: rgba(217, 138, 99, 0.09);
+      --line: rgba(237, 230, 216, 0.12);
+      --line-strong: rgba(237, 230, 216, 0.2);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --void: #0d0b08;
+    --surface: #161310;
+    --raised: #1e1a15;
+    --ink: #ede6d8;
+    --ink-70: rgba(237, 230, 216, 0.72);
+    --mist: #9a917f;
+    --gold: #e2b450;
+    --gold-soft: rgba(226, 180, 80, 0.38);
+    --gold-wash: rgba(226, 180, 80, 0.08);
+    --pine: #55b28e;
+    --pine-soft: rgba(85, 178, 142, 0.35);
+    --pine-wash: rgba(85, 178, 142, 0.08);
+    --rust: #d98a63;
+    --rust-soft: rgba(217, 138, 99, 0.42);
+    --rust-wash: rgba(217, 138, 99, 0.09);
+    --line: rgba(237, 230, 216, 0.12);
+    --line-strong: rgba(237, 230, 216, 0.2);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+  }
+
+  :root[data-theme='light'] {
+    --void: #f2ece0;
+    --surface: #fbf7ef;
+    --raised: #ffffff;
+    --ink: #241d12;
+    --ink-70: rgba(36, 29, 18, 0.74);
+    --mist: #6b6252;
+    --gold: #b3801c;
+    --gold-soft: rgba(179, 128, 28, 0.4);
+    --gold-wash: rgba(179, 128, 28, 0.08);
+    --pine: #2f7d61;
+    --pine-soft: rgba(47, 125, 97, 0.38);
+    --pine-wash: rgba(47, 125, 97, 0.07);
+    --rust: #a8512f;
+    --rust-soft: rgba(168, 81, 47, 0.42);
+    --rust-wash: rgba(168, 81, 47, 0.07);
+    --line: rgba(36, 29, 18, 0.14);
+    --line-strong: rgba(36, 29, 18, 0.24);
+    --shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 18px 40px -24px rgba(60, 45, 20, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 3vw, 2rem) var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 var(--sp-2);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 1.5rem + 2.2vw, 3.1rem);
+    font-weight: 600;
+    line-height: 1.05;
+    margin: 0 0 var(--sp-3);
+    text-wrap: balance;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .lede {
+    color: var(--ink-70);
+    font-size: 1.05rem;
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 1.1rem + 0.8vw, 1.85rem);
+    font-weight: 600;
+    margin: 0 0 var(--sp-2);
+    text-wrap: balance;
+  }
+  .sec-lede {
+    color: var(--ink-70);
+    margin: 0 0 var(--sp-4);
+    max-width: 68ch;
+    font-size: 0.95rem;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+  }
+  .pill {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    color: var(--ink-70);
+    white-space: nowrap;
+  }
+
+  /* ---- Legend ---- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3) var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--ink-70);
+  }
+  .swatch {
+    width: 1.4rem;
+    height: 0.85rem;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .swatch--std { background: var(--gold-wash); border: 1px solid var(--gold-soft); }
+  .swatch--custom { background: var(--rust-wash); border: 1px dashed var(--rust-soft); }
+  .swatch--bff { background: var(--pine-wash); border: 1px solid var(--pine-soft); }
+  .swatch--ext { background: transparent; border: 1px dashed var(--line-strong); }
+
+  /* ============ The layer stack ============ */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .layer {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .layer--browser { border-top: 3px solid var(--line-strong); }
+  .layer--bff { border-top: 3px solid var(--pine); }
+  .layer--sf { border-top: 3px solid var(--gold); }
+
+  .layer__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line);
+    background: var(--raised);
+  }
+  .layer__title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .layer__tech {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--mist);
+    letter-spacing: 0.04em;
+  }
+  .layer__body {
+    padding: var(--sp-4);
+    display: grid;
+    gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  }
+
+  .node {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--void);
+    padding: var(--sp-3);
+  }
+  .node--bff { border-color: var(--pine-soft); background: var(--pine-wash); }
+  .node--sf { border-color: var(--gold-soft); background: var(--gold-wash); }
+  .node--custom { border-style: dashed; border-color: var(--rust-soft); background: var(--rust-wash); }
+
+  .node__label {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mist);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .node--bff .node__label { color: var(--pine); }
+  .node--sf .node__label { color: var(--gold); }
+  .node--custom .node__label { color: var(--rust); }
+
+  .node__title {
+    font-weight: 600;
+    font-size: 0.92rem;
+    margin: 0 0 0.35rem;
+  }
+  .node__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .node__list li {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--ink-70);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0.12rem 0.4rem;
+    white-space: nowrap;
+  }
+  .node__note {
+    margin: 0.45rem 0 0;
+    font-size: 0.78rem;
+    color: var(--mist);
+    line-height: 1.45;
+  }
+
+  /* ---- Connector between layers ---- */
+  .connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
+    position: relative;
+  }
+  .connector::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, var(--gold-soft), var(--gold-soft));
+    transform: translateX(-50%);
+  }
+  .connector__chip {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--gold-soft);
+    border-radius: 999px;
+    background: var(--void);
+    color: var(--ink-70);
+    text-align: center;
+  }
+  .connector__chip strong { color: var(--gold); font-weight: 600; }
+
+  /* ---- External services rail ---- */
+  .rail {
+    display: grid;
+    gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  }
+  .rail .node { background: var(--surface); border-style: dashed; }
+
+  /* ============ Order flow ============ */
+  .flow {
+    display: grid;
+    gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+    counter-reset: step;
+  }
+  .step {
+    position: relative;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--pine);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  }
+  .step::before {
+    counter-increment: step;
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--pine);
+    letter-spacing: 0.08em;
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+  .step--sf { border-left-color: var(--gold); }
+  .step--sf::before { color: var(--gold); }
+  .step__title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin: 0 0 0.3rem;
+  }
+  .step__text {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--ink-70);
+    line-height: 1.5;
+  }
+  .step__text code {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ink);
+    background: var(--void);
+    padding: 0.05rem 0.25rem;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+  }
+
+  /* ============ Mini flows ============ */
+  .mini-grid {
+    display: grid;
+    gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  }
+  .mini {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    padding: var(--sp-4);
+  }
+  .mini__title {
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 600;
+    margin: 0 0 var(--sp-2);
+  }
+  .chain {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .chain li {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-70);
+    padding-left: 1.1rem;
+    position: relative;
+    line-height: 1.5;
+  }
+  .chain li::before {
+    content: '↓';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+  }
+  .chain li:first-child::before { content: '●'; font-size: 0.6rem; top: 0.15rem; }
+
+  /* ============ Tables ============ */
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    min-width: 640px;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.62rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mist);
+    background: var(--raised);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td strong { font-weight: 600; }
+  td code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--ink-70);
+  }
+  .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.42rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tag--std { color: var(--gold); border: 1px solid var(--gold-soft); background: var(--gold-wash); }
+  .tag--custom { color: var(--rust); border: 1px dashed var(--rust-soft); background: var(--rust-wash); }
+  .tag--live { color: var(--pine); border: 1px solid var(--pine-soft); background: var(--pine-wash); }
+  .tag--future { color: var(--mist); border: 1px dashed var(--line-strong); }
+
+  /* ============ B2B band ============ */
+  .b2b {
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--sp-4);
+    background: var(--surface);
+  }
+  .b2b__grid {
+    display: grid;
+    gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    margin-top: var(--sp-3);
+  }
+  .b2b__item {
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    background: var(--void);
+  }
+  .b2b__item h4 {
+    margin: 0 0 0.25rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+  .b2b__item p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--mist);
+    line-height: 1.45;
+  }
+
+  .callout {
+    border-left: 3px solid var(--gold);
+    background: var(--gold-wash);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 0.88rem;
+    color: var(--ink-70);
+  }
+  .callout strong { color: var(--ink); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: var(--sp-4);
+    font-size: 0.78rem;
+    color: var(--mist);
+    font-family: var(--font-mono);
+    line-height: 1.7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- ============ Header ============ -->
+  <header>
+    <p class="eyebrow">Reference architecture · 51°28′N 0°00′W</p>
+    <h1>Meridian — a <em>headless</em> commerce storefront on Salesforce</h1>
+    <p class="lede">
+      A React storefront and a Node backend-for-frontend sitting in front of Salesforce as the
+      system of record. Salesforce owns the catalog, customers, orders, promotions and cases;
+      the BFF is the only thing that speaks to it; the browser only ever speaks to the BFF.
+    </p>
+    <div class="meta-row">
+      <span class="pill">React 19 · Vite SPA</span>
+      <span class="pill">Node · Express BFF</span>
+      <span class="pill">Salesforce · jsforce</span>
+      <span class="pill">Stripe payments</span>
+      <span class="pill">Standard-first schema</span>
+      <span class="pill">Mock ⇄ Salesforce swap</span>
+    </div>
+  </header>
+
+  <div class="legend" role="note" aria-label="Diagram legend">
+    <span class="legend-item"><span class="swatch swatch--bff"></span> BFF layer / app-owned logic</span>
+    <span class="legend-item"><span class="swatch swatch--std"></span> Salesforce <strong>standard</strong> object</span>
+    <span class="legend-item"><span class="swatch swatch--custom"></span> Custom object (minimal, dashed)</span>
+    <span class="legend-item"><span class="swatch swatch--ext"></span> External service / not yet built</span>
+  </div>
+
+  <!-- ============ The stack ============ -->
+  <section aria-label="Layered architecture">
+    <h2>The three layers</h2>
+    <p class="sec-lede">
+      Each layer only talks to its neighbour. That single rule is what makes the storefront
+      headless: swap Salesforce for mock data, or swap the React front end for a mobile app,
+      and nothing else has to change.
+    </p>
+
+    <div class="stack">
+
+      <!-- Layer 1 -->
+      <div class="layer layer--browser">
+        <div class="layer__head">
+          <h3 class="layer__title">1 · Browser — presentation</h3>
+          <span class="layer__tech">React 19 · React Router · Vite · CSS tokens</span>
+        </div>
+        <div class="layer__body">
+          <div class="node">
+            <span class="node__label">Discovery</span>
+            <p class="node__title">Catalog &amp; search</p>
+            <ul class="node__list">
+              <li>Home</li><li>Shop (PLP)</li><li>Product PDP</li><li>Typeahead</li>
+            </ul>
+            <p class="node__note">Server-paged listing: filters, sort &amp; facets computed across the whole catalog, 10 per page.</p>
+          </div>
+          <div class="node">
+            <span class="node__label">Merchandising</span>
+            <p class="node__title">Bundles &amp; guided selling</p>
+            <ul class="node__list">
+              <li>/bundles</li><li>Bundle PDP</li><li>Find your coffee</li>
+            </ul>
+            <p class="node__note">A 4-question quiz scores the live catalog; bundles show what's inside plus the saving.</p>
+          </div>
+          <div class="node">
+            <span class="node__label">Purchase</span>
+            <p class="node__title">Cart → checkout</p>
+            <ul class="node__list">
+              <li>Cart</li><li>Checkout</li><li>Stripe Elements</li><li>Confirmation</li>
+            </ul>
+            <p class="node__note">Card details live in a Stripe-hosted iframe and never touch our server.</p>
+          </div>
+          <div class="node">
+            <span class="node__label">Account</span>
+            <p class="node__title">Post-purchase</p>
+            <ul class="node__list">
+              <li>Orders</li><li>Tracking</li><li>Wishlist</li><li>Addresses</li><li>Tickets</li>
+            </ul>
+            <p class="node__note">Live order status streams in over SSE — no refresh, no polling.</p>
+          </div>
+          <div class="node">
+            <span class="node__label">Client state</span>
+            <p class="node__title">React context</p>
+            <ul class="node__list">
+              <li>CartContext</li><li>AuthContext</li><li>WishlistContext</li><li>ThemeContext</li>
+            </ul>
+            <p class="node__note">Cart persists to localStorage; prices are always re-joined from live catalog data.</p>
+          </div>
+          <div class="node">
+            <span class="node__label">Boundary</span>
+            <p class="node__title">src/api/store.js</p>
+            <ul class="node__list">
+              <li>the only fetch()</li>
+            </ul>
+            <p class="node__note">Every network call in the app funnels through this one module — the swap point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">
+        <span class="connector__chip"><strong>HTTPS · JSON</strong> · same-origin <span class="mono">/api/*</span> · httpOnly session cookie · SSE for live order events</span>
+      </div>
+
+      <!-- Layer 2 -->
+      <div class="layer layer--bff">
+        <div class="layer__head">
+          <h3 class="layer__title">2 · BFF — the backend for frontend</h3>
+          <span class="layer__tech">Node · Express · Zod · helmet · jsforce</span>
+        </div>
+        <div class="layer__body">
+          <div class="node node--bff">
+            <span class="node__label">routes/</span>
+            <p class="node__title">HTTP surface</p>
+            <ul class="node__list">
+              <li>products</li><li>catalog</li><li>bundles</li><li>guided</li><li>orders</li>
+              <li>account</li><li>auth</li><li>promo</li><li>payment</li><li>reviews</li>
+              <li>support</li><li>seo</li><li>webhook</li>
+            </ul>
+            <p class="node__note">Validates every request with Zod, then delegates. No Salesforce knowledge here.</p>
+          </div>
+          <div class="node node--bff">
+            <span class="node__label">store/</span>
+            <p class="node__title">The swap point</p>
+            <ul class="node__list">
+              <li>catalog</li><li>orders</li><li>auth</li><li>bundles</li><li>guided</li>
+              <li>wishlist</li><li>addresses</li><li>reviews</li><li>promos</li><li>support</li>
+            </ul>
+            <p class="node__note"><span class="mono">DATA_SOURCE</span> picks mock or Salesforce. Identical signatures, so routes never change.</p>
+          </div>
+          <div class="node node--bff">
+            <span class="node__label">sf/</span>
+            <p class="node__title">Salesforce adapter</p>
+            <ul class="node__list">
+              <li>client</li><li>mappers</li><li>catalog</li><li>orders</li><li>orderSummary</li>
+              <li>contacts</li><li>bundles</li><li>promos</li><li>cases</li><li>orderStream</li>
+            </ul>
+            <p class="node__note">The <em>only</em> files that know Salesforce field API names. Rename a field → change one file.</p>
+          </div>
+          <div class="node node--bff">
+            <span class="node__label">lib/</span>
+            <p class="node__title">Domain logic</p>
+            <ul class="node__list">
+              <li>totals</li><li>productQuery</li><li>guided</li><li>session</li><li>cache</li><li>orderEvents</li>
+            </ul>
+            <p class="node__note">Pricing, tax, filtering/faceting and quiz scoring are pure functions — testable, source-agnostic.</p>
+          </div>
+          <div class="node node--bff">
+            <span class="node__label">pay/</span>
+            <p class="node__title">Payment abstraction</p>
+            <ul class="node__list">
+              <li>charge</li><li>refund</li><li>webhook</li>
+            </ul>
+            <p class="node__note"><span class="mono">PAYMENT_PROVIDER</span> = mock or stripe. Refund-on-cancel is built in.</p>
+          </div>
+          <div class="node node--bff">
+            <span class="node__label">Cross-cutting</span>
+            <p class="node__title">Trust &amp; performance</p>
+            <ul class="node__list">
+              <li>server-side pricing</li><li>bcrypt</li><li>CSP</li><li>TTL cache</li>
+            </ul>
+            <p class="node__note">Client prices are never trusted; totals are recomputed from Salesforce data on every order.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">
+        <span class="connector__chip"><strong>jsforce · REST + Composite + SOQL</strong> · OAuth 2.0 Client Credentials · cached connection · TTL cache guards API limits</span>
+      </div>
+
+      <!-- Layer 3 -->
+      <div class="layer layer--sf">
+        <div class="layer__head">
+          <h3 class="layer__title">3 · Salesforce — the system of record</h3>
+          <span class="layer__tech">Standard objects first · minimal custom · permission-set scoped</span>
+        </div>
+        <div class="layer__body">
+          <div class="node node--sf">
+            <span class="node__label">Catalog</span>
+            <p class="node__title">Products &amp; pricing</p>
+            <ul class="node__list">
+              <li>Product2</li><li>Pricebook2</li><li>PricebookEntry</li>
+            </ul>
+            <p class="node__note">Coffees, bundles and shipping are all Product2 records with standard pricebook entries.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Order capture</span>
+            <p class="node__title">Order lifecycle</p>
+            <ul class="node__list">
+              <li>Order</li><li>OrderItem</li>
+            </ul>
+            <p class="node__note">Lifecycle rides the standard <span class="mono">Status</span> field: Draft → Activated → Shipped → Completed / Cancelled.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Order management</span>
+            <p class="node__title">OMS summary</p>
+            <ul class="node__list">
+              <li>OrderSummary</li><li>OrderItemSummary</li><li>OrderDeliveryGroup</li><li>OrderItemTaxLineItem</li>
+            </ul>
+            <p class="node__note">Built by the standard <span class="mono">createOrderSummary</span> action; per-line tax apportioned to the cent.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Customer</span>
+            <p class="node__title">Shoppers &amp; addresses</p>
+            <ul class="node__list">
+              <li>Account (Person)</li><li>Contact</li><li>ContactPointAddress</li>
+            </ul>
+            <p class="node__note">Registered shoppers are Person Accounts — Salesforce's native B2C customer model.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Engagement</span>
+            <p class="node__title">Saved &amp; support</p>
+            <ul class="node__list">
+              <li>Wishlist</li><li>WishlistItem</li><li>Case</li><li>CaseComment</li>
+            </ul>
+            <p class="node__note">Contact-us opens a real Case; agent replies stream back to the shopper's ticket view.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Promotions</span>
+            <p class="node__title">Coupons</p>
+            <ul class="node__list">
+              <li>Promotion</li><li>Coupon</li><li>PromotionTarget</li><li>CouponCodeRedemption</li>
+            </ul>
+            <p class="node__note">Merchants govern discounts in Salesforce; the app only validates and redeems.</p>
+          </div>
+          <div class="node node--custom">
+            <span class="node__label">Custom · only where needed</span>
+            <p class="node__title">Two objects, that's all</p>
+            <ul class="node__list">
+              <li>Meridian_Product_Review__c</li><li>Meridian_Bundle_Component__c</li>
+            </ul>
+            <p class="node__note">Reviews have no standard analog here; bundle components fall back only because ProductClass isn't API-writable on this org.</p>
+          </div>
+          <div class="node node--sf">
+            <span class="node__label">Platform</span>
+            <p class="node__title">Events &amp; access</p>
+            <ul class="node__list">
+              <li>Change Data Capture</li><li>Permission Set</li><li>Connected App</li>
+            </ul>
+            <p class="node__note">CDC on Order is what makes live status updates possible without polling.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ External services ============ -->
+  <section aria-label="External services">
+    <h2>External services</h2>
+    <p class="sec-lede">Everything outside Salesforce that the BFF brokers on the browser's behalf.</p>
+    <div class="rail">
+      <div class="node">
+        <span class="node__label">Payments</span>
+        <p class="node__title">Stripe</p>
+        <p class="node__note">Elements collects the card in an iframe → the browser gets a PaymentMethod id → the BFF creates and confirms a PaymentIntent. Webhooks are signature-verified against the raw body. Cancelling an order issues a refund.</p>
+      </div>
+      <div class="node">
+        <span class="node__label">Hosting</span>
+        <p class="node__title">Render</p>
+        <p class="node__note">One service hosts the built SPA and the BFF on the same origin, so <span class="mono">/api</span> needs no CORS. Secrets are dashboard-managed and never in git.</p>
+      </div>
+      <div class="node">
+        <span class="node__label">Quality gate</span>
+        <p class="node__title">Playwright + CI</p>
+        <p class="node__note">An end-to-end suite runs the real stack in mock mode on every push — checkout, bundles, guided selling, tracking and support.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Order flow ============ -->
+  <section aria-label="Order placement flow">
+    <h2>Placing an order — the critical path</h2>
+    <p class="sec-lede">
+      The one flow that touches every layer. Numbered because it genuinely is a sequence: each
+      step depends on the one before it, and money only moves once the price is proven.
+    </p>
+    <div class="flow">
+      <div class="step">
+        <p class="step__title">Cart submitted</p>
+        <p class="step__text">Browser posts only <code>{ id, qty }</code> plus shipping, promo code and a payment token. No prices are sent.</p>
+      </div>
+      <div class="step">
+        <p class="step__title">Validate</p>
+        <p class="step__text">Zod parses the payload strictly; unknown fields are rejected outright.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Price from source</p>
+        <p class="step__text">Live <code>Product2</code> + <code>PricebookEntry</code> lookup gives the trusted unit price and stock for every line.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Promotion</p>
+        <p class="step__text">Coupon re-validated against <code>Coupon</code> / <code>Promotion</code> rules — minimums, expiry, usage limits.</p>
+      </div>
+      <div class="step">
+        <p class="step__title">Totals</p>
+        <p class="step__text">Server computes subtotal − discount + shipping + tax. This figure, not the client's, is what gets charged.</p>
+      </div>
+      <div class="step">
+        <p class="step__title">Take payment</p>
+        <p class="step__text">Stripe PaymentIntent created and confirmed. A decline stops here with a 402 and no order is written.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Write the order</p>
+        <p class="step__text"><code>Order</code> + <code>OrderItem</code>s in one Composite call, then activated via standard <code>Status</code>.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Order management</p>
+        <p class="step__text">Delivery group, shipping line and per-line tax added, then <code>createOrderSummary</code> rolls up the OMS record.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Settle inventory</p>
+        <p class="step__text">Stock decremented, coupon redemption recorded, confirmation returned to the shopper.</p>
+      </div>
+    </div>
+    <p class="callout" style="margin-top: var(--sp-4)">
+      <strong>Why this order matters:</strong> price is established from Salesforce <em>before</em> the card is
+      charged, and the card is charged <em>before</em> the order is written — so a shopper is never charged for an
+      order that failed to save, and never charged a price they supplied themselves.
+    </p>
+  </section>
+
+  <!-- ============ Other flows ============ -->
+  <section aria-label="Supporting flows">
+    <h2>The other flows</h2>
+    <p class="sec-lede">Each one follows the same layer discipline: browser → route → store → Salesforce.</p>
+    <div class="mini-grid">
+      <div class="mini">
+        <h3 class="mini__title">Product listing &amp; search</h3>
+        <ul class="chain">
+          <li>Shop page reads filters + page from the URL</li>
+          <li>GET /api/catalog?page&amp;q&amp;roast&amp;origin&amp;price&amp;sort</li>
+          <li>Cached SOQL returns the full active catalog</li>
+          <li>Filter → sort → facet across <em>all</em> products</li>
+          <li>Slice one page (10) + facets back to the browser</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Guided selling</h3>
+        <ul class="chain">
+          <li>Shopper answers 4 questions</li>
+          <li>POST /api/guided/recommend</li>
+          <li>Score every Product2 on roast, flavour, body, brew</li>
+          <li>Rank → top 3 with match % and reasons</li>
+          <li>If logged in, taste profile saved to their Contact</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Bundles</h3>
+        <ul class="chain">
+          <li>Bundle is itself a Product2 (bundle-* code)</li>
+          <li>Components read from the junction object</li>
+          <li>Live component prices → saving calculated</li>
+          <li>Added to cart as one ordinary line</li>
+          <li>Checkout, stock and OMS need no special case</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Live order tracking</h3>
+        <ul class="chain">
+          <li>Merchant changes Order.Status in Salesforce</li>
+          <li>Change Data Capture emits OrderChangeEvent</li>
+          <li>BFF subscribes, maps it to an app event</li>
+          <li>Server-Sent Events push to the open page</li>
+          <li>Status and timeline update with no reload</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Accounts &amp; auth</h3>
+        <ul class="chain">
+          <li>Signup creates a Person Account + Contact</li>
+          <li>bcrypt hash stored server-side only</li>
+          <li>Signed httpOnly cookie carries the session</li>
+          <li>Orders link to the shopper via Order.AccountId</li>
+          <li>Guests check out with an email instead</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Support</h3>
+        <ul class="chain">
+          <li>Contact form posts to /api/support</li>
+          <li>A real Salesforce Case is created</li>
+          <li>Agent replies as a public CaseComment</li>
+          <li>Shopper sees the thread under Account → Support</li>
+          <li>Guests get a case number to quote</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Capability matrix ============ -->
+  <section aria-label="Capability matrix">
+    <h2>Capabilities mapped to Salesforce</h2>
+    <p class="sec-lede">
+      What the storefront does, and exactly which objects back it. Standard-first: custom schema
+      appears only where the platform genuinely offers no usable equivalent.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Capability</th>
+            <th scope="col">Salesforce backing</th>
+            <th scope="col">Schema</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Product catalog &amp; pricing</strong></td><td><code>Product2</code>, <code>Pricebook2</code>, <code>PricebookEntry</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Listing, filter, sort, paginate</strong></td><td>Cached SOQL + BFF query engine</td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Inventory</strong></td><td><code>Product2.Stock__c</code> (+ mirrored to the org's B2B qty field)</td><td><span class="tag tag--custom">Custom field</span></td></tr>
+          <tr><td><strong>Guided selling</strong></td><td><code>Roast__c</code>, <code>Body__c</code>, <code>Flavor_Profile__c</code>, <code>Brew_Methods__c</code> → <code>Contact</code> taste profile</td><td><span class="tag tag--custom">Custom fields</span></td></tr>
+          <tr><td><strong>Product bundles</strong></td><td>Bundle = <code>Product2</code>; components = <code>Meridian_Bundle_Component__c</code></td><td><span class="tag tag--std">Standard</span> <span class="tag tag--custom">+ junction</span></td></tr>
+          <tr><td><strong>Cart &amp; checkout</strong></td><td>Client-side cart; totals recomputed server-side</td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Promotions &amp; coupons</strong></td><td><code>Promotion</code>, <code>Coupon</code>, <code>PromotionTarget</code>, <code>CouponCodeRedemption</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Order placement</strong></td><td><code>Order</code> + <code>OrderItem</code> via Composite API</td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Order management &amp; tax</strong></td><td><code>OrderSummary</code>, <code>OrderDeliveryGroup</code>, <code>OrderItemTaxLineItem</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Payments &amp; refunds</strong></td><td>Stripe; reference on <code>Order.Payment_Intent__c</code></td><td><span class="tag tag--custom">Custom field</span></td></tr>
+          <tr><td><strong>Accounts &amp; login</strong></td><td>Person <code>Account</code> + <code>Contact</code> (bcrypt hash field)</td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Saved addresses</strong></td><td><code>ContactPointAddress</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Wishlist</strong></td><td><code>Wishlist</code> + <code>WishlistItem</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Reviews &amp; ratings</strong></td><td><code>Meridian_Product_Review__c</code></td><td><span class="tag tag--custom">Custom object</span></td></tr>
+          <tr><td><strong>Support tickets</strong></td><td><code>Case</code> + <code>CaseComment</code></td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Live order updates</strong></td><td>Change Data Capture → SSE</td><td><span class="tag tag--std">Standard</span></td></tr>
+          <tr><td><strong>Guest order tracking</strong></td><td>Order number + email, signed token</td><td><span class="tag tag--std">Standard</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ B2B band ============ -->
+  <section aria-label="B2B extension path">
+    <h2>Extending to B2B</h2>
+    <p class="sec-lede">
+      The build today is <strong>B2C</strong> — individual shoppers as Person Accounts. The
+      architecture is commerce-model agnostic, so B2B is additive: the layers, the order pipeline
+      and the payment abstraction all stay exactly as they are. Everything below is a documented
+      extension point, <em>not</em> yet implemented.
+    </p>
+    <div class="b2b">
+      <span class="tag tag--future">Roadmap · not built</span>
+      <div class="b2b__grid">
+        <div class="b2b__item">
+          <h4>Company accounts &amp; buyers</h4>
+          <p>Business <code>Account</code> + <code>Contact</code> roles and <code>BuyerGroup</code> — buyers belong to a company, with admin vs purchaser permissions.</p>
+        </div>
+        <div class="b2b__item">
+          <h4>Contract &amp; tiered pricing</h4>
+          <p>Multiple <code>Pricebook2</code> records resolved per account, plus quantity-break schedules. The catalog already reads a pricebook — it just resolves a different one.</p>
+        </div>
+        <div class="b2b__item">
+          <h4>Quotes / RFQ</h4>
+          <p><code>Quote</code> + <code>QuoteLineItem</code>: buyer requests, a rep prices it, and the accepted quote converts into the same Order pipeline.</p>
+        </div>
+        <div class="b2b__item">
+          <h4>Approvals &amp; spend limits</h4>
+          <p>Salesforce Approval Processes or Flow gate orders above a threshold before they activate.</p>
+        </div>
+        <div class="b2b__item">
+          <h4>PO numbers &amp; Net-30</h4>
+          <p>Purchase-order field plus a "pay by invoice" provider — the payment layer is already an abstraction, so this is a third provider alongside mock and Stripe.</p>
+        </div>
+        <div class="b2b__item">
+          <h4>Reorder &amp; requisition lists</h4>
+          <p>Quick-order pads by SKU/CSV and named saved lists — built on the order history and wishlist patterns already in place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Config ============ -->
+  <section aria-label="Runtime configuration">
+    <h2>Runtime configuration</h2>
+    <p class="sec-lede">Two switches decide what the same codebase talks to — which is what makes the demo reliable and the integration real.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Setting</th><th scope="col">Options</th><th scope="col">Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>DATA_SOURCE</code></td>
+            <td><span class="tag tag--live">mock</span> <span class="tag tag--live">salesforce</span></td>
+            <td>Chooses the implementation behind every <code>store/</code> function. Routes, UI and tests are identical either way.</td>
+          </tr>
+          <tr>
+            <td><code>PAYMENT_PROVIDER</code></td>
+            <td><span class="tag tag--live">mock</span> <span class="tag tag--live">stripe</span></td>
+            <td>Offline fake charges, or real Stripe test-mode PaymentIntents with Elements, webhooks and refunds.</td>
+          </tr>
+          <tr>
+            <td><code>npm run sf:setup</code></td>
+            <td>—</td>
+            <td>Idempotently provisions custom fields, objects, picklist values, CDC and the integration permission set.</td>
+          </tr>
+          <tr>
+            <td><code>npm run seed</code></td>
+            <td>—</td>
+            <td>Upserts the catalog, bundles and their components into the org.</td>
+          </tr>
+          <tr>
+            <td><code>npm run sf:check</code></td>
+            <td>—</td>
+            <td>Read-only readiness diagnostic — every object, field and permission the BFF depends on.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Meridian reference architecture · headless commerce on Salesforce<br />
+    Layers: React SPA → Node BFF → Salesforce · standard objects first, custom only where the platform offers no usable equivalent.
+  </footer>
+
+</div>

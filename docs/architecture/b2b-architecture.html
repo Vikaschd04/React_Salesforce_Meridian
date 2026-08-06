@@ -1,0 +1,602 @@
+<title>B2B Headless Commerce on Salesforce — Reference Architecture</title>
+
+<style>
+  :root {
+    --void: #f2ece0; --surface: #fbf7ef; --raised: #ffffff;
+    --ink: #241d12; --ink-70: rgba(36, 29, 18, 0.74); --mist: #6b6252;
+    --gold: #b3801c; --gold-soft: rgba(179, 128, 28, 0.4); --gold-wash: rgba(179, 128, 28, 0.08);
+    --pine: #2f7d61; --pine-soft: rgba(47, 125, 97, 0.38); --pine-wash: rgba(47, 125, 97, 0.07);
+    --rust: #a8512f; --rust-soft: rgba(168, 81, 47, 0.42); --rust-wash: rgba(168, 81, 47, 0.07);
+    --line: rgba(36, 29, 18, 0.14); --line-strong: rgba(36, 29, 18, 0.24);
+    --shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 18px 40px -24px rgba(60, 45, 20, 0.22);
+    --font-display: Fraunces, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+    --font-body: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sp-1: 0.35rem; --sp-2: 0.6rem; --sp-3: 1rem; --sp-4: 1.6rem; --sp-5: 2.6rem; --sp-6: 4rem;
+    --radius: 6px; --radius-lg: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --void: #0d0b08; --surface: #161310; --raised: #1e1a15;
+      --ink: #ede6d8; --ink-70: rgba(237, 230, 216, 0.72); --mist: #9a917f;
+      --gold: #e2b450; --gold-soft: rgba(226, 180, 80, 0.38); --gold-wash: rgba(226, 180, 80, 0.08);
+      --pine: #55b28e; --pine-soft: rgba(85, 178, 142, 0.35); --pine-wash: rgba(85, 178, 142, 0.08);
+      --rust: #d98a63; --rust-soft: rgba(217, 138, 99, 0.42); --rust-wash: rgba(217, 138, 99, 0.09);
+      --line: rgba(237, 230, 216, 0.12); --line-strong: rgba(237, 230, 216, 0.2);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+    }
+  }
+  :root[data-theme='dark'] {
+    --void: #0d0b08; --surface: #161310; --raised: #1e1a15;
+    --ink: #ede6d8; --ink-70: rgba(237, 230, 216, 0.72); --mist: #9a917f;
+    --gold: #e2b450; --gold-soft: rgba(226, 180, 80, 0.38); --gold-wash: rgba(226, 180, 80, 0.08);
+    --pine: #55b28e; --pine-soft: rgba(85, 178, 142, 0.35); --pine-wash: rgba(85, 178, 142, 0.08);
+    --rust: #d98a63; --rust-soft: rgba(217, 138, 99, 0.42); --rust-wash: rgba(217, 138, 99, 0.09);
+    --line: rgba(237, 230, 216, 0.12); --line-strong: rgba(237, 230, 216, 0.2);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+  }
+  :root[data-theme='light'] {
+    --void: #f2ece0; --surface: #fbf7ef; --raised: #ffffff;
+    --ink: #241d12; --ink-70: rgba(36, 29, 18, 0.74); --mist: #6b6252;
+    --gold: #b3801c; --gold-soft: rgba(179, 128, 28, 0.4); --gold-wash: rgba(179, 128, 28, 0.08);
+    --pine: #2f7d61; --pine-soft: rgba(47, 125, 97, 0.38); --pine-wash: rgba(47, 125, 97, 0.07);
+    --rust: #a8512f; --rust-soft: rgba(168, 81, 47, 0.42); --rust-wash: rgba(168, 81, 47, 0.07);
+    --line: rgba(36, 29, 18, 0.14); --line-strong: rgba(36, 29, 18, 0.24);
+    --shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 18px 40px -24px rgba(60, 45, 20, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--void); color: var(--ink);
+    font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1180px; margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 3vw, 2rem) var(--sp-6);
+    display: flex; flex-direction: column; gap: var(--sp-6);
+  }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--gold); margin: 0 0 var(--sp-2);
+  }
+  h1 {
+    font-family: var(--font-display); font-size: clamp(2rem, 1.5rem + 2.2vw, 3.1rem);
+    font-weight: 600; line-height: 1.05; margin: 0 0 var(--sp-3); text-wrap: balance;
+  }
+  h1 em { font-style: italic; color: var(--gold); }
+  .lede { color: var(--ink-70); font-size: 1.05rem; max-width: 62ch; margin: 0; }
+  h2 {
+    font-family: var(--font-display); font-size: clamp(1.3rem, 1.1rem + 0.8vw, 1.85rem);
+    font-weight: 600; margin: 0 0 var(--sp-2); text-wrap: balance;
+  }
+  .sec-lede { color: var(--ink-70); margin: 0 0 var(--sp-4); max-width: 68ch; font-size: 0.95rem; }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
+  .pill {
+    font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 0.3rem 0.7rem; border: 1px solid var(--line-strong);
+    border-radius: 999px; color: var(--ink-70); white-space: nowrap;
+  }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-4);
+    padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); background: var(--surface);
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--ink-70); }
+
+  .tag {
+    display: inline-block; font-family: var(--font-mono); font-size: 0.62rem;
+    letter-spacing: 0.06em; text-transform: uppercase; padding: 0.12rem 0.45rem;
+    border-radius: 999px; white-space: nowrap;
+  }
+  .tag--live { color: var(--pine); border: 1px solid var(--pine-soft); background: var(--pine-wash); }
+  .tag--road { color: var(--rust); border: 1px dashed var(--rust-soft); background: var(--rust-wash); }
+  .tag--std { color: var(--gold); border: 1px solid var(--gold-soft); background: var(--gold-wash); }
+
+  /* layers */
+  .layer {
+    border: 1px solid var(--line); border-radius: var(--radius-lg);
+    background: var(--surface); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .layer--browser { border-top: 3px solid var(--line-strong); }
+  .layer--bff { border-top: 3px solid var(--pine); }
+  .layer--sf { border-top: 3px solid var(--gold); }
+  .layer__head {
+    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+    gap: var(--sp-2); padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line); background: var(--raised);
+  }
+  .layer__title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .layer__tech { font-family: var(--font-mono); font-size: 0.7rem; color: var(--mist); letter-spacing: 0.04em; }
+  .layer__body {
+    padding: var(--sp-4); display: grid; gap: var(--sp-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  }
+  .node { border: 1px solid var(--line); border-radius: var(--radius); background: var(--void); padding: var(--sp-3); }
+  .node--bff { border-color: var(--pine-soft); background: var(--pine-wash); }
+  .node--sf { border-color: var(--gold-soft); background: var(--gold-wash); }
+  .node--road { border-style: dashed; border-color: var(--rust-soft); background: var(--rust-wash); }
+  .node__label {
+    font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--mist); display: block; margin-bottom: 0.4rem;
+  }
+  .node--bff .node__label { color: var(--pine); }
+  .node--sf .node__label { color: var(--gold); }
+  .node--road .node__label { color: var(--rust); }
+  .node__title { font-weight: 600; font-size: 0.92rem; margin: 0 0 0.35rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+  .node__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .node__list li {
+    font-family: var(--font-mono); font-size: 0.68rem; color: var(--ink-70);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 3px;
+    padding: 0.12rem 0.4rem; white-space: nowrap;
+  }
+  .node__note { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--mist); line-height: 1.45; }
+
+  .connector { display: flex; align-items: center; justify-content: center; padding: var(--sp-2) 0; position: relative; }
+  .connector::before {
+    content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+    background: var(--gold-soft); transform: translateX(-50%);
+  }
+  .connector__chip {
+    position: relative; z-index: 1; font-family: var(--font-mono); font-size: 0.68rem;
+    letter-spacing: 0.04em; padding: 0.3rem 0.75rem; border: 1px solid var(--gold-soft);
+    border-radius: 999px; background: var(--void); color: var(--ink-70); text-align: center;
+  }
+  .connector__chip strong { color: var(--gold); font-weight: 600; }
+
+  /* flow */
+  .flow { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); counter-reset: step; }
+  .step {
+    border: 1px solid var(--line); border-left: 3px solid var(--pine);
+    border-radius: var(--radius); background: var(--surface);
+    padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  }
+  .step::before {
+    counter-increment: step; content: counter(step, decimal-leading-zero);
+    font-family: var(--font-mono); font-size: 0.66rem; color: var(--pine);
+    letter-spacing: 0.08em; display: block; margin-bottom: 0.3rem;
+  }
+  .step--sf { border-left-color: var(--gold); }
+  .step--sf::before { color: var(--gold); }
+  .step--road { border-left-style: dashed; border-left-color: var(--rust); }
+  .step--road::before { color: var(--rust); }
+  .step__title { font-weight: 600; font-size: 0.9rem; margin: 0 0 0.3rem; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+  .step__text { margin: 0; font-size: 0.82rem; color: var(--ink-70); line-height: 1.5; }
+  .step__text code, td code {
+    font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink);
+    background: var(--void); padding: 0.05rem 0.25rem; border-radius: 3px; border: 1px solid var(--line);
+  }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 700px; }
+  th, td { text-align: left; padding: 0.62rem 0.9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--mist); background: var(--raised); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .mono { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-70); }
+
+  .mini-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .mini { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: var(--sp-4); }
+  .mini__title { font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; margin: 0 0 var(--sp-2); }
+  .chain { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+  .chain li {
+    font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-70);
+    padding-left: 1.1rem; position: relative; line-height: 1.5;
+  }
+  .chain li::before { content: '↓'; position: absolute; left: 0; color: var(--gold); }
+  .chain li:first-child::before { content: '●'; font-size: 0.6rem; top: 0.15rem; }
+
+  .callout {
+    border-left: 3px solid var(--gold); background: var(--gold-wash);
+    padding: var(--sp-3) var(--sp-4); border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 0.88rem; color: var(--ink-70);
+  }
+  .callout strong { color: var(--ink); }
+
+  .phases { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+  .phase { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: var(--sp-4); }
+  .phase--now { border-color: var(--pine-soft); background: var(--pine-wash); }
+  .phase h4 { margin: 0 0 0.2rem; font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
+  .phase p { margin: 0.4rem 0 0; font-size: 0.82rem; color: var(--ink-70); line-height: 1.5; }
+  .phase ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--ink-70); line-height: 1.6; }
+
+  footer {
+    border-top: 1px solid var(--line); padding-top: var(--sp-4);
+    font-size: 0.78rem; color: var(--mist); font-family: var(--font-mono); line-height: 1.7;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Reference architecture · B2B commerce</p>
+    <h1>A <em>B2B headless</em> storefront on Salesforce</h1>
+    <p class="lede">
+      Salesforce as the system of record for accounts, contracted pricing, orders and service —
+      fronted by a decoupled storefront and a backend-for-frontend. No Commerce Cloud licence, no
+      lock-in to a rendering framework, and every buyer-facing capability mapped to a standard
+      Salesforce object.
+    </p>
+    <div class="meta-row">
+      <span class="pill">Headless · API-first</span>
+      <span class="pill">Sales Cloud + OMS</span>
+      <span class="pill">Standard objects first</span>
+      <span class="pill">Any front end</span>
+      <span class="pill">Composable payments</span>
+    </div>
+  </header>
+
+  <div class="legend" role="note" aria-label="Status legend">
+    <span class="legend-item"><span class="tag tag--live">Live</span> Built &amp; running today in the reference build</span>
+    <span class="legend-item"><span class="tag tag--road">Roadmap</span> Designed, not yet implemented</span>
+    <span class="legend-item"><span class="tag tag--std">Standard</span> Backed by a standard Salesforce object</span>
+  </div>
+
+  <p class="callout">
+    <strong>Read this honestly:</strong> the reference build running today is a
+    <strong>B2C storefront</strong> — it proves the platform end to end (catalog, cart, payments,
+    orders, OMS, service, real-time). Everything tagged <span class="tag tag--road">Roadmap</span>
+    is the B2B layer that sits <em>on top</em> of that foundation. The layering, order pipeline and
+    payment abstraction do not change to support it.
+  </p>
+
+  <!-- ============ Why headless on Salesforce ============ -->
+  <section aria-label="The proposition">
+    <h2>Why headless, and why no Commerce Cloud licence</h2>
+    <p class="sec-lede">
+      B2B Commerce is a licensed product that ships an opinionated storefront. This pattern reaches
+      the same buyer outcomes using the CRM data model you already own.
+    </p>
+    <div class="mini-grid">
+      <div class="mini">
+        <h3 class="mini__title">The data model is already there</h3>
+        <p class="node__note">Accounts, contacts, price books, orders, quotes, approvals and cases are core platform objects — not Commerce Cloud features. A storefront can read and write them directly through the API.</p>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">One system of record</h3>
+        <p class="node__note">Orders placed on the web land as the same <code>Order</code> records your sales team sees. No sync job, no second catalog, no reconciliation between commerce and CRM.</p>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">The head is disposable</h3>
+        <p class="node__note">React today, a mobile app or a punch-out catalog tomorrow. The BFF contract stays fixed, so a new channel is a new client — not a new integration.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Layers ============ -->
+  <section aria-label="Layered architecture">
+    <h2>The three layers</h2>
+    <p class="sec-lede">
+      Each layer talks only to its neighbour. The buyer's browser never sees Salesforce; Salesforce
+      never renders a page.
+    </p>
+
+    <div class="layer layer--browser">
+      <div class="layer__head">
+        <h3 class="layer__title">1 · Buyer experience</h3>
+        <span class="layer__tech">React SPA · any channel · fully replaceable</span>
+      </div>
+      <div class="layer__body">
+        <div class="node">
+          <span class="node__label">Catalog</span>
+          <p class="node__title">Browse &amp; search <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Server-paged PLP</li><li>Facets</li><li>Typeahead</li><li>PDP</li></ul>
+          <p class="node__note">Filtering and faceting run across the whole catalog server-side — built for hundreds of SKUs and up.</p>
+        </div>
+        <div class="node">
+          <span class="node__label">Merchandising</span>
+          <p class="node__title">Bundles &amp; guided selling <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Kits / bundles</li><li>Product finder</li></ul>
+          <p class="node__note">Bundles are ordinary products with a component list; guided selling scores the live catalog on product attributes.</p>
+        </div>
+        <div class="node">
+          <span class="node__label">Purchase</span>
+          <p class="node__title">Cart &amp; checkout <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Cart</li><li>Checkout</li><li>Saved addresses</li><li>Promos</li></ul>
+          <p class="node__note">Totals are always recomputed server-side; the client never supplies a price.</p>
+        </div>
+        <div class="node node--road">
+          <span class="node__label">B2B buying</span>
+          <p class="node__title">Buyer tools <span class="tag tag--road">Roadmap</span></p>
+          <ul class="node__list"><li>Quick order pad</li><li>CSV upload</li><li>Requisition lists</li><li>Reorder</li></ul>
+          <p class="node__note">The bulk-buying conveniences B2B buyers expect — built on the existing order-history and saved-list patterns.</p>
+        </div>
+        <div class="node">
+          <span class="node__label">Post-purchase</span>
+          <p class="node__title">Account portal <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Order history</li><li>Live tracking</li><li>Support tickets</li></ul>
+          <p class="node__note">Order status streams in over SSE the moment it changes in Salesforce.</p>
+        </div>
+        <div class="node node--road">
+          <span class="node__label">Company</span>
+          <p class="node__title">Account admin <span class="tag tag--road">Roadmap</span></p>
+          <ul class="node__list"><li>Buyer roles</li><li>Spend limits</li><li>Approvals inbox</li></ul>
+          <p class="node__note">A company admin manages who can buy, up to what value, and who signs off.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"><span class="connector__chip"><strong>HTTPS · JSON</strong> · session cookie · SSE · one stable contract per channel</span></div>
+
+    <div class="layer layer--bff">
+      <div class="layer__head">
+        <h3 class="layer__title">2 · Backend for frontend</h3>
+        <span class="layer__tech">Node · Express · the only thing that talks to Salesforce</span>
+      </div>
+      <div class="layer__body">
+        <div class="node node--bff">
+          <span class="node__label">API surface</span>
+          <p class="node__title">Routes <span class="tag tag--live">Live</span></p>
+          <p class="node__note">Validates and shapes every request. Channel-agnostic: the same endpoints serve web, mobile or a partner integration.</p>
+        </div>
+        <div class="node node--bff">
+          <span class="node__label">Swap point</span>
+          <p class="node__title">Store layer <span class="tag tag--live">Live</span></p>
+          <p class="node__note">One switch selects Salesforce or in-memory data. Demos and CI run without an org; production runs against the real one.</p>
+        </div>
+        <div class="node node--bff">
+          <span class="node__label">Adapter</span>
+          <p class="node__title">Salesforce layer <span class="tag tag--live">Live</span></p>
+          <p class="node__note">The only code that knows field API names. Schema changes are contained to one folder.</p>
+        </div>
+        <div class="node node--bff">
+          <span class="node__label">Domain</span>
+          <p class="node__title">Pricing &amp; tax <span class="tag tag--live">Live</span></p>
+          <p class="node__note">Server-authoritative totals, per-line tax apportionment, shipping rules — pure, testable functions.</p>
+        </div>
+        <div class="node node--bff">
+          <span class="node__label">Payments</span>
+          <p class="node__title">Provider abstraction <span class="tag tag--live">Live</span></p>
+          <p class="node__note">Card today; <em>pay-by-invoice / Net-30 is a third provider</em>, not a rewrite.</p>
+        </div>
+        <div class="node node--road">
+          <span class="node__label">B2B services</span>
+          <p class="node__title">Entitlement resolver <span class="tag tag--road">Roadmap</span></p>
+          <p class="node__note">Resolves the buyer's account → its contracted price book, catalog scope and spend rules on every request.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"><span class="connector__chip"><strong>REST · Composite · SOQL · CDC</strong> · OAuth 2.0 Client Credentials · permission-set scoped integration user</span></div>
+
+    <div class="layer layer--sf">
+      <div class="layer__head">
+        <h3 class="layer__title">3 · Salesforce — system of record</h3>
+        <span class="layer__tech">Sales Cloud + Order Management · standard objects first</span>
+      </div>
+      <div class="layer__body">
+        <div class="node node--sf">
+          <span class="node__label">Catalog &amp; price</span>
+          <p class="node__title">Products <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Product2</li><li>Pricebook2</li><li>PricebookEntry</li></ul>
+          <p class="node__note">Multiple price books are the native mechanism for contracted, per-account pricing.</p>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Order capture</span>
+          <p class="node__title">Orders <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Order</li><li>OrderItem</li></ul>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Fulfilment</span>
+          <p class="node__title">Order management <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>OrderSummary</li><li>DeliveryGroup</li><li>TaxLineItem</li></ul>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Customer</span>
+          <p class="node__title">Accounts <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Account</li><li>Contact</li><li>ContactPointAddress</li></ul>
+          <p class="node__note">B2C uses Person Accounts; B2B uses the same objects as business accounts with contact roles.</p>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Service</span>
+          <p class="node__title">Cases <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Case</li><li>CaseComment</li></ul>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Incentives</span>
+          <p class="node__title">Promotions <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Promotion</li><li>Coupon</li><li>Redemption</li></ul>
+        </div>
+        <div class="node node--road">
+          <span class="node__label">B2B selling</span>
+          <p class="node__title">Quotes &amp; approvals <span class="tag tag--road">Roadmap</span></p>
+          <ul class="node__list"><li>Quote</li><li>QuoteLineItem</li><li>Approval Process</li><li>BuyerGroup</li></ul>
+          <p class="node__note">All standard platform objects — the B2B layer adds no bespoke data model.</p>
+        </div>
+        <div class="node node--sf">
+          <span class="node__label">Platform</span>
+          <p class="node__title">Events &amp; access <span class="tag tag--live">Live</span></p>
+          <ul class="node__list"><li>Change Data Capture</li><li>Permission Set</li><li>Connected App</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ B2B capability matrix ============ -->
+  <section aria-label="B2B capability matrix">
+    <h2>B2B capabilities mapped to Salesforce</h2>
+    <p class="sec-lede">
+      The capabilities enterprise buyers ask for, the standard object that backs each one, and its
+      status in the reference build.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Capability</th><th scope="col">Salesforce backing</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Product catalog &amp; search</strong></td><td><code>Product2</code>, <code>PricebookEntry</code> + server-side query engine</td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Kits / bundles</strong></td><td>Bundle as <code>Product2</code> + component relationship</td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Guided selling</strong></td><td>Product attributes → buyer profile on <code>Contact</code></td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Order capture &amp; fulfilment</strong></td><td><code>Order</code>, <code>OrderItem</code>, <code>OrderSummary</code></td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Tax &amp; shipping</strong></td><td><code>OrderItemTaxLineItem</code>, delivery groups</td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Promotions</strong></td><td><code>Promotion</code>, <code>Coupon</code>, <code>CouponCodeRedemption</code></td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Self-service &amp; cases</strong></td><td><code>Case</code>, <code>CaseComment</code></td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Real-time order status</strong></td><td>Change Data Capture → SSE</td><td><span class="tag tag--live">Live</span></td></tr>
+          <tr><td><strong>Company accounts &amp; buyer roles</strong></td><td>Business <code>Account</code> + <code>Contact</code> roles, <code>BuyerGroup</code></td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Contracted / account pricing</strong></td><td>Per-account <code>Pricebook2</code> resolution</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Volume / tier pricing</strong></td><td>Quantity-break schedules on price book entries</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Quotes / RFQ</strong></td><td><code>Quote</code> + <code>QuoteLineItem</code> → converts to <code>Order</code></td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Approval workflows &amp; spend limits</strong></td><td>Approval Process / Flow on <code>Order</code></td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>PO number &amp; Net-30 invoicing</strong></td><td>Order field + invoice payment provider</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Reorder &amp; quick-order pad</strong></td><td>Order history replay (no new schema)</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Requisition / saved lists</strong></td><td>Named lists on the wishlist pattern</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+          <tr><td><strong>Tax exemption certificates</strong></td><td>Account-level exemption flag feeding the tax step</td><td><span class="tag tag--road">Roadmap</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ B2B buying flow ============ -->
+  <section aria-label="B2B buying flow">
+    <h2>The B2B buying journey</h2>
+    <p class="sec-lede">
+      A sequence, because each step gates the next. Solid steps run today; dashed steps are the B2B
+      additions — note that they extend the same pipeline rather than replacing it.
+    </p>
+    <div class="flow">
+      <div class="step step--road">
+        <p class="step__title">Buyer signs in <span class="tag tag--road">Roadmap</span></p>
+        <p class="step__text">Contact resolves to their company <code>Account</code>, buyer role and spend limit.</p>
+      </div>
+      <div class="step step--road">
+        <p class="step__title">Entitled catalog <span class="tag tag--road">Roadmap</span></p>
+        <p class="step__text">Account's <code>BuyerGroup</code> scopes which products are visible.</p>
+      </div>
+      <div class="step step--road">
+        <p class="step__title">Contract pricing <span class="tag tag--road">Roadmap</span></p>
+        <p class="step__text">Their negotiated <code>Pricebook2</code> is resolved — the catalog already reads a price book, so this swaps the input.</p>
+      </div>
+      <div class="step">
+        <p class="step__title">Build the order <span class="tag tag--live">Live</span></p>
+        <p class="step__text">Browse, guided selling, bundles, or a quick-order pad; cart persists per buyer.</p>
+      </div>
+      <div class="step step--road">
+        <p class="step__title">Quote (optional) <span class="tag tag--road">Roadmap</span></p>
+        <p class="step__text">Large baskets become a <code>Quote</code>; a rep prices it and the buyer accepts.</p>
+      </div>
+      <div class="step step--road">
+        <p class="step__title">Approval gate <span class="tag tag--road">Roadmap</span></p>
+        <p class="step__text">Orders above the buyer's limit route to an approver via Flow before activation.</p>
+      </div>
+      <div class="step">
+        <p class="step__title">Price &amp; pay <span class="tag tag--live">Live</span></p>
+        <p class="step__text">Totals recomputed from Salesforce, then card — or, on the roadmap, PO / Net-30 invoice.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Order written <span class="tag tag--live">Live</span></p>
+        <p class="step__text"><code>Order</code> + <code>OrderItem</code>s created and activated in Salesforce.</p>
+      </div>
+      <div class="step step--sf">
+        <p class="step__title">Fulfil &amp; serve <span class="tag tag--live">Live</span></p>
+        <p class="step__text">OMS summary, live status back to the buyer, and any issue opens a <code>Case</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Proven today ============ -->
+  <section aria-label="What is proven today">
+    <h2>What the reference build already proves</h2>
+    <p class="sec-lede">
+      Every claim below is running code, verified against a live Salesforce org — this is the
+      foundation the B2B layer builds on.
+    </p>
+    <div class="mini-grid">
+      <div class="mini">
+        <h3 class="mini__title">A real order pipeline</h3>
+        <ul class="chain">
+          <li>Server-authoritative pricing from Salesforce</li>
+          <li>Promotion validated against Coupon rules</li>
+          <li>Payment taken before the order is written</li>
+          <li>Order + items via the Composite API</li>
+          <li>OMS summary with per-line tax</li>
+          <li>Inventory settled, refund on cancel</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Enterprise-grade plumbing</h3>
+        <ul class="chain">
+          <li>OAuth Client Credentials integration user</li>
+          <li>Permission-set scoped object &amp; field access</li>
+          <li>Idempotent schema provisioning script</li>
+          <li>Read-only readiness diagnostic</li>
+          <li>TTL caching to respect API limits</li>
+          <li>Change Data Capture → live UI updates</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3 class="mini__title">Deliberate schema discipline</h3>
+        <ul class="chain">
+          <li>Standard objects chosen first, every time</li>
+          <li>Custom objects only where none exists</li>
+          <li>Each exception documented with its reason</li>
+          <li>Lifecycle rides standard Order.Status</li>
+          <li>Merchants govern promos in Salesforce</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Delivery phases ============ -->
+  <section aria-label="Delivery path">
+    <h2>Delivery path to B2B</h2>
+    <p class="sec-lede">Each phase is independently shippable and leaves the platform working.</p>
+    <div class="phases">
+      <div class="phase phase--now">
+        <span class="tag tag--live">Complete</span>
+        <h4>Foundation</h4>
+        <p>The headless platform, proven end to end.</p>
+        <ul>
+          <li>Catalog, search, PLP/PDP</li>
+          <li>Cart, checkout, payments</li>
+          <li>Orders + OMS + tax</li>
+          <li>Accounts, service, real-time</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <span class="tag tag--road">Phase 1</span>
+        <h4>Company &amp; pricing</h4>
+        <p>Turn shoppers into buyers of a company.</p>
+        <ul>
+          <li>Business accounts + buyer roles</li>
+          <li>Per-account price book resolution</li>
+          <li>Entitled catalog via BuyerGroup</li>
+          <li>Volume / tier breaks</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <span class="tag tag--road">Phase 2</span>
+        <h4>Buying convenience</h4>
+        <p>The features buyers use daily.</p>
+        <ul>
+          <li>Reorder + quick-order pad</li>
+          <li>CSV bulk upload</li>
+          <li>Requisition lists</li>
+          <li>PO number + Net-30 invoicing</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <span class="tag tag--road">Phase 3</span>
+        <h4>Governance</h4>
+        <p>Controls that unlock enterprise accounts.</p>
+        <ul>
+          <li>Quotes / RFQ → order</li>
+          <li>Approval workflows, spend limits</li>
+          <li>Tax exemption handling</li>
+          <li>Account-level reporting</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    B2B headless commerce reference architecture · Salesforce as system of record<br />
+    Foundation status verified against a live org · B2B layer designed on standard platform objects, not yet implemented.
+  </footer>
+
+</div>
